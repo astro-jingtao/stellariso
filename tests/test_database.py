@@ -259,6 +259,32 @@ class TestOpenDatabase:
         with pytest.raises(ValueError, match="does not match the data"):
             construct("mist/2.5", paths=[MIST_FIXTURE])
 
+    def test_archives_only_build_and_lazy_extraction(self, fake_env):
+        session, db_path = fake_env
+        # archives-only: nothing extracted at build time
+        build_database(db_path, session=session, extract=False)
+        product_dir = db_path / "mist" / "1.2" / "vvcrit0.4_full_isos"
+        manifest = json.loads(
+            (product_dir / "MANIFEST.json").read_text(encoding="utf-8")
+        )
+        assert (product_dir / "MIST_v1.2_vvcrit0.4_full_isos.txz").exists()
+        assert manifest["n_data_files"] == 0
+        assert manifest["extracted"] is False
+        # first open extracts, verifying the archive checksum first
+        db = open_database(db_path)
+        grid = db.grid("mist/1.2", label="vvcrit0.4_full_isos")
+        assert len(grid) > 0
+        manifest = json.loads(
+            (product_dir / "MANIFEST.json").read_text(encoding="utf-8")
+        )
+        assert manifest["extracted"] is True
+        assert manifest["n_data_files"] > 0
+        # a tampered archive fails verification instead of extracting
+        other = db_path / "mist" / "1.2" / "vvcrit0.0_full_isos"
+        (other / "MIST_v1.2_vvcrit0.0_full_isos.txz").write_bytes(b"tampered")
+        with pytest.raises(DataIntegrityError, match="sha256"):
+            db.grid("mist/1.2", label="vvcrit0.0_full_isos")
+
 
 class TestRegisterLocalProduct:
     def test_register_manual_files(self, tmp_path):

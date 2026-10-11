@@ -45,7 +45,7 @@ from stellariso.integrity import sha256_file
 from stellariso.models import catalog, parse_model_spec
 from stellariso.provenance import Provenance, SourceClass, SourceRecord, SourceStatus
 from stellariso.registry import backend_names, references
-from stellariso.warnings import CatalogSizeMismatchWarning
+from stellariso.warnings import CatalogSizeMismatchWarning, ChecksumUnavailableWarning
 
 __all__ = ["Database", "ProductRecord", "build_database", "open_database"]
 
@@ -147,7 +147,54 @@ class Database:
                 f"of {[p.label for p in candidates]} with label="
             )
         record = candidates[0]
+        self._ensure_extracted(record)
         return IsochroneGrid.from_directory(family, record.directory)
+
+    def _ensure_extracted(self, record: ProductRecord) -> None:
+        """Extract a not-yet-extracted product on first open.
+
+        Archives-only databases (``build_database(..., extract=False)``)
+        keep every official package without paying the several-fold
+        extracted size on disk; opening a product verifies the archive
+        against the recorded sha256 and extracts it then. Already-extracted
+        and manually-registered products are returned as-is.
+        """
+        if _count_data_files(record.directory) > 0:
+            return
+        archives = [
+            p
+            for p in record.directory.iterdir()
+            if p.is_file() and p.suffix.lower() in (".txz", ".zip", ".tar")
+        ]
+        if not archives:
+            raise SourceUnavailableError(
+                f"product {record.family}/{record.release}/{record.label} has "
+                f"neither extracted data files nor an archive in "
+                f"{record.directory}"
+            )
+        if len(archives) > 1:
+            raise ValueError(
+                f"product {record.family}/{record.release}/{record.label} "
+                f"holds several archives: {[a.name for a in archives]}"
+            )
+        archive = archives[0]
+        expected = record.manifest.get("sha256")
+        if expected:
+            from stellariso.integrity import verify_checksum
+
+            verify_checksum(archive, expected)
+        else:
+            warnings.warn(
+                f"{archive.name}: no sha256 recorded in its MANIFEST; "
+                "extracting without verification",
+                ChecksumUnavailableWarning,
+                stacklevel=2,
+            )
+        _safe_extract(archive, record.directory)
+        manifest = dict(record.manifest)
+        manifest["n_data_files"] = _count_data_files(record.directory)
+        manifest["extracted"] = True
+        _atomic_write_json(record.directory / "MANIFEST.json", manifest)
 
     def describe(self) -> str:
         lines = [f"stellariso database at {self.root}", f"products: {len(self._products)}"]
@@ -277,6 +324,7 @@ def build_database(
     session: requests.Session | None = None,
     verify_existing: bool = True,
     dry_run: bool = False,
+    extract: bool = True,
 ) -> Database | None:
     """Build (or complete) a local database with the full published matrix.
 
@@ -288,9 +336,12 @@ def build_database(
     ``verify_existing=False``).
 
     ``models`` limits the build to the given families (default: all).
-    ``dry_run=True`` only reports what would be downloaded. PARSEC has no
-    scriptable package channel today, so building it raises with the manual
-    acquisition procedure instead of silently skipping.
+    ``dry_run=True`` only reports what would be downloaded. With
+    ``extract=False`` only the official archives are kept (the complete,
+    self-contained backup); ``Database.grid`` extracts a product on first
+    open, verifying the archive's sha256 first — the right mode when the
+    disk cannot hold the extracted form of every package at once (the
+    extracted size is several times the archive size).
     """
     root = Path(database)
     families = list(models) if models is not None else list(backend_names())
@@ -329,7 +380,10 @@ def build_database(
     sessions = _sessions(root, families, session)
 
     for family, release, product in jobs:
-        _build_product(root, family, release, product, sessions[family], verify_existing)
+        _build_product(
+            root, family, release, product, sessions[family], verify_existing,
+            extract=extract,
+        )
 
     _write_inventory(root)
     return open_database(root)
@@ -397,6 +451,7 @@ def _build_product(
     product: dict,
     session: requests.Session | None,
     verify_existing: bool,
+    extract: bool = True,
 ) -> None:
     target_dir = _product_target(database, family, release, product["label"])
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -433,7 +488,7 @@ def _build_product(
         )
 
     n_data_files = _count_data_files(target_dir)
-    if fresh or n_data_files == 0:
+    if extract and (fresh or n_data_files == 0):
         _safe_extract(archive, target_dir)
         n_data_files = _count_data_files(target_dir)
 
@@ -449,6 +504,7 @@ def _build_product(
             "size_bytes": size,
             "expected_size_bytes": product.get("size_bytes"),
             "n_data_files": n_data_files,
+            "extracted": n_data_files > 0,
             "retrieved_at": manifest.get("retrieved_at") if not fresh else _now_iso(),
             "source_class": "official_origin",
             "note": catalog(family).get(
