@@ -21,13 +21,45 @@ from ...native import NativeTable
 from ...provenance import Provenance, Reference
 from ...unified import UnifiedView
 from .mappings import MIST_FIELD_SPECS, MIST_PHASE_MAPPING
-from .reader import MistFile, parse_mist_iso
+from .reader import MistFile, open_mist_text, parse_mist_iso
 
-__all__ = ["read_mist", "mist_identity", "mist_parameters", "MIST_REFERENCES"]
+__all__ = [
+    "read_mist",
+    "recognize_mist",
+    "mist_identity",
+    "mist_parameters",
+    "MIST_REFERENCES",
+]
 
 MAPPING_VERSION = "1"
 
 _FIELD_SPEC_DICT = {spec.name: spec for spec in MIST_FIELD_SPECS}
+
+
+def recognize_mist(source: str | os.PathLike | TextIO) -> bool:
+    """Cheap sniff: does this source look like a MIST theoretical isochrone file?
+
+    Reads only the first few comment lines; never parses the table body.
+    """
+    fh, opened = open_mist_text(source)
+    try:
+        seen_version = seen_block = False
+        for _ in range(15):
+            line = fh.readline()
+            if not line:
+                break
+            if "MIST version number" in line:
+                seen_version = True
+            if "number of EEPs, cols" in line:
+                seen_block = True
+            if seen_version and seen_block:
+                return True
+        return False
+    except (OSError, UnicodeDecodeError):
+        return False
+    finally:
+        if opened:
+            fh.close()
 
 MIST_REFERENCES = (
     Reference(

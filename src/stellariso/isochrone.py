@@ -46,7 +46,28 @@ class Isochrone:
         self.field_specs: Mapping[str, FieldSpec] = dict(field_specs or {})
         self.provenance = provenance if provenance is not None else Provenance()
         self.selection: Mapping[str, Any] = dict(selection or {})
+        self.selection_info: Mapping[str, Any] | None = None
         self._unified_view = unified_view
+
+    def with_selection_info(self, info: Mapping[str, Any]) -> "Isochrone":
+        """A shallow copy carrying grid-selection metadata.
+
+        The native table, identity, parameters, and unified view are shared
+        with this object (no data is copied); only the selection metadata is
+        new, so annotating one selection never contaminates another consumer
+        of the same cached isochrone.
+        """
+        clone = Isochrone(
+            native=self._native,
+            identity=self.identity,
+            parameters=self.parameters,
+            field_specs=dict(self.field_specs),
+            provenance=self.provenance,
+            selection=dict(self.selection),
+            unified_view=self._unified_view,
+        )
+        clone.selection_info = dict(info)
+        return clone
 
     # -- layers ------------------------------------------------------------
 
