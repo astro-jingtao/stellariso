@@ -156,7 +156,10 @@ registry, verification dates, and known caveats.
 - Within one track (synthesis): linear in age between the bracketing
   models. No cross-track interpolation, no extrapolation; tracks whose
   age span does not cover the target are omitted and the omission is
-  recorded. The helium-flash discontinuity is not bridged.
+  recorded. The helium-flash discontinuity is not bridged: separate HB
+  track files are excluded from synthesis, so post-flash stages are
+  absent from synthesized isochrones at old ages — a recorded per-track
+  omission, not a hidden gap.
 - Across isochrones or tracks (age, composition): **not performed**.
   Exact and nearest selection only; nearest warns and records what was
   substituted.
