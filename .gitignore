@@ -1,0 +1,29 @@
+# Local reference material (external repos / plans studied during development)
+.ref/
+
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Environments
+.venv/
+venv/
+
+# Data caches (stellariso data directory, if placed inside the repo)
+.stellariso-cache/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Editors
+.vscode/
+.idea/

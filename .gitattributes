@@ -1,0 +1,6 @@
+* text=auto eol=lf
+*.png binary
+*.gz binary
+*.txz binary
+*.zip binary
+*.h5 binary
