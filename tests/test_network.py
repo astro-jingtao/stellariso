@@ -6,6 +6,8 @@ resolves upstream. They download nothing beyond HEAD requests.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 import requests
 
@@ -36,7 +38,7 @@ class TestCatalogUrlsLive:
         assert checked > 0
         assert not failures, f"dead catalog URLs: {failures}"
 
-    def test_parsec_track_archives_resolve(self):
+    def test_parsec_track_archives_resolve(self, tmp_path):
         session = requests.Session()
         session.trust_env = False
         # stev.oapd.inaf.it's chain omits its intermediate CA; verify with
@@ -44,10 +46,7 @@ class TestCatalogUrlsLive:
         from stellariso.database import _ca_bundle
         from stellariso.models import catalog as cat
 
-        bundle = _ca_bundle(
-            Path(__file__).parent / "data" / "tls-check", "parsec",
-            cat("parsec")["ca_bundle"],
-        )
+        bundle = _ca_bundle(tmp_path, "parsec", cat("parsec")["ca_bundle"])
         session.verify = str(bundle)
         for release in cat("parsec")["releases"]:
             for product in release["products"]:
