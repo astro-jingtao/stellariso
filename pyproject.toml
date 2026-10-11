@@ -44,6 +44,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not network'"
 markers = [
-    "network: tests that require live internet access (deselect with '-m \"not network\"')",
+    "network: tests that require live internet access (run explicitly with '-m network')",
 ]
