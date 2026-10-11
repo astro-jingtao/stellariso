@@ -14,13 +14,19 @@ from typing import TextIO
 
 import numpy as np
 
-from stellariso.core import ModelIdentity, ParameterRole, ParameterSource, ParameterSpec
+from stellariso.core import ModelIdentity
 from stellariso.exceptions import DataIntegrityError
 from stellariso.isochrone import Isochrone, IsochroneSet
 from stellariso.native import NativeTable
-from stellariso.provenance import Provenance, Reference
+from stellariso.provenance import Provenance
+from stellariso.registry import (
+    eep_anchors,
+    field_spec_dict,
+    phase_mapping,
+    references,
+    resolve_parameters,
+)
 from stellariso.unified import UnifiedView
-from stellariso.models.mist.mappings import MIST_FIELD_SPECS, MIST_PHASE_MAPPING
 from stellariso.models.mist.reader import MistFile, open_mist_text, parse_mist_iso
 
 __all__ = [
@@ -29,11 +35,13 @@ __all__ = [
     "mist_identity",
     "mist_parameters",
     "MIST_REFERENCES",
+    "MIST_EEP_ANCHORS",
 ]
 
-MAPPING_VERSION = "1"
-
-_FIELD_SPEC_DICT = {spec.name: spec for spec in MIST_FIELD_SPECS}
+_FIELD_SPEC_DICT = field_spec_dict("mist")
+_MIST_PHASE_MAPPING = phase_mapping("mist")
+MIST_REFERENCES = references("mist")
+MIST_EEP_ANCHORS = eep_anchors("mist") or {}
 
 
 def recognize_mist(source: str | os.PathLike | TextIO) -> bool:
@@ -61,27 +69,6 @@ def recognize_mist(source: str | os.PathLike | TextIO) -> bool:
         if opened:
             fh.close()
 
-MIST_REFERENCES = (
-    Reference(
-        citation="Choi, J., Dotter, A., Conroy, C., et al. 2016, ApJ, 823, 102",
-        bibcode="2016ApJ...823..102C",
-        ads_url="https://ui.adsabs.harvard.edu/abs/2016ApJ...823..102C",
-    ),
-    Reference(
-        citation="Dotter, A. 2016, ApJS, 222, 8",
-        bibcode="2016ApJS..222....8D",
-        ads_url="https://ui.adsabs.harvard.edu/abs/2016ApJS..222....8D",
-    ),
-    Reference(
-        citation="Paxton, B., et al. 2011, ApJS, 192, 3 (MESA I)",
-        bibcode="2011ApJS..192....3P",
-    ),
-)
-
-# Rotation values published for the MIST v1.2 isochrone suite (separate
-# tarballs per v/vcrit); the header of each file states which one it holds.
-_V1P2_ROTATION_VALUES = (0.0, 0.4)
-
 
 def mist_identity(facts: dict) -> ModelIdentity:
     version = str(facts.get("mist_version", "unknown"))
@@ -97,88 +84,22 @@ def mist_identity(facts: dict) -> ModelIdentity:
     )
 
 
-def mist_parameters(facts: dict, log_ages: tuple) -> tuple[ParameterSpec, ...]:
+def mist_parameters(facts: dict, log_ages: tuple) -> tuple:
     """ParameterSpecs for one MIST theoretical-isochrone file.
 
-    The published suite varies age, [Fe/H] (form-generated, effectively
-    continuous; tarball suites use a fixed set), [a/Fe], and v/vcrit (two
-    tarballs per release) — these are ``axis`` parameters whose value for
-    this file is pinned in each isochrone's selection metadata. The file
-    header's Yinit/Zinit are ``fixed`` for the file with ``native`` source.
+    Static knowledge (roles, conventions, implicit parameters, the
+    published v1.2 rotation set) comes from the unified-parameter registry;
+    the file header supplies the values only it knows (Yinit/Zinit, this
+    file's [Fe/H] and [a/Fe], the age list from the blocks).
     """
-    feh = facts["feh"]
-    afe = facts["afe"]
-    vvcrit = facts["vvcrit"]
-    return (
-        ParameterSpec(
-            name="log_age",
-            role=ParameterRole.AXIS,
-            values=tuple(sorted(set(log_ages))),
-            unit="dex(log10(age/yr))",
-            description="log10 of isochrone age in years",
-            source=ParameterSource.NATIVE,
-        ),
-        ParameterSpec(
-            name="initial_feh",
-            role=ParameterRole.AXIS,
-            values=(feh,),
-            unit="dex",
-            convention="[Fe/H] of the initial composition, MIST scale",
-            description="initial metallicity as [Fe/H]",
-            source=ParameterSource.NATIVE,
-        ),
-        ParameterSpec(
-            name="alpha_fe",
-            role=ParameterRole.AXIS,
-            values=(afe,),
-            unit="dex",
-            convention="[a/Fe]",
-            description="alpha enhancement of the initial composition",
-            source=ParameterSource.NATIVE,
-        ),
-        ParameterSpec(
-            name="initial_rotation",
-            role=ParameterRole.AXIS,
-            values=_V1P2_ROTATION_VALUES,
-            unit=None,
-            convention="v_initial / v_critical (surface equatorial)",
-            description=(
-                "initial rotation ratio; the MIST v1.2 suite publishes "
-                "separate products for each value, this file pins one"
-            ),
-            source=ParameterSource.OFFICIAL_DOCUMENTATION,
-        ),
-        ParameterSpec(
-            name="initial_helium",
-            role=ParameterRole.FIXED,
-            value=facts["yinit"],
-            source=ParameterSource.NATIVE,
-            description="initial helium mass fraction (MIST Y-Z grid point)",
-        ),
-        ParameterSpec(
-            name="initial_z",
-            role=ParameterRole.FIXED,
-            value=facts["zinit"],
-            source=ParameterSource.NATIVE,
-            description="initial metal mass fraction (MIST Y-Z grid point)",
-        ),
-        ParameterSpec(
-            name="mixing_length",
-            role=ParameterRole.IMPLICIT,
-            status="not_reported",
-            description="MESA calibrates alpha_ML on the Sun; value not in data",
-        ),
-        ParameterSpec(
-            name="overshoot",
-            role=ParameterRole.IMPLICIT,
-            status="not_reported",
-        ),
-        ParameterSpec(
-            name="atomic_diffusion",
-            role=ParameterRole.IMPLICIT,
-            status="not_reported",
-        ),
-    )
+    dynamic = {
+        "log_age": tuple(sorted(set(log_ages))),
+        "initial_feh": (facts["feh"],),
+        "alpha_fe": (facts["afe"],),
+        "initial_helium": facts["yinit"],
+        "initial_z": facts["zinit"],
+    }
+    return resolve_parameters("mist", dynamic)
 
 
 def read_mist(
@@ -238,7 +159,7 @@ def read_mist(
                 provenance=prov,
                 selection=selection,
                 unified_view=UnifiedView(
-                    block_native, _FIELD_SPEC_DICT, MIST_PHASE_MAPPING
+                    block_native, _FIELD_SPEC_DICT, _MIST_PHASE_MAPPING
                 ),
             )
         )

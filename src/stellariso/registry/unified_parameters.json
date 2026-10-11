@@ -1,0 +1,553 @@
+{
+  "schema_version": 1,
+  "description": "Single source of truth for the stellariso unified vocabulary: the unified fields and coarse evolutionary stages every backend maps into, the physical parameters a product can carry, and each data source's field/phase/parameter mappings. The human-readable document docs/unified-parameters.md is generated from this file by tools/generate_parameter_docs.py; edit here, never there.",
+  "unified_fields": [
+    {
+      "name": "initial_mass",
+      "unit": "solMass",
+      "representation": "linear",
+      "description": "initial (age-zero) mass of the star whose evolution the row samples"
+    },
+    {
+      "name": "current_mass",
+      "unit": "solMass",
+      "representation": "linear",
+      "description": "actual stellar mass at this point, including the mass-loss history"
+    },
+    {
+      "name": "log_luminosity",
+      "unit": "dex(solLum)",
+      "representation": "log",
+      "description": "log10 luminosity in solar units"
+    },
+    {
+      "name": "log_effective_temperature",
+      "unit": "dex(K)",
+      "representation": "log",
+      "description": "log10 effective temperature"
+    },
+    {
+      "name": "log_surface_gravity",
+      "unit": "dex(cm / s2)",
+      "representation": "log",
+      "description": "log10 surface gravity"
+    },
+    {
+      "name": "log_radius",
+      "unit": "dex(solRad)",
+      "representation": "log",
+      "description": "log10 radius in solar units"
+    },
+    {
+      "name": "phase",
+      "unit": null,
+      "representation": "linear",
+      "description": "unified coarse evolutionary stage (see the stage vocabulary below); derived from the native phase code through a versioned mapping"
+    },
+    {
+      "name": "native_phase",
+      "unit": null,
+      "representation": "linear",
+      "description": "the product's own evolutionary-stage code, preserved verbatim"
+    },
+    {
+      "name": "eep",
+      "unit": null,
+      "representation": "linear",
+      "description": "equivalent evolutionary phase number (MIST EEP sampling)"
+    },
+    {
+      "name": "effective_temperature",
+      "unit": "K",
+      "representation": "linear",
+      "description": "effective temperature (10 ** log_effective_temperature)"
+    },
+    {
+      "name": "radius",
+      "unit": "solRad",
+      "representation": "linear",
+      "description": "stellar radius (10 ** log_radius)"
+    },
+    {
+      "name": "mass_loss_rate",
+      "unit": "Msun/yr",
+      "representation": "linear",
+      "description": "stellar mass-loss rate as a signed quantity; mapped only where the native convention is signed (MIST: negative while the star loses mass)"
+    },
+    {
+      "name": "log_mass_loss_rate",
+      "unit": null,
+      "representation": "log",
+      "description": "log10 of the (positive) mass-loss rate in Msun/yr; kept in native representation where the source prints a positive log quantity (PARSEC logMdot)"
+    },
+    {
+      "name": "he_core_mass",
+      "unit": "solMass",
+      "representation": "linear",
+      "description": "helium-core mass"
+    },
+    {
+      "name": "he_core_mass_tp",
+      "unit": "solMass",
+      "representation": "linear",
+      "description": "H-exhausted core mass on the TP-AGB (0 before the TP-AGB)"
+    },
+    {
+      "name": "imf_integral",
+      "unit": null,
+      "representation": "linear",
+      "description": "integral of the selected IMF (number of stars, normalised to 1 Msun of initially formed stars) from 0 up to the current initial mass"
+    },
+    {
+      "name": "c_over_o",
+      "unit": null,
+      "representation": "linear",
+      "description": "photospheric C/O ratio"
+    }
+  ],
+  "unified_phases": [
+    "pre_main_sequence",
+    "main_sequence",
+    "subgiant",
+    "red_giant_branch",
+    "core_helium_burning",
+    "early_asymptotic_giant_branch",
+    "thermally_pulsing_asymptotic_giant_branch",
+    "post_agb",
+    "white_dwarf",
+    "wolf_rayet",
+    "unknown"
+  ],
+  "physical_parameters": [
+    {
+      "name": "log_age",
+      "unit": "dex(log10(age/yr))",
+      "convention": null,
+      "description": "log10 of the isochrone age in years"
+    },
+    {
+      "name": "initial_feh",
+      "unit": "dex",
+      "convention": "[Fe/H] of the initial composition",
+      "description": "initial metallicity as [Fe/H]"
+    },
+    {
+      "name": "initial_z",
+      "unit": null,
+      "convention": "mass fraction",
+      "description": "initial metal mass fraction Z"
+    },
+    {
+      "name": "initial_helium",
+      "unit": null,
+      "convention": "mass fraction",
+      "description": "initial helium mass fraction Y"
+    },
+    {
+      "name": "alpha_fe",
+      "unit": "dex",
+      "convention": "[a/Fe]",
+      "description": "alpha enhancement of the initial composition"
+    },
+    {
+      "name": "initial_rotation",
+      "unit": null,
+      "convention": "v_initial / v_critical (surface equatorial)",
+      "description": "initial rotation ratio"
+    },
+    {
+      "name": "eta_reimers",
+      "unit": null,
+      "convention": "Reimers efficiency",
+      "description": "RGB Reimers mass-loss efficiency"
+    },
+    {
+      "name": "mixing_length",
+      "unit": null,
+      "convention": "alpha_ML",
+      "description": "mixing-length parameter"
+    },
+    {
+      "name": "overshoot",
+      "unit": null,
+      "convention": null,
+      "description": "convective overshoot setting"
+    },
+    {
+      "name": "atomic_diffusion",
+      "unit": null,
+      "convention": null,
+      "description": "atomic-diffusion setting"
+    }
+  ],
+  "backends": {
+    "mist": {
+      "mapping_version": "1",
+      "notes": [
+        "Column meanings follow the official MIST table README (README_tables.pdf): the phase column is the FSPS phase type, and the same document defines the primary EEPs used as anchors.",
+        "MIST's RGB code (2) covers the subgiant branch and the RGB together; it maps to red_giant_branch rather than splitting it.",
+        "Phase 6 (postAGB) spans post-AGB through the white-dwarf cooling sequence; it maps to post_agb and must not be read as an enumerated WD population.",
+        "Mass-loss sign convention: star_mdot is negative while the star is losing mass. The unified mass_loss_rate is mapped only for MIST because of this signed convention.",
+        "current_mass context: MIST v1.2 uses Reimers-type RGB winds with efficiency anchored near eta ~ 0.1 and Blocker-type AGB winds."
+      ],
+      "field_mappings": [
+        {
+          "unified": "eep",
+          "native": "EEP",
+          "origin": "native"
+        },
+        {
+          "unified": "initial_mass",
+          "native": "initial_mass",
+          "origin": "native",
+          "description": "mass at age zero of the model whose isochrone point this row interpolates"
+        },
+        {
+          "unified": "current_mass",
+          "native": "star_mass",
+          "origin": "native",
+          "description": "actual (wind-reduced) mass at this point; MIST v1.2 uses Reimers-type RGB winds with efficiency anchored near eta ~ 0.1 and Blocker-type AGB winds"
+        },
+        {
+          "unified": "log_effective_temperature",
+          "native": "log_Teff",
+          "origin": "native"
+        },
+        {
+          "unified": "effective_temperature",
+          "native": "log_Teff",
+          "origin": "transformed_native",
+          "transformation": "10 ** x",
+          "native_unit": "dex(K)"
+        },
+        {
+          "unified": "log_luminosity",
+          "native": "log_L",
+          "origin": "native"
+        },
+        {
+          "unified": "log_surface_gravity",
+          "native": "log_g",
+          "origin": "native"
+        },
+        {
+          "unified": "log_radius",
+          "native": "log_R",
+          "origin": "native"
+        },
+        {
+          "unified": "radius",
+          "native": "log_R",
+          "origin": "transformed_native",
+          "transformation": "10 ** x",
+          "native_unit": "dex(solRad)"
+        },
+        {
+          "unified": "native_phase",
+          "native": "phase",
+          "origin": "native",
+          "description": "FSPS phase code as printed by MIST"
+        },
+        {
+          "unified": "phase",
+          "native": "phase",
+          "origin": "derived",
+          "transformation": "MIST FSPS phase code mapped to unified coarse stages; codes 1, 7, 8 are not used by MIST"
+        },
+        {
+          "unified": "mass_loss_rate",
+          "native": "star_mdot",
+          "origin": "native",
+          "description": "stellar mass-loss rate; negative means the star is losing mass (MIST sign convention)"
+        },
+        {
+          "unified": "he_core_mass",
+          "native": "he_core_mass",
+          "origin": "native"
+        }
+      ],
+      "phase_mapping": {
+        "-1": "pre_main_sequence",
+        "0": "main_sequence",
+        "2": "red_giant_branch",
+        "3": "core_helium_burning",
+        "4": "early_asymptotic_giant_branch",
+        "5": "thermally_pulsing_asymptotic_giant_branch",
+        "6": "post_agb",
+        "9": "wolf_rayet"
+      },
+      "phase_code_meanings": {
+        "-1": "pre-main sequence (FSPS phase type)",
+        "0": "main sequence",
+        "2": "subgiant + red giant branch",
+        "3": "core helium burning",
+        "4": "early AGB",
+        "5": "thermally pulsing AGB",
+        "6": "post-AGB through WD cooling",
+        "9": "Wolf-Rayet (documented MS/WR overlap caution for very massive stars)"
+      },
+      "eep_anchors": {
+        "PMS": 1,
+        "ZAMS": 202,
+        "IAMS": 353,
+        "TAMS": 454,
+        "RGB_TIP": 605,
+        "ZACHeB": 631,
+        "TACHeB": 707,
+        "TPAGB_START": 808,
+        "POST_AGB": 1409,
+        "WDCS": 1710
+      },
+      "parameters": [
+        {
+          "name": "log_age",
+          "role": "axis",
+          "values_from": "log_age",
+          "source": "native"
+        },
+        {
+          "name": "initial_feh",
+          "role": "axis",
+          "values_from": "initial_feh",
+          "source": "native",
+          "description": "initial metallicity as [Fe/H]; the published v1.2 tarball suite uses a fixed set, form-generated files can be effectively continuous"
+        },
+        {
+          "name": "alpha_fe",
+          "role": "axis",
+          "values_from": "alpha_fe",
+          "source": "native"
+        },
+        {
+          "name": "initial_rotation",
+          "role": "axis",
+          "values": [0.0, 0.4],
+          "source": "official_documentation",
+          "description": "rotation values published for the MIST v1.2 isochrone suite (separate tarballs per v/vcrit); the header of each file states which one it holds"
+        },
+        {
+          "name": "initial_helium",
+          "role": "fixed",
+          "value_from": "initial_helium",
+          "source": "native",
+          "description": "initial helium mass fraction (MIST Y-Z grid point)"
+        },
+        {
+          "name": "initial_z",
+          "role": "fixed",
+          "value_from": "initial_z",
+          "source": "native",
+          "description": "initial metal mass fraction (MIST Y-Z grid point)"
+        },
+        {
+          "name": "mixing_length",
+          "role": "implicit",
+          "status": "not_reported",
+          "description": "MESA calibrates alpha_ML on the Sun; value not in data"
+        },
+        {
+          "name": "overshoot",
+          "role": "implicit",
+          "status": "not_reported"
+        },
+        {
+          "name": "atomic_diffusion",
+          "role": "implicit",
+          "status": "not_reported"
+        }
+      ],
+      "references": [
+        {
+          "citation": "Choi, J., Dotter, A., Conroy, C., et al. 2016, ApJ, 823, 102",
+          "bibcode": "2016ApJ...823..102C",
+          "ads_url": "https://ui.adsabs.harvard.edu/abs/2016ApJ...823..102C"
+        },
+        {
+          "citation": "Dotter, A. 2016, ApJS, 222, 8",
+          "bibcode": "2016ApJS..222....8D",
+          "ads_url": "https://ui.adsabs.harvard.edu/abs/2016ApJS..222....8D"
+        },
+        {
+          "citation": "Paxton, B., et al. 2011, ApJS, 192, 3 (MESA I)",
+          "bibcode": "2011ApJS..192....3P"
+        }
+      ]
+    },
+    "parsec": {
+      "mapping_version": "1",
+      "notes": [
+        "Column names follow the CMD isochrone-table format (see the reader module).",
+        "Stage labels follow the official CMD FAQ, which itself cautions that labels are approximate and not carefully checked for all masses and metallicities.",
+        "Mass-loss sign convention difference: MIST's star_mdot is negative while the star loses mass; CMD's logMdot is log10 of the (positive) rate. Both are preserved natively; the unified signed mass_loss_rate is mapped only for MIST, and PARSEC keeps logMdot under log_mass_loss_rate to avoid a silent sign/representation change."
+      ],
+      "field_mappings": [
+        {
+          "unified": "initial_mass",
+          "native": "M_ini",
+          "origin": "native",
+          "description": "initial (age-zero) mass of the isochrone point"
+        },
+        {
+          "unified": "current_mass",
+          "native": "M_act",
+          "origin": "native",
+          "description": "actual mass including the mass-loss history (Reimers RGB winds with the eta stated in the file header)"
+        },
+        {
+          "unified": "log_luminosity",
+          "native": "logL/Lo",
+          "origin": "native"
+        },
+        {
+          "unified": "log_effective_temperature",
+          "native": "logTe",
+          "origin": "native"
+        },
+        {
+          "unified": "log_surface_gravity",
+          "native": "logG",
+          "origin": "native"
+        },
+        {
+          "unified": "native_phase",
+          "native": "label",
+          "origin": "native",
+          "description": "CMD evolutionary stage label (approximate per the official FAQ)"
+        },
+        {
+          "unified": "phase",
+          "native": "label",
+          "origin": "derived",
+          "transformation": "CMD stage label mapped to unified coarse stages"
+        },
+        {
+          "unified": "imf_integral",
+          "native": "int_IMF",
+          "origin": "native"
+        },
+        {
+          "unified": "c_over_o",
+          "native": "C/O",
+          "origin": "native",
+          "description": "photospheric C/O ratio (ZAMS value printed before the TP-AGB)"
+        },
+        {
+          "unified": "he_core_mass_tp",
+          "native": "M_hec",
+          "origin": "native",
+          "description": "H-exhausted core mass on the TP-AGB (0 before it)"
+        },
+        {
+          "unified": "log_mass_loss_rate",
+          "native": "logMdot",
+          "origin": "native",
+          "description": "log10 of the mass-loss rate in Msun/yr (positive quantity; meaningful mainly on the TP-AGB)"
+        }
+      ],
+      "phase_mapping": {
+        "0": "pre_main_sequence",
+        "1": "main_sequence",
+        "2": "subgiant",
+        "3": "red_giant_branch",
+        "4": "core_helium_burning",
+        "5": "core_helium_burning",
+        "6": "core_helium_burning",
+        "7": "early_asymptotic_giant_branch",
+        "8": "thermally_pulsing_asymptotic_giant_branch",
+        "9": "post_agb"
+      },
+      "phase_code_meanings": {
+        "0": "pre-main sequence",
+        "1": "main sequence",
+        "2": "subgiant branch",
+        "3": "red giant branch",
+        "4": "core He burning, stage I",
+        "5": "core He burning, stage II",
+        "6": "core He burning, stage III",
+        "7": "early AGB",
+        "8": "thermally pulsing AGB",
+        "9": "post-AGB"
+      },
+      "parameters": [
+        {
+          "name": "log_age",
+          "role": "axis",
+          "values_from": "log_age",
+          "source": "native"
+        },
+        {
+          "name": "initial_z",
+          "alternatives": [
+            {
+              "when": { "available": "initial_z" },
+              "role": "axis",
+              "values_from": "initial_z",
+              "source": "native",
+              "description": "initial metal mass fraction as stated by the per-isochrone header lines"
+            },
+            {
+              "role": "implicit",
+              "status": "not_in_file",
+              "description": "CMD tables do not restate Z per file; recover it from the generating request (see provenance) or the block headers"
+            }
+          ]
+        },
+        {
+          "name": "initial_helium",
+          "role": "derived",
+          "depends_on": ["initial_z"],
+          "relation": "Y_p + dYdZ * initial_z",
+          "relation_parameters": { "Y_p": 0.2485, "dYdZ": 1.78 },
+          "source": "derived_from_official_relation",
+          "description": "scaled-solar helium enrichment law of the PARSEC v1.2S grid (stated on the CMD form)"
+        },
+        {
+          "name": "alpha_fe",
+          "role": "fixed",
+          "value": 0.0,
+          "source": "official_documentation",
+          "description": "scaled-solar (CAF09) composition; the CMD v1.2S products carry no alpha enhancement"
+        },
+        {
+          "name": "initial_rotation",
+          "role": "not_applicable",
+          "description": "PARSEC v1.2S tracks are non-rotating; rotation exists only in the PARSEC v2.0 products"
+        },
+        {
+          "name": "eta_reimers",
+          "when": { "available": "eta_reimers" },
+          "role": "fixed",
+          "value_from": "eta_reimers",
+          "source": "native",
+          "description": "RGB Reimers mass-loss efficiency (file header)"
+        },
+        {
+          "name": "mixing_length",
+          "role": "implicit",
+          "status": "not_reported"
+        }
+      ],
+      "references": [
+        {
+          "citation": "Bressan, A., Marigo, P., Girardi, L., et al. 2012, MNRAS, 427, 127",
+          "bibcode": "2012MNRAS.427..127B",
+          "ads_url": "https://ui.adsabs.harvard.edu/abs/2012MNRAS.427..127B"
+        },
+        {
+          "citation": "Marigo, P., Bressan, A., Nanni, A., Girardi, L., Pumo, M. L. 2013, MNRAS, 434, 488",
+          "bibcode": "2013MNRAS.434..488M"
+        },
+        {
+          "citation": "Marigo, P., Girardi, L., Bressan, A., et al. 2017, ApJ, 835, 77",
+          "bibcode": "2017ApJ...835...77M"
+        },
+        {
+          "citation": "Chen, Y., Girardi, L., Bressan, A., et al. 2014, MNRAS, 444, 2525 and 2015, MNRAS, 452, 1068"
+        },
+        {
+          "citation": "Pastorelli, G., et al. 2019, MNRAS, 485, 5666 and 2020, MNRAS"
+        }
+      ]
+    }
+  }
+}

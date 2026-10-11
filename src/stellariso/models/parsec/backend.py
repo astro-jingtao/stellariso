@@ -6,41 +6,24 @@ import os
 from pathlib import Path
 from typing import TextIO
 
-from stellariso.core import ModelIdentity, ParameterRole, ParameterSource, ParameterSpec
+from stellariso.core import ModelIdentity
 from stellariso.isochrone import Isochrone, IsochroneSet
 from stellariso.native import NativeTable
-from stellariso.provenance import Provenance, Reference
+from stellariso.provenance import Provenance
+from stellariso.registry import (
+    field_spec_dict,
+    phase_mapping,
+    references,
+    resolve_parameters,
+)
 from stellariso.unified import UnifiedView
-from stellariso.models.parsec.mappings import PARSEC_FIELD_SPECS, PARSEC_PHASE_MAPPING
 from stellariso.models.parsec.reader import ParsecFile, parse_parsec_cmd
 
 __all__ = ["read_parsec", "recognize_parsec", "PARSEC_REFERENCES"]
 
-PARSEC_REFERENCES = (
-    Reference(
-        citation="Bressan, A., Marigo, P., Girardi, L., et al. 2012, MNRAS, 427, 127",
-        bibcode="2012MNRAS.427..127B",
-        ads_url="https://ui.adsabs.harvard.edu/abs/2012MNRAS.427..127B",
-    ),
-    Reference(
-        citation="Marigo, P., Bressan, A., Nanni, A., Girardi, L., Pumo, M. L. "
-        "2013, MNRAS, 434, 488",
-        bibcode="2013MNRAS.434..488M",
-    ),
-    Reference(
-        citation="Marigo, P., Girardi, L., Bressan, A., et al. 2017, ApJ, 835, 77",
-        bibcode="2017ApJ...835...77M",
-    ),
-    Reference(
-        citation="Chen, Y., Girardi, L., Bressan, A., et al. 2014, MNRAS, 444, 2525 "
-        "and 2015, MNRAS, 452, 1068",
-    ),
-    Reference(
-        citation="Pastorelli, G., et al. 2019, MNRAS, 485, 5666 and 2020, MNRAS",
-    ),
-)
-
-_FIELD_SPEC_DICT = {spec.name: spec for spec in PARSEC_FIELD_SPECS}
+PARSEC_REFERENCES = references("parsec")
+_FIELD_SPEC_DICT = field_spec_dict("parsec")
+_PARSEC_PHASE_MAPPING = phase_mapping("parsec")
 
 
 def recognize_parsec(source: str | os.PathLike | TextIO) -> bool:
@@ -88,83 +71,21 @@ def parsec_identity(facts: dict) -> ModelIdentity:
     )
 
 
-def parsec_parameters(facts: dict, block_z, log_ages) -> tuple[ParameterSpec, ...]:
-    specs = [
-        ParameterSpec(
-            name="log_age",
-            role=ParameterRole.AXIS,
-            values=tuple(sorted(set(log_ages))),
-            unit="dex(log10(age/yr))",
-            source=ParameterSource.NATIVE,
-        ),
-    ]
+def parsec_parameters(facts: dict, block_z, log_ages) -> tuple:
+    """ParameterSpecs for one CMD isochrone table.
+
+    Static knowledge (roles, the v1.2S helium enrichment law, the
+    not-applicable rotation) comes from the unified-parameter registry;
+    the file supplies the age list, the per-block Z values when the
+    header states them, and the Reimers eta when present.
+    """
+    dynamic = {"log_age": tuple(sorted(set(log_ages)))}
     z_values = {z for z in block_z if z is not None}
     if z_values:
-        specs.append(
-            ParameterSpec(
-                name="initial_z",
-                role=ParameterRole.AXIS,
-                values=tuple(sorted(z_values)),
-                source=ParameterSource.NATIVE,
-                description="initial metal mass fraction as stated by the "
-                "per-isochrone header lines",
-            )
-        )
-    else:
-        specs.append(
-            ParameterSpec(
-                name="initial_z",
-                role=ParameterRole.IMPLICIT,
-                status="not_in_file",
-                description="CMD tables do not restate Z per file; recover it "
-                "from the generating request (see provenance) or the block "
-                "headers",
-            )
-        )
-    specs.extend(
-        [
-            ParameterSpec(
-                name="initial_helium",
-                role=ParameterRole.DERIVED,
-                depends_on=("initial_z",),
-                relation="Y_p + dYdZ * initial_z",
-                relation_parameters={"Y_p": 0.2485, "dYdZ": 1.78},
-                source=ParameterSource.DERIVED_FROM_OFFICIAL_RELATION,
-                description="scaled-solar helium enrichment law of the "
-                "PARSEC v1.2S grid (stated on the CMD form)",
-            ),
-            ParameterSpec(
-                name="alpha_fe",
-                role=ParameterRole.FIXED,
-                value=0.0,
-                unit="dex",
-                source=ParameterSource.OFFICIAL_DOCUMENTATION,
-                description="scaled-solar (CAF09) composition; the CMD v1.2S "
-                "products carry no alpha enhancement",
-            ),
-            ParameterSpec(
-                name="initial_rotation",
-                role=ParameterRole.NOT_APPLICABLE,
-                description="PARSEC v1.2S tracks are non-rotating; rotation "
-                "exists only in the PARSEC v2.0 products",
-            ),
-        ]
-    )
+        dynamic["initial_z"] = tuple(sorted(z_values))
     if facts.get("eta_reimers") is not None:
-        specs.append(
-            ParameterSpec(
-                name="eta_reimers",
-                role=ParameterRole.FIXED,
-                value=facts["eta_reimers"],
-                source=ParameterSource.NATIVE,
-                description="RGB Reimers mass-loss efficiency (file header)",
-            )
-        )
-    specs.append(
-        ParameterSpec(name="mixing_length", role=ParameterRole.IMPLICIT,
-                      status="not_reported")
-    )
-    return tuple(specs)
+        dynamic["eta_reimers"] = facts["eta_reimers"]
+    return resolve_parameters("parsec", dynamic)
 
 
 def read_parsec(
@@ -211,7 +132,7 @@ def read_parsec(
                 provenance=prov,
                 selection=selection,
                 unified_view=UnifiedView(
-                    block_native, _FIELD_SPEC_DICT, PARSEC_PHASE_MAPPING
+                    block_native, _FIELD_SPEC_DICT, _PARSEC_PHASE_MAPPING
                 ),
             )
         )

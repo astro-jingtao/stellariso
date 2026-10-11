@@ -17,11 +17,12 @@ from astropy import units as u
 
 from stellariso.core import FieldOrigin, FieldSpec
 from stellariso.native import NativeTable
+from stellariso.registry import unified_phases
 from stellariso.warnings import PhaseMappingWarning
 
 import warnings
 
-__all__ = ["UnifiedView", "PhaseMapping", "TRANSFORMATIONS"]
+__all__ = ["UnifiedView", "PhaseMapping", "TRANSFORMATIONS", "UNIFIED_PHASES"]
 
 # Transformations are a fixed, named vocabulary — never free-form code.
 # A FieldSpec's `transformation` string must be one of these.
@@ -29,20 +30,9 @@ TRANSFORMATIONS: dict[str, Callable[[np.ndarray], np.ndarray]] = {
     "10 ** x": lambda a: np.power(10.0, a),
 }
 
-# Coarse unified evolutionary stages (union across supported models).
-UNIFIED_PHASES = (
-    "pre_main_sequence",
-    "main_sequence",
-    "subgiant",
-    "red_giant_branch",
-    "core_helium_burning",
-    "early_asymptotic_giant_branch",
-    "thermally_pulsing_asymptotic_giant_branch",
-    "post_agb",
-    "white_dwarf",
-    "wolf_rayet",
-    "unknown",
-)
+# Coarse unified evolutionary stages — the allowed vocabulary, declared in
+# the unified-parameter registry (see stellariso.registry).
+UNIFIED_PHASES = unified_phases()
 
 
 class PhaseMapping:

@@ -43,6 +43,9 @@ Homepage = "https://github.com/astro-jingtao/stellariso"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"stellariso.registry" = ["*.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-m 'not network'"
