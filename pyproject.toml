@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Faithful and unified access to single-star theoretical isochrones."
 readme = "README.md"
 requires-python = ">=3.10"
+license = { text = "MIT" }
 authors = [{ name = "astro-jingtao" }]
 keywords = [
     "astronomy",

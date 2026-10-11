@@ -36,15 +36,22 @@ from ...retrieval.integrity import sha256_bytes, verify_checksum
 
 __all__ = [
     "FORM_URL",
-    "TARBALL_URL_TEMPLATE",
+    "TARBALL_URL_TEMPLATE_V12",
+    "TARBALL_URL_TEMPLATE_V25",
     "fetch_mist_subset",
     "fetch_mist_tarball",
     "mist_subset_filename",
 ]
 
 FORM_URL = "https://mist.science/iso_form.php"
-TARBALL_URL_TEMPLATE = (
+# v1.2 tarballs sit directly under tarballs_v1.2/; v2.5 moved them one level
+# deeper under tarballs_v2.5/isos/ (verified 2026-10-11)
+TARBALL_URL_TEMPLATE_V12 = (
     "http://waps.cfa.harvard.edu/MIST/data/tarballs_v{version}/"
+    "MIST_v{version}_vvcrit{vvcrit}_{kind}.txz"
+)
+TARBALL_URL_TEMPLATE_V25 = (
+    "http://waps.cfa.harvard.edu/MIST/data/tarballs_v{version}/isos/"
     "MIST_v{version}_vvcrit{vvcrit}_{kind}.txz"
 )
 
@@ -168,13 +175,16 @@ def fetch_mist_tarball(
     cache_dir: Path | None = None,
     session: requests.Session | None = None,
 ) -> tuple[Path, Provenance]:
-    """Download a complete published MIST isochrone tarball (about 660 MB
-    for v1.2/vvcrit0.4 full) and optionally extract its ``.iso`` files.
+    """Download a complete published MIST isochrone tarball (v1.2 full:
+    about 660 MiB; v2.5 full: about 7.1 GiB — the wider composition grid of
+    17 [Fe/H] x 5 [alpha/Fe] - 1 values per rotation) and optionally extract
+    its ``.iso`` files.
 
     The upstream publishes no checksums; the downloaded archive's sha256 is
     computed and recorded so later runs can verify the cached copy.
     """
-    url = TARBALL_URL_TEMPLATE.format(version=version, vvcrit=f"{vvcrit:g}", kind=kind)
+    template = TARBALL_URL_TEMPLATE_V25 if version.startswith("2.") else TARBALL_URL_TEMPLATE_V12
+    url = template.format(version=version, vvcrit=f"{vvcrit:g}", kind=kind)
     target_dir = Path(cache_dir) if cache_dir else product_dir("mist", version, f"vvcrit{vvcrit:g}")
     target_dir.mkdir(parents=True, exist_ok=True)
     target = target_dir / url.rsplit("/", 1)[-1]

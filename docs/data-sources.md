@@ -14,14 +14,18 @@ All URL verifications below were performed on 2026-10-11.
 
 ### Full tarballs (primary fetch channel)
 
-| Release | Rotation | Product | URL | Status |
+| Release | Rotation | Product | URL pattern | Status |
 |---|---|---|---|---|
-| v1.2 | vvcrit0.4 | full isochrones (79-col theory) | `http://waps.cfa.harvard.edu/MIST/data/tarballs_v1.2/MIST_v1.2_vvcrit0.4_full_isos.txz` | verified 200, 692,503,712 bytes |
-| v1.2 | vvcrit0.4 | basic isochrones | `http://waps.cfa.harvard.edu/MIST/data/tarballs_v1.2/MIST_v1.2_vvcrit0.4_basic_isos.txz` | same URL pattern |
+| v1.2 | vvcrit0.4 | full isochrones (79-col theory, ~660 MiB) | `http://waps.cfa.harvard.edu/MIST/data/tarballs_v1.2/MIST_v1.2_vvcrit0.4_full_isos.txz` | verified 200, 692,503,712 bytes |
+| v1.2 | vvcrit0.4 / 0.0 | basic isochrones (25 cols, ~210 MB) | same directory, `basic_isos` | same URL pattern |
+| v2.5 | vvcrit0.4 | full isochrones (~7.1 GiB) | `http://waps.cfa.harvard.edu/MIST/data/tarballs_v2.5/isos/MIST_v2.5_vvcrit0.4_full_isos.txz` | verified 200, 7,579,630,000 bytes |
+| v2.5 | vvcrit0.0 | full isochrones (~6.7 GiB) | `http://waps.cfa.harvard.edu/MIST/data/tarballs_v2.5/isos/MIST_v2.5_vvcrit0.0_full_isos.txz` | verified 200, 7,195,356,136 bytes |
 
-The tarball URL pattern is
-`http://waps.cfa.harvard.edu/MIST/data/tarballs_v{version}/MIST_v{version}_vvcrit{v}_{kind}.txz`
-with `kind` in `{full_isos, basic_isos}`.
+v1.2 tarballs sit directly under `tarballs_v1.2/`; the v2.5 layout moved
+them one level deeper under `tarballs_v2.5/isos/`. The v2.5 size reflects
+its much wider composition coverage (17 [Fe/H] x 5 [alpha/Fe] - 1 = 84
+compositions per rotation rate, versus the scaled-solar v1.2 suite); v2.5
+publishes no separate "basic" isochrone product.
 
 ### Interpolation web form (subset fetch channel)
 
