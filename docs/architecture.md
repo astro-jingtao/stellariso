@@ -93,9 +93,9 @@ no environment variable and no implicit fallback location.
   any subset of its product directories can be copied to another machine
   and opened there.
 
-Sources without a package channel (PARSEC today) make `build_database`
-fail loudly with the manual acquisition procedure;
-`register_local_product` records manually obtained files with the same
+A family whose catalog declares no package channel makes `build_database`
+fail loudly with the manual registration procedure (no current family
+does); `register_local_product` records locally held files with the same
 manifest shape and an explicit `local_user_file` source class.
 
 ## Parameters

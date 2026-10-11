@@ -72,8 +72,9 @@ mist_iso.last_record                                        # bracketing nodes, 
 ```
 
 PARSEC isochrones are synthesized locally from the official tracks
-(PARSEC publishes track packages but serves isochrones only through an
-opaque web form):
+(PARSEC publishes track packages but no isochrone packages; its CMD web
+form computes tables server-side on request, which stellariso does not
+treat as a data channel):
 
 ```python
 tracks = stellariso.read_parsec_tracks(
@@ -140,8 +141,9 @@ What the sources publish (verified live 2026-10-11; all sizes exact):
   no checksums; sha256 is computed at download and recorded.
 - PARSEC: official static track archives — v1.2S (all compositions) and
   the v2.0 rotating / very-massive / pure-helium sets. No isochrone
-  packages exist (the CMD web form is the only isochrone channel, and its
-  computation is opaque), hence the local synthesis above.
+  packages exist, and stellariso recognizes no isochrone channel for
+  PARSEC: the CMD web form computes tables server-side on request
+  (opaque, not scriptable), hence the local synthesis above.
 
 See [docs/data-sources.md](docs/data-sources.md) for the full source
 registry, verification dates, and known caveats.

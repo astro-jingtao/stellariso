@@ -151,7 +151,7 @@ Field mapping version: `1`.
 - Stage labels follow the official CMD FAQ, which itself cautions that labels are approximate and not carefully checked for all masses and metallicities.
 - Mass-loss sign convention difference: MIST's star_mdot is negative while the star loses mass; CMD's logMdot is log10 of the (positive) rate. Both are preserved natively; the unified signed mass_loss_rate is mapped only for MIST, and PARSEC keeps logMdot under log_mass_loss_rate to avoid a silent sign/representation change.
 
-### CMD isochrone tables (web form) (`cmd_table`)
+### CMD isochrone tables (hand-downloaded) (`cmd_table`)
 
 #### Field mappings
 

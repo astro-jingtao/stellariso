@@ -171,16 +171,20 @@ class ParsecIso(UnifiedIso):
     def construct(cls, paths=None) -> "ParsecIso":
         """Load CMD isochrone tables from local files.
 
-        PARSEC publishes no downloadable packages: isochrone tables are
-        obtained through the CMD web form by hand (see
-        ``docs/data-sources.md``) and registered into a database with
-        ``register_local_product``, or passed here directly.
+        PARSEC publishes no isochrone packages: the CMD web form computes
+        tables server-side on request and is not an acquisition channel
+        (see ``docs/data-sources.md``). Isochrones are synthesized locally
+        from the official tracks (``stellariso.synthesis``); a table
+        downloaded by hand in a browser can be passed here directly, or
+        registered into a database with ``register_local_product``.
         """
         if paths is None:
             raise ValueError(
                 "construct('parsec/<release>') requires paths= to locally "
-                "obtained files; PARSEC has no download channel — see "
-                "docs/data-sources.md for the manual procedure"
+                "held files; PARSEC publishes no isochrone packages — "
+                "synthesize from the official tracks "
+                "(stellariso.synthesis) or pass a hand-downloaded CMD "
+                "table; see docs/data-sources.md"
             )
         grid = IsochroneGrid.from_paths("parsec", _as_path_list(paths))
         return cls(grid.sets)

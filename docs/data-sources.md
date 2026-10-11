@@ -89,7 +89,7 @@ produced by the model team's own pipeline.
 - Model family: PARSEC (PAdova and TRieste Stellar Evolution Code) with
   the COLIBRI extension for the TP-AGB.
 - Official site: https://stev.oapd.inaf.it (track database under
-  `/PARSEC/`, isochrone form under `/cgi-bin/cmd`).
+  `/PARSEC/`).
 
 ### Track archives (primary channel; plain static downloads)
 
@@ -122,21 +122,23 @@ enumerates no codes; stellariso's code table (see
 [unified-parameters](unified-parameters.md)) is derived from the physical
 state at each integer transition and says so.
 
-### CMD web form (manual channel for server-computed tables)
+### Rejected channel: CMD web form
 
 The CMD 3.9 form (`https://stev.oapd.inaf.it/cgi-bin/cmd_3.9`, multipart
-POST) generates isochrone tables for PARSEC v2.0 (optionally rotating)
-and PARSEC v1.2S + COLIBRI over chosen age/metallicity ranges. Scripted
-submissions (verified 2026-10-11 with multipart and urlencoded bodies,
-browser-like headers, and both default and explicit parameter sets) are
-accepted — the job runs and the response echoes the configuration — but
-the result file contains only the header block and zero isochrone rows,
-with no error. Until this changes, files from this form are obtained
-manually in a browser and remain fully readable (`construct("parsec/<release>",
-paths=[...])`, `local_user_file` provenance). stellariso does not treat
-form output as an acquisition channel: the isochrone computation itself
-is opaque. Local synthesis from the official tracks is the transparent
-alternative.
+POST) computes isochrone tables server-side on request for PARSEC v2.0
+(optionally rotating) and PARSEC v1.2S + COLIBRI over chosen
+age/metallicity ranges. It is rejected as an acquisition channel on both
+grounds of the policy above: the tables are produced by opaque
+server-side computation, and the form cannot be scripted — submissions
+(verified 2026-10-11 with multipart and urlencoded bodies, browser-like
+headers, and both default and explicit parameter sets) are accepted and
+the response echoes the configuration, but the result file contains only
+the header block and zero isochrone rows, with no error. PARSEC is
+therefore a tracks-only source for stellariso: local synthesis from the
+official tracks (see `stellariso.synthesis`) is the isochrone source. A
+table a user downloads by hand in a browser remains fully readable as a
+local user file (`construct("parsec/<release>", paths=[...])`,
+`local_user_file` provenance) — read support, not acquisition.
 
 ### TLS note
 

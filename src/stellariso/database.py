@@ -602,11 +602,11 @@ def register_local_product(
     files: Iterable[Path],
     note: str,
 ) -> ProductRecord:
-    """Register manually obtained files as a product of the database.
+    """Register locally held files as a product of the database.
 
-    For sources that publish no downloadable packages (PARSEC today), the
-    files are obtained by hand through the official interface, placed in
-    one directory, and described here — with the same MANIFEST shape the
+    For files obtained outside the package catalogs (e.g. a CMD web-form
+    table downloaded by hand in a browser), the files are placed in one
+    directory and described here — with the same MANIFEST shape the
     builder writes, an explicit ``local_user_file`` source class, and the
     acquisition note stating exactly how the files were produced.
     """

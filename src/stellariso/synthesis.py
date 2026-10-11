@@ -1,15 +1,16 @@
 """Local isochrone synthesis from stellar tracks.
 
-PARSEC publishes stellar tracks as official packages but isochrones only
-through an opaque web form; this module builds isochrones locally and
-transparently instead: for a target age, each track's time series is
-interpolated linearly in age between its bracketing models, and the
-resulting points (one per initial mass) form the isochrone. No cross-track
-interpolation, no extrapolation: a track whose age span does not cover the
-target is omitted and the omission is recorded. The helium-flash
-discontinuity is not bridged — HB tracks are excluded from synthesis, so
-post-flash populations are absent from synthesized isochrones at old ages
-(recorded, not hidden).
+PARSEC publishes stellar tracks as official packages but no isochrone
+packages (its CMD web form computes isochrone tables server-side on
+request — opaque, and rejected as an acquisition channel); this module
+builds isochrones locally and transparently instead: for a target age,
+each track's time series is interpolated linearly in age between its
+bracketing models, and the resulting points (one per initial mass) form
+the isochrone. No cross-track interpolation, no extrapolation: a track
+whose age span does not cover the target is omitted and the omission is
+recorded. The helium-flash discontinuity is not bridged — HB tracks are
+excluded from synthesis, so post-flash populations are absent from
+synthesized isochrones at old ages (recorded, not hidden).
 
 Every synthesized isochrone carries the transformation statement in its
 provenance and the identity product ``synthesized_isochrones``; reading one
