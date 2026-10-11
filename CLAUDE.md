@@ -16,8 +16,8 @@ README and the `docs/` tree; consult them before editing:
   `network` and excluded from the default run via `-m "not network"` in CI
   (run them explicitly when needed).
 - Test fixtures under `tests/data/` are trimmed excerpts of real upstream
-  files; each carries a `provenance.md` describing its derivation. Never
-  hand-edit fixture data.
+  files (or documented format-equivalent synthetic tables); each carries a
+  `README.md` describing its derivation. Never hand-edit fixture data.
 
 ## Conventions
 
