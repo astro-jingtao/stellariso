@@ -143,6 +143,43 @@ class Isochrone:
             raise KeyError(f"parameter {name!r} status: {spec.status}")
         raise KeyError(f"parameter {name!r} carries no value")
 
+    # -- within-isochrone interpolation --------------------------------------
+
+    def at(
+        self,
+        mass: float,
+        fields: str | Iterable[str] | None = None,
+        coordinate: str = "initial_mass",
+        method: str = "linear",
+        record: bool = False,
+    ):
+        """Interpolate fields at one initial mass within this isochrone.
+
+        Returns a dict of field values (or the single value when ``fields``
+        is a string); with ``record=True`` returns ``(values, record)``.
+        No extrapolation; see :mod:`stellariso.interp`.
+        """
+        from .interp import interpolate_along
+
+        if fields is None:
+            # discrete stage fields are not interpolable; use get_phase-style
+            # nearest-node access for those
+            fields = [
+                n for n in sorted(self.field_specs) if n not in ("phase", "native_phase")
+            ]
+        result, rec = interpolate_along(
+            self, coordinate, mass, fields, method=method
+        )
+        single = isinstance(fields, str)
+        values = result[fields][0] if single else {k: v[0] for k, v in result.items()}
+        if record:
+            return values, rec
+        return values
+
+    def at_initial_mass(self, mass: float, fields=None, **kwargs):
+        """Alias of :meth:`at` with the default mass coordinate."""
+        return self.at(mass, fields=fields, **kwargs)
+
     # -- export ------------------------------------------------------------
 
     def to_table(self, layer: str = "unified") -> Table:
