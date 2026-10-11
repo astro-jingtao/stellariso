@@ -9,7 +9,7 @@ __version__ = "0.1.0"
 
 from .core import FieldSpec, ModelIdentity, ParameterRole, ParameterSpec
 from .exceptions import StellarIsoError
-from .facade import MistIso, UnifiedIso, construct
+from .facade import MistIso, ParsecIso, UnifiedIso, construct
 from .grid import IsochroneGrid, open_grid
 from .interp import InterpolationRecord, interpolate_along
 from .isochrone import Isochrone, IsochroneSet
@@ -52,6 +52,7 @@ __all__ = [
     "fetch",
     "UnifiedIso",
     "MistIso",
+    "ParsecIso",
     # interpolation
     "InterpolationRecord",
     "interpolate_along",

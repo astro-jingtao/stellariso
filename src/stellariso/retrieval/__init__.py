@@ -17,12 +17,27 @@ __all__ = ["fetch"]
 def _channels() -> dict:
     # imported lazily: model fetch modules import retrieval.cache, and a
     # module-level import here would make the two packages circular
+    from ..exceptions import SourceUnavailableError
     from ..models.mist.fetch import fetch_mist_subset, fetch_mist_tarball
+
+    def _parsec_manual(**kwargs):
+        raise SourceUnavailableError(
+            "PARSEC isochrone tables have no scriptable official channel "
+            "today: the CMD 3.9 form accepts scripted jobs but returns "
+            "header-only results, and no CDS/Zenodo deposit exists (checked "
+            "2026-10-11). Obtain the table manually through a browser "
+            "(https://stev.oapd.inaf.it/cgi-bin/cmd), save it, and load it "
+            "with construct('parsec', paths=[...]) or open_grid(path, "
+            "model='parsec'). See docs/data-sources.md."
+        )
 
     return {
         "mist": {
             "subset": fetch_mist_subset,
             "tarball": fetch_mist_tarball,
+        },
+        "parsec": {
+            "manual": _parsec_manual,
         },
     }
 

@@ -27,11 +27,17 @@ from .warnings import NearestGridPointWarning
 
 __all__ = ["IsochroneGrid", "open_grid"]
 
-_SELECTABLE = ("log_age", "initial_feh", "alpha_fe", "initial_rotation")
+_SELECTABLE_FALLBACK = ("log_age",)
 
 
 class IsochroneGrid:
-    """All isochrones of one model product, queryable by grid coordinates."""
+    """All isochrones of one model product, queryable by grid coordinates.
+
+    The selectable coordinates are derived from the keys the backend pinned
+    in each isochrone's selection metadata (MIST: log_age, initial_feh,
+    alpha_fe, initial_rotation; PARSEC: log_age, initial_z), so the grid
+    stays model-agnostic.
+    """
 
     def __init__(self, sets: Iterable[IsochroneSet]):
         self._sets = tuple(sets)
@@ -47,6 +53,15 @@ class IsochroneGrid:
         self._isochrones: tuple[Isochrone, ...] = tuple(
             iso for s in self._sets for iso in s.isochrones
         )
+        coords: list[str] = []
+        for iso in self._isochrones:
+            for k in iso.selection:
+                if k not in coords:
+                    coords.append(k)
+        if "log_age" in coords:
+            coords.remove("log_age")
+            coords = ["log_age"] + coords
+        self._selectable = tuple(coords) or _SELECTABLE_FALLBACK
         self._sets_by_key = {}
         for s in self._sets:
             for iso in s:
@@ -100,19 +115,18 @@ class IsochroneGrid:
     def __iter__(self):
         return iter(self._isochrones)
 
-    @staticmethod
-    def _key_of(iso: Isochrone) -> tuple:
-        return tuple(iso.selection.get(k) for k in _SELECTABLE)
+    def _key_of(self, iso: Isochrone) -> tuple:
+        return tuple(iso.selection.get(k) for k in self._selectable)
 
     def axis_values(self, name: str) -> tuple:
         """Available values of a selection coordinate, sorted, unique."""
-        idx = _SELECTABLE.index(name)
+        idx = self._selectable.index(name)
         values = {key[idx] for key in self._sets_by_key}
         return tuple(sorted(values))
 
     @property
     def axes(self) -> dict[str, tuple]:
-        return {name: self.axis_values(name) for name in _SELECTABLE}
+        return {name: self.axis_values(name) for name in self._selectable}
 
     @property
     def provenance(self):
@@ -155,32 +169,32 @@ class IsochroneGrid:
             raise ValueError(f"method must be 'exact' or 'nearest', got {method!r}")
 
         requested = {k: float(v) for k, v in coordinates.items()}
-        unknown = set(requested) - set(_SELECTABLE)
+        unknown = set(requested) - set(self._selectable)
         if unknown:
             raise ValueError(
                 f"unknown selection coordinates {sorted(unknown)}; "
-                f"selectable: {list(_SELECTABLE)}"
+                f"selectable: {list(self._selectable)}"
             )
 
         if method == "exact":
             # unrequested coordinates default to the grid's value when the
             # axis is unique; multi-valued axes must be pinned explicitly
             filled = dict(requested)
-            for name in _SELECTABLE:
+            for name in self._selectable:
                 if name in filled:
                     continue
                 values = self.axis_values(name)
                 if len(values) == 1:
                     filled[name] = values[0]
             still_missing = [
-                k for k in _SELECTABLE if k not in filled and len(self.axis_values(k)) > 1
+                k for k in self._selectable if k not in filled and len(self.axis_values(k)) > 1
             ]
             if still_missing:
                 raise GridPointNotFoundError(
                     f"coordinates {still_missing} have several values in this "
                     f"grid and were not pinned; available axes: {self.axes}"
                 )
-            key = tuple(filled.get(k) for k in _SELECTABLE)
+            key = tuple(filled.get(k) for k in self._selectable)
             iso = self._sets_by_key.get(key)
             if iso is None:
                 raise GridPointNotFoundError(
@@ -205,7 +219,7 @@ class IsochroneGrid:
             iso
             for key, iso in self._sets_by_key.items()
             if all(
-                key[_SELECTABLE.index(name)] == value
+                key[self._selectable.index(name)] == value
                 for name, value in snapped.items()
             )
         ]
@@ -218,7 +232,7 @@ class IsochroneGrid:
             )
         else:
             # more than one candidate: unconstrained axes remain
-            unpinned = [k for k in _SELECTABLE if k not in requested]
+            unpinned = [k for k in self._selectable if k not in requested]
             raise GridPointNotFoundError(
                 f"snapped coordinates {snapped} match {len(candidates)} "
                 f"isochrones; pin one of {unpinned}"

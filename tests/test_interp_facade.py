@@ -151,7 +151,7 @@ class TestFacade:
     def test_get_detailed_returns_record(self):
         xx = construct("mist", paths=[FIXTURE])
         value, record = xx.get_detailed(
-            "log_effective_temperature", 1.0, 9.0, -1.0
+            "log_effective_temperature", 1.0, log_age=9.0, initial_feh=-1.0
         )
         assert np.isfinite(value)
         assert record.requested[0] == pytest.approx(1.0)

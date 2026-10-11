@@ -59,7 +59,17 @@ class InterpolationRecord:
 
 
 def _prepare_coordinate(iso: Isochrone, coordinate: str):
-    values = np.asarray(iso.native[coordinate], dtype=float)
+    # the coordinate may be a unified field name (initial_mass) or a native
+    # column name; both must be numeric and monotone-usable
+    if coordinate in iso.field_specs:
+        values = np.asarray(iso.unified[coordinate], dtype=float)
+    elif coordinate in iso.native:
+        values = np.asarray(iso.native[coordinate], dtype=float)
+    else:
+        raise KeyError(
+            f"coordinate {coordinate!r} is neither a unified field nor a "
+            f"native column of this isochrone"
+        )
     # deduplicate exact/rounded ties, keeping the first occurrence
     keep = np.concatenate([[True], np.diff(values) > 1e-12])
     if not np.all(np.diff(values[keep]) > 0):

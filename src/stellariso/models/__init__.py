@@ -11,6 +11,7 @@ from typing import Callable
 
 from ..exceptions import UnsupportedModelError
 from .mist.backend import read_mist, recognize_mist
+from .parsec.backend import read_parsec, recognize_parsec
 
 __all__ = ["BACKENDS", "get_backend", "register_backend"]
 
@@ -26,6 +27,9 @@ class Backend:
 
 BACKENDS: dict[str, Backend] = {
     "mist": Backend(name="mist", recognize=recognize_mist, read=read_mist),
+    "parsec": Backend(
+        name="parsec", recognize=recognize_parsec, read=read_parsec
+    ),
 }
 
 

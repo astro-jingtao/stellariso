@@ -18,7 +18,7 @@ from .grid import IsochroneGrid
 from .interp import InterpolationRecord
 from .isochrone import IsochroneSet
 
-__all__ = ["UnifiedIso", "MistIso", "construct"]
+__all__ = ["UnifiedIso", "MistIso", "ParsecIso", "construct"]
 
 
 class UnifiedIso(IsochroneGrid, ABC):
@@ -42,20 +42,21 @@ class UnifiedIso(IsochroneGrid, ABC):
         field: str,
         mass: float,
         log_age: float | None = None,
-        initial_feh: float | None = None,
         interp: str = "linear",
         selection: str = "nearest",
+        **coordinates,
     ) -> float:
-        """One quantity at (initial mass, log10 age, [Fe/H]).
+        """One quantity at (initial mass, grid coordinates).
 
-        ``selection`` picks the isochrone (``nearest`` warns and records any
-        snapping; ``exact`` requires an available grid point);
-        ``interp`` chooses the within-isochrone method (``linear`` or
-        ``pchip``). The interpolation record of the last call is kept on
-        ``self.last_record``.
+        ``log_age`` and any backend coordinate (MIST: ``initial_feh``,
+        ``alpha_fe``, ``initial_rotation``; PARSEC: ``initial_z``) select the
+        isochrone — ``nearest`` warns and records any snapping, ``exact``
+        requires an available grid point. ``interp`` chooses the
+        within-isochrone method (``linear`` or ``pchip``). The interpolation
+        record of the last call is kept on ``self.last_record``.
         """
         value, record = self.get_detailed(
-            field, mass, log_age, initial_feh, interp=interp, selection=selection
+            field, mass, log_age, interp=interp, selection=selection, **coordinates
         )
         return value
 
@@ -64,42 +65,38 @@ class UnifiedIso(IsochroneGrid, ABC):
         field: str,
         mass: float,
         log_age: float | None = None,
-        initial_feh: float | None = None,
         interp: str = "linear",
         selection: str = "nearest",
+        **coordinates,
     ) -> tuple[float, InterpolationRecord]:
-        coordinates = {}
+        coords = dict(coordinates)
         if log_age is not None:
-            coordinates["log_age"] = log_age
-        if initial_feh is not None:
-            coordinates["initial_feh"] = initial_feh
-        iso = self.get_isochrone(method=selection, **coordinates)
+            coords["log_age"] = log_age
+        iso = self.get_isochrone(method=selection, **coords)
         values, record = iso.at(mass, fields=field, method=interp, record=True)
         self.last_record = record
         return float(values), record
 
     # -- convenience queries (shared implementation) --------------------------
 
-    def get_logg(self, mass, log_age=None, initial_feh=None, **kw) -> float:
+    def get_logg(self, mass, log_age=None, **kw) -> float:
+        return self.get("log_surface_gravity", mass, log_age=log_age, **kw)
+
+    def get_log_teff(self, mass, log_age=None, **kw) -> float:
         return self.get(
-            "log_surface_gravity", mass, log_age, initial_feh, **kw
+            "log_effective_temperature", mass, log_age=log_age, **kw
         )
 
-    def get_log_teff(self, mass, log_age=None, initial_feh=None, **kw) -> float:
-        return self.get(
-            "log_effective_temperature", mass, log_age, initial_feh, **kw
-        )
+    def get_log_luminosity(self, mass, log_age=None, **kw) -> float:
+        return self.get("log_luminosity", mass, log_age=log_age, **kw)
 
-    def get_log_luminosity(self, mass, log_age=None, initial_feh=None, **kw) -> float:
-        return self.get("log_luminosity", mass, log_age, initial_feh, **kw)
+    def get_log_radius(self, mass, log_age=None, **kw) -> float:
+        return self.get("log_radius", mass, log_age=log_age, **kw)
 
-    def get_log_radius(self, mass, log_age=None, initial_feh=None, **kw) -> float:
-        return self.get("log_radius", mass, log_age, initial_feh, **kw)
+    def get_current_mass(self, mass, log_age=None, **kw) -> float:
+        return self.get("current_mass", mass, log_age=log_age, **kw)
 
-    def get_current_mass(self, mass, log_age=None, initial_feh=None, **kw) -> float:
-        return self.get("current_mass", mass, log_age, initial_feh, **kw)
-
-    def get_phase(self, mass, log_age=None, initial_feh=None, **kw) -> str:
+    def get_phase(self, mass, log_age=None, **kw) -> str:
         """Unified stage at the given mass. Phases are discrete: the value is
         read from the bracketing nodes — their stage when they agree,
         ``unknown`` with a warning when the mass straddles a boundary."""
@@ -109,13 +106,12 @@ class UnifiedIso(IsochroneGrid, ABC):
 
         from .warnings import PhaseMappingWarning
 
-        coordinates = {}
+        coordinates = dict(kw)
+        selection = coordinates.pop("selection", "nearest")
         if log_age is not None:
             coordinates["log_age"] = log_age
-        if initial_feh is not None:
-            coordinates["initial_feh"] = initial_feh
-        iso = self.get_isochrone(method=kw.pop("selection", "nearest"), **coordinates)
-        masses = np.asarray(iso.native["initial_mass"], dtype=float)
+        iso = self.get_isochrone(method=selection, **coordinates)
+        masses = np.asarray(iso.unified["initial_mass"], dtype=float)
         stages = iso.unified["phase"]
         i = int(np.searchsorted(masses, mass, side="right")) - 1
         i = min(max(i, 0), len(masses) - 1)
@@ -195,13 +191,37 @@ class MistIso(UnifiedIso):
         return cls([sets])
 
 
+class ParsecIso(UnifiedIso):
+    """PARSEC/PADova CMD isochrone tables under the unified interface."""
+
+    model_name = "parsec"
+
+    @classmethod
+    def construct(cls, paths=None, **kwargs) -> "ParsecIso":
+        """Load CMD isochrone tables from local files.
+
+        The CMD 3.9 form cannot currently be scripted (see
+        ``docs/data-sources.md``), so PARSEC data is acquired manually
+        through a browser and registered as local user files; there is no
+        automatic fetch channel to fall back to.
+        """
+        if paths is None:
+            raise ValueError(
+                "construct('parsec') requires paths= to locally obtained CMD "
+                "isochrone tables; the CMD web form currently cannot be "
+                "scripted — see docs/data-sources.md for the manual procedure"
+            )
+        grid = IsochroneGrid.from_paths("parsec", _as_path_list(paths))
+        return cls(grid.sets)
+
+
 def _as_path_list(paths) -> list:
     if isinstance(paths, (str, Path)):
         return [paths]
     return list(paths)
 
 
-_REGISTRY = {"mist": MistIso}
+_REGISTRY = {"mist": MistIso, "parsec": ParsecIso}
 
 
 def construct(model: str, **kwargs: Any) -> UnifiedIso:
