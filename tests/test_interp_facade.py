@@ -126,16 +126,16 @@ class TestFacade:
         from stellariso.exceptions import UnsupportedModelError
 
         with pytest.raises(UnsupportedModelError):
-            construct("nonexistent")
+            construct("nonexistent/1.0")
 
     def test_construct_from_paths(self):
-        xx = construct("mist", paths=[FIXTURE])
+        xx = construct("mist/1.2", paths=[FIXTURE])
         assert isinstance(xx, MistIso)
         assert xx.model_name == "mist"
         assert len(xx) == 2
 
     def test_get_logg_end_to_end(self):
-        xx = construct("mist", paths=[FIXTURE])
+        xx = construct("mist/1.2", paths=[FIXTURE])
         logg = xx.get_logg(mass=1.0, log_age=9.0, initial_feh=-1.0)
         assert np.isfinite(logg)
         record = xx.last_record
@@ -143,13 +143,13 @@ class TestFacade:
         assert record.coordinate == "initial_mass"
 
     def test_get_nearest_selection_warns_and_records(self):
-        xx = construct("mist", paths=[FIXTURE])
+        xx = construct("mist/1.2", paths=[FIXTURE])
         with pytest.warns(NearestGridPointWarning):
             logg = xx.get_logg(mass=1.0, log_age=9.3, initial_feh=-1.0)
         assert np.isfinite(logg)
 
     def test_get_detailed_returns_record(self):
-        xx = construct("mist", paths=[FIXTURE])
+        xx = construct("mist/1.2", paths=[FIXTURE])
         value, record = xx.get_detailed(
             "log_effective_temperature", 1.0, log_age=9.0, initial_feh=-1.0
         )
@@ -157,7 +157,7 @@ class TestFacade:
         assert record.requested[0] == pytest.approx(1.0)
 
     def test_get_phase(self):
-        xx = construct("mist", paths=[FIXTURE])
+        xx = construct("mist/1.2", paths=[FIXTURE])
         # pick a mass deep inside the MS span of the age-9 isochrone
         masses = xx.get_isochrone(log_age=9.0).native["initial_mass"]
         m_ms = masses[len(masses) // 4]
@@ -165,11 +165,17 @@ class TestFacade:
         assert stage in ("main_sequence", "red_giant_branch")
 
     def test_describe(self):
-        xx = construct("mist", paths=[FIXTURE])
+        xx = construct("mist/1.2", paths=[FIXTURE])
         text = xx.describe()
         assert "MistIso" in text
         assert "log_age" in text
 
     def test_construct_without_paths_points_to_database(self):
         with pytest.raises(ValueError, match="build_database"):
+            construct("mist/1.2")
+
+    def test_construct_requires_version_qualified_model(self):
+        with pytest.raises(ValueError, match="version-qualified"):
             construct("mist")
+        with pytest.raises(ValueError, match="version-qualified"):
+            construct("parsec")

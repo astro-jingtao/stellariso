@@ -3,16 +3,16 @@
 ``UnifiedIso`` is the abstract face of a loaded model product: selection by
 (age, composition) plus point queries ``get_<field>(M, log_age, feh)`` that
 combine conservative grid selection with within-isochrone interpolation.
-``MistIso`` is the MIST implementation; ``construct(model=...)`` builds the
-right subclass.
+``construct(model="mist/1.2")`` builds the right subclass from local paths
+or from a built database.
 """
 
 from __future__ import annotations
 
 from abc import ABC
 from pathlib import Path
-from typing import Any, Iterable
 
+from stellariso.database import Database
 from stellariso.exceptions import UnsupportedModelError
 from stellariso.grid import IsochroneGrid
 from stellariso.interp import InterpolationRecord
@@ -168,19 +168,19 @@ class ParsecIso(UnifiedIso):
     model_name = "parsec"
 
     @classmethod
-    def construct(cls, paths=None, **kwargs) -> "ParsecIso":
+    def construct(cls, paths=None) -> "ParsecIso":
         """Load CMD isochrone tables from local files.
 
-        The CMD 3.9 form cannot currently be scripted (see
-        ``docs/data-sources.md``), so PARSEC data is acquired manually
-        through a browser and registered as local user files; there is no
-        automatic fetch channel to fall back to.
+        PARSEC publishes no downloadable packages: isochrone tables are
+        obtained through the CMD web form by hand (see
+        ``docs/data-sources.md``) and registered into a database with
+        ``register_local_product``, or passed here directly.
         """
         if paths is None:
             raise ValueError(
-                "construct('parsec') requires paths= to locally obtained CMD "
-                "isochrone tables; the CMD web form currently cannot be "
-                "scripted — see docs/data-sources.md for the manual procedure"
+                "construct('parsec/<release>') requires paths= to locally "
+                "obtained files; PARSEC has no download channel — see "
+                "docs/data-sources.md for the manual procedure"
             )
         grid = IsochroneGrid.from_paths("parsec", _as_path_list(paths))
         return cls(grid.sets)
@@ -195,13 +195,52 @@ def _as_path_list(paths) -> list:
 _REGISTRY = {"mist": MistIso, "parsec": ParsecIso}
 
 
-def construct(model: str, **kwargs: Any) -> UnifiedIso:
-    """Build the unified object for ``model`` (see the subclass ``construct``)."""
+def construct(
+    model: str,
+    paths=None,
+    database=None,
+    label: str | None = None,
+) -> UnifiedIso:
+    """Build the unified point-query facade for one model product.
+
+    ``model`` is version-qualified: ``"mist/1.2"``, ``"parsec/v1.2S+COLIBRI
+    PR16"``. The release part is validated against what the files state
+    about themselves — a mismatch fails loudly.
+
+    Data comes either from ``paths`` (files or directories you hold) or
+    from a ``database`` built with ``stellariso.build_database`` (use
+    ``label`` to pick one product when a release publishes several, e.g.
+    rotation sets); never from the network.
+    """
+    from stellariso.models import parse_model_spec
+
+    family, release = parse_model_spec(model)
+    if release is None:
+        raise ValueError(
+            f"model must be version-qualified, e.g. 'mist/1.2'; got {model!r}"
+        )
     try:
-        cls = _REGISTRY[model.lower()]
+        cls = _REGISTRY[family]
     except KeyError:
         raise UnsupportedModelError(
             f"no unified class registered for model {model!r}; "
-            f"registered: {sorted(_REGISTRY)}"
+            f"registered families: {sorted(_REGISTRY)}"
         ) from None
-    return cls.construct(**kwargs)
+
+    if database is not None:
+        if paths is not None:
+            raise ValueError("pass either paths= or database=, not both")
+        from stellariso.database import open_database
+
+        db = database if isinstance(database, Database) else open_database(database)
+        grid = db.grid(model, label=label)
+        obj = cls(grid.sets)
+    else:
+        obj = cls.construct(paths=paths)
+
+    if obj.identity.release != release:
+        raise ValueError(
+            f"model {model!r} does not match the data: the files state "
+            f"release {obj.identity.release!r}"
+        )
+    return obj

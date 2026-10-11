@@ -259,16 +259,29 @@ def open_grid(
 ) -> IsochroneGrid:
     """Open a local grid from a file or directory of files.
 
-    With ``model`` given, the corresponding backend reads every file it
-    recognizes under ``path``. Without ``model``, every registered backend
+    With ``model`` given (family only, ``"mist"``, or version-qualified,
+    ``"mist/1.2"``), the corresponding backend reads every file it
+    recognizes under ``path``; a stated release is validated against the
+    files' own identity. Without ``model``, every registered backend
     sniffs the sources; exactly one must claim them
     (``AmbiguousFormatError`` otherwise, ``UnrecognizedFormatError`` if none).
     """
+    from stellariso.models import parse_model_spec
+
     p = Path(path)
     if model is not None:
-        if p.is_dir():
-            return IsochroneGrid.from_directory(model, p)
-        return IsochroneGrid.from_paths(model, [p])
+        family, release = parse_model_spec(model)
+        grid = (
+            IsochroneGrid.from_directory(family, p)
+            if p.is_dir()
+            else IsochroneGrid.from_paths(family, [p])
+        )
+        if release is not None and grid.identity.release != release:
+            raise ValueError(
+                f"model {model!r} does not match the data: the files state "
+                f"release {grid.identity.release!r}"
+            )
+        return grid
 
     from stellariso.models import BACKENDS
 

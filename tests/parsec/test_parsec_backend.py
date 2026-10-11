@@ -136,7 +136,7 @@ class TestGridAndFacade:
         assert iso.selection["log_age"] == 9.0
 
     def test_construct_and_get(self):
-        xx = construct("parsec", paths=[FIXTURE])
+        xx = construct("parsec/v1.2S +  COLIBRI S_37 + S_35 + PR16", paths=[FIXTURE])
         assert isinstance(xx, ParsecIso)
         logg = xx.get_logg(mass=1.0, log_age=9.0, initial_z=GOLDEN["z"])
         assert np.isfinite(logg)
@@ -148,7 +148,7 @@ class TestGridAndFacade:
 
     def test_construct_requires_paths(self):
         with pytest.raises(ValueError, match="paths="):
-            construct("parsec")
+            construct("parsec/v1.2S")
 
     def test_database_build_is_manual(self, tmp_path):
         from stellariso.database import build_database
@@ -165,8 +165,8 @@ class TestCrossModelParity:
         mist_fixture = (
             FIXTURE.parent.parent / "mist" / "MIST_v1.2_feh_m1.00_afe_p0.0_vvcrit0.4_fixture.iso"
         )
-        m = construct("mist", paths=[mist_fixture])
-        p = construct("parsec", paths=[FIXTURE])
+        m = construct("mist/1.2", paths=[mist_fixture])
+        p = construct("parsec/v1.2S +  COLIBRI S_37 + S_35 + PR16", paths=[FIXTURE])
         for xx in (m, p):
             assert hasattr(xx, "get_logg")
             assert hasattr(xx, "describe")

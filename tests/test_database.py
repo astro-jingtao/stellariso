@@ -20,6 +20,7 @@ from stellariso.exceptions import (
     DataIntegrityError,
     SourceUnavailableError,
 )
+from stellariso.facade import MistIso, construct
 from stellariso.grid import IsochroneGrid
 from stellariso.integrity import sha256_bytes, sha256_file, verify_checksum
 
@@ -243,6 +244,19 @@ class TestOpenDatabase:
     def test_open_missing_directory_fails(self, tmp_path):
         with pytest.raises(NotADirectoryError, match="build_database"):
             open_database(tmp_path / "nope")
+
+    def test_construct_from_database(self, fake_env):
+        session, db_path = fake_env
+        build_database(db_path, session=session)
+        mist = construct("mist/1.2", database=db_path, label="vvcrit0.4_full_isos")
+        assert isinstance(mist, MistIso)
+        assert mist.identity.release == "1.2"
+        # absent release in the database fails listing what is present
+        with pytest.raises(SourceUnavailableError, match="holds no mist/2.5"):
+            construct("mist/2.5", database=db_path, label="vvcrit0.4_full_isos")
+        # a stated release that contradicts the files' own identity fails too
+        with pytest.raises(ValueError, match="does not match the data"):
+            construct("mist/2.5", paths=[MIST_FIXTURE])
 
 
 class TestRegisterLocalProduct:
