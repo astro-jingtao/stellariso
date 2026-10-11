@@ -13,7 +13,7 @@ flowchart LR
     R --> N[NativeTable<br/>verbatim columns, header, facts]
     N --> S[IsochroneSet / Isochrone<br/>per-age slices with selection metadata]
     S --> U[UnifiedView<br/>renamed + documented transforms]
-    Q[unified-parameter registry<br/>registry/unified_parameters.json] --> U
+    Q[unified-parameter registry<br/>registry definitions + models/&lt;family&gt;/ data files] --> U
     U --> G[IsochroneGrid / UnifiedIso<br/>selection + point queries]
     R --> P[Provenance<br/>sources, assets, references]
     P --> G
@@ -52,18 +52,21 @@ and embedded mapping metadata.
 
 ## The unified-parameter registry
 
-The vocabulary itself — allowed unified fields and coarse stages, the
-physical parameters a product can carry, each backend's field/phase
-mappings, static parameter knowledge, and the literature references —
-lives in one data file,
-`src/stellariso/registry/unified_parameters.json`, not in Python code.
-`stellariso.registry` loads and validates it (unknown unified names,
-non-standard stages, and unimplemented transformations are rejected at
-load). Values that only the data files know (a file's [Fe/H], its age
-list) are injected at read time through `resolve_parameters(backend,
-dynamic)`; variants such as PARSEC's initial_z present/absent or the
-conditional eta_reimers are declared in the data file, not coded as
-branches.
+The registry is split by ownership, and none of it lives in Python code.
+`src/stellariso/registry/unified_parameters.json` holds stellariso's own
+definitions — allowed unified fields, coarse stages, and the physical
+parameters a product can carry. Each model family's characteristics and
+its mapping into that vocabulary (field/phase mappings, static parameter
+knowledge, literature references) live in the family's data file
+`src/stellariso/models/<family>/unified_parameters.json`, next to its
+`catalog.json`. `stellariso.registry` loads the definitions and every
+family file together and validates the merged registry (unknown unified
+names, non-standard stages, and unimplemented transformations are
+rejected at load). Values that only the data files know (a file's
+[Fe/H], its age list) are injected at read time through
+`resolve_parameters(backend, dynamic)`; variants such as PARSEC's
+initial_z present/absent or the conditional eta_reimers are declared in
+the family file, not coded as branches.
 
 The human-readable reference
 [docs/unified-parameters.md](unified-parameters.md) is generated from the

@@ -12,6 +12,7 @@ from stellariso.core import FieldOrigin, ParameterRole, ParameterSource
 from stellariso.provenance import Reference
 from stellariso.registry import (
     REGISTRY_FILE,
+    backend_data_file,
     backend_names,
     backend_notes,
     eep_anchors,
@@ -36,9 +37,15 @@ class TestRegistryData:
         assert REGISTRY_FILE.exists()
         assert REGISTRY_FILE.suffix == ".json"
 
+    def test_family_data_files_sit_next_to_the_catalogs(self):
+        for name in backend_names():
+            data_file = backend_data_file(name)
+            assert data_file.exists(), data_file
+            assert (data_file.parent / "catalog.json").exists()
+
     def test_loads_and_lists_backends_and_products(self):
         reg = load_registry()
-        assert reg["schema_version"] == 2
+        assert reg["schema_version"] == 3
         assert set(backend_names()) == {"mist", "parsec"}
         assert product_names("mist") == ("isochrones",)
         assert set(product_names("parsec")) == {"cmd_table", "tracks_v12s"}

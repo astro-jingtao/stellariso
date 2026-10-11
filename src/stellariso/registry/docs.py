@@ -61,10 +61,14 @@ def render_documentation() -> str:
         "This document records the unified vocabulary every data source maps "
         "into, each source's own fields and physical parameters, and the "
         "mapping between the two layers. It is generated from the registry "
-        "data file `src/stellariso/registry/unified_parameters.json`, which "
-        "is the single source of truth for the library code as well — the "
-        "backends load their field specs, phase mappings, and static "
-        "parameter knowledge from it."
+        "data files: `src/stellariso/registry/unified_parameters.json` holds "
+        "stellariso's own definitions (unified fields, coarse stages, "
+        "physical parameters), and each family's characteristics and "
+        "mappings live in `src/stellariso/models/<family>/"
+        "unified_parameters.json` next to its `catalog.json`. The library "
+        "code loads and validates them as one registry — the backends read "
+        "their field specs, phase mappings, and static parameter knowledge "
+        "from it."
     )
     add("")
     add("Regenerate the repository copy after editing the registry:")

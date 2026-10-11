@@ -1,13 +1,17 @@
 """Declarative unified-parameter registry.
 
-The JSON file next to this module is the single source of truth for the
-unified vocabulary (fields, coarse stages, physical parameters) and for each
-backend's products — each product (an isochrone table format, a track
-format) declares its own field mappings, phase mappings, and static
-parameter knowledge. The human-readable document
-``docs/unified-parameters.md`` is generated from that file by
-``tools/generate_parameter_docs.py`` — edit the JSON, regenerate the doc,
-never the other way round.
+The registry is split by ownership. The JSON file next to this module
+(``registry/unified_parameters.json``) is stellariso's own definitions:
+the unified fields, the coarse evolutionary stages, and the physical
+parameters every data source maps into. Each model family's
+characteristics — its products' field mappings, phase mappings, and
+static parameter knowledge, plus the literature to cite — live in the
+family's data file ``models/<family>/unified_parameters.json`` next to
+its ``catalog.json``. This module loads the definitions and every family
+file together, validates them as one registry, and serves the merged
+structure; the human-readable document ``docs/unified-parameters.md`` is
+generated from it by ``tools/generate_parameter_docs.py`` — edit the
+JSON files, regenerate the doc, never the other way round.
 
 Backends read their field specs, phase mappings, parameter templates, and
 literature references from here; only values that come from the data files
@@ -30,6 +34,7 @@ from stellariso.core import (
 )
 
 _REGISTRY_FILE = Path(__file__).with_name("unified_parameters.json")
+_MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
 
 __all__ = [
     "load_registry",
@@ -47,15 +52,46 @@ __all__ = [
     "backend_notes",
     "product_notes",
     "REGISTRY_FILE",
+    "backend_data_file",
 ]
 
 REGISTRY_FILE = _REGISTRY_FILE
+
+
+def backend_data_file(family: str) -> Path:
+    """The family's own data file (``models/<family>/unified_parameters.json``)."""
+    return _MODELS_DIR / family.lower() / "unified_parameters.json"
 
 
 @lru_cache(maxsize=1)
 def _registry() -> dict:
     with open(_REGISTRY_FILE, encoding="utf-8") as fh:
         reg = json.load(fh)
+    reg["backends"] = {}
+    for family_dir in sorted(p for p in _MODELS_DIR.iterdir() if p.is_dir()):
+        data_file = backend_data_file(family_dir.name)
+        if not data_file.exists():
+            continue
+        with open(data_file, encoding="utf-8") as fh:
+            backend = json.load(fh)
+        if backend.get("schema_version") != reg["schema_version"]:
+            raise ValueError(
+                f"{data_file} declares schema_version "
+                f"{backend.get('schema_version')!r}, expected "
+                f"{reg['schema_version']!r} (the definitions file's version)"
+            )
+        declared = backend.get("family")
+        if declared != family_dir.name:
+            raise ValueError(
+                f"{data_file} declares family {declared!r}; the directory "
+                f"name is {family_dir.name!r}"
+            )
+        reg["backends"][declared] = backend
+    if not reg["backends"]:
+        raise ValueError(
+            f"no model family data files (unified_parameters.json) found "
+            f"under {_MODELS_DIR}"
+        )
     _validate(reg)
     return reg
 

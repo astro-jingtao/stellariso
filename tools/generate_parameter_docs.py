@@ -1,7 +1,10 @@
 """Write docs/unified-parameters.md from the unified-parameter registry.
 
-The registry JSON (src/stellariso/registry/unified_parameters.json) is the
-single source of truth; this tool renders it (through
+The registry is split by ownership: definitions in
+src/stellariso/registry/unified_parameters.json, per-family
+characteristics and mappings in
+src/stellariso/models/<family>/unified_parameters.json. stellariso.registry
+loads and validates them as one registry; this tool renders it (through
 stellariso.registry.docs) into the human-readable reference document. Run
 it after every registry edit:
 
