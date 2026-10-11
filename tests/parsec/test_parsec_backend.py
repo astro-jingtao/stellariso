@@ -150,11 +150,12 @@ class TestGridAndFacade:
         with pytest.raises(ValueError, match="paths="):
             construct("parsec")
 
-    def test_fetch_channel_is_manual(self):
-        from stellariso.retrieval import fetch
+    def test_database_build_is_manual(self, tmp_path):
+        from stellariso.database import build_database
 
-        with pytest.raises(SourceUnavailableError, match="manually"):
-            fetch("parsec", channel="manual")
+        with pytest.raises(SourceUnavailableError, match="publishes no downloadable"):
+            build_database(tmp_path / "db", models=["parsec"])
+        assert not (tmp_path / "db").exists()  # nothing left behind on failure
 
 
 class TestCrossModelParity:

@@ -145,50 +145,21 @@ class MistIso(UnifiedIso):
     model_name = "mist"
 
     @classmethod
-    def construct(
-        cls,
-        feh: float | None = None,
-        log_ages: Iterable[float] | None = None,
-        vvcrit: float = 0.4,
-        afe: float = 0.0,
-        paths=None,
-        cache_dir: Path | None = None,
-        fetch_missing: bool = True,
-        session=None,
-    ) -> "MistIso":
-        """Load MIST isochrones, fetching them first when not cached.
+    def construct(cls, paths=None) -> "MistIso":
+        """Load MIST isochrones from local files or directories.
 
-        Either ``paths`` (local files/directories) or a subset request
-        (``feh`` + ``log_ages``) must be given; the full published suite is
-        fetched explicitly through ``stellariso.retrieval.fetch('mist',
-        channel='tarball')`` rather than as a silent default.
+        MIST data is not fetched on demand: build a local database with
+        ``stellariso.build_database(database=...)`` (the complete published
+        tarballs) and load from it, or pass ``paths`` of files you hold.
         """
-        from stellariso.models.mist.backend import read_mist
-        from stellariso.models.mist.fetch import fetch_mist_subset
-
-        if paths is not None:
-            grid = IsochroneGrid.from_paths("mist", _as_path_list(paths))
-            return cls(grid.sets)
-
-        if feh is None or log_ages is None:
+        if paths is None:
             raise ValueError(
-                "construct needs either paths= (local files) or an explicit "
-                "subset request (feh= and log_ages=); for the complete "
-                "published suite use retrieval.fetch('mist', "
-                "channel='tarball') first"
+                "construct('mist') requires paths= of local files; MIST data "
+                "is never fetched on demand — build a database first with "
+                "stellariso.build_database(database=...)"
             )
-        if not fetch_missing:
-            raise ValueError("fetch_missing=False requires paths=")
-        path, prov = fetch_mist_subset(
-            feh=feh,
-            log_ages=log_ages,
-            vvcrit=vvcrit,
-            afe=afe,
-            cache_dir=cache_dir,
-            session=session,
-        )
-        sets = read_mist(path, provenance=prov)
-        return cls([sets])
+        grid = IsochroneGrid.from_paths("mist", _as_path_list(paths))
+        return cls(grid.sets)
 
 
 class ParsecIso(UnifiedIso):

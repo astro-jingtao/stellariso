@@ -170,29 +170,6 @@ class TestFacade:
         assert "MistIso" in text
         assert "log_age" in text
 
-
-class TestConstructFetch:
-    def test_construct_subset_requires_args(self):
-        with pytest.raises(ValueError, match="paths=.*feh="):
+    def test_construct_without_paths_points_to_database(self):
+        with pytest.raises(ValueError, match="build_database"):
             construct("mist")
-
-    def test_construct_fetches_through_fake_session(self, tmp_path):
-        from tests.test_retrieval import FakeSession
-
-        payload = FIXTURE.read_bytes()
-        session = FakeSession(payload)
-        xx = construct(
-            "mist",
-            feh=-1.0,
-            log_ages=[9.0, 10.0],
-            cache_dir=tmp_path,
-            session=session,
-        )
-        assert isinstance(xx, MistIso)
-        assert len(xx) == 2
-        # a second construct hits the cache, not the network
-        n_calls = len(session.calls)
-        construct(
-            "mist", feh=-1.0, log_ages=[9.0, 10.0], cache_dir=tmp_path, session=session
-        )
-        assert len(session.calls) == n_calls

@@ -1,0 +1,6 @@
+{
+  "family": "parsec",
+  "channel": "manual",
+  "manual_note": "PARSEC publishes no downloadable packages: isochrones and tracks are served only through the CMD web interface (https://stev.oapd.inaf.it/cgi-bin/cmd), whose scripted submissions return header-only results (verified 2026-10-11), and no scientific archive deposits exist.",
+  "releases": []
+}

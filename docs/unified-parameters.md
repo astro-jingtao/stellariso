@@ -2,7 +2,7 @@
 
 This document records the unified vocabulary every data source maps into, each source's own fields and physical parameters, and the mapping between the two layers. It is generated from the registry data file `src/stellariso/registry/unified_parameters.json`, which is the single source of truth for the library code as well — the backends load their field specs, phase mappings, and static parameter knowledge from it.
 
-Regenerate this document after editing the registry:
+Regenerate the repository copy after editing the registry:
 
 ```bash
 python tools/generate_parameter_docs.py

@@ -8,6 +8,7 @@ single-star evolution models.
 __version__ = "0.1.0"
 
 from stellariso.core import FieldSpec, ModelIdentity, ParameterRole, ParameterSpec
+from stellariso.database import Database, build_database, open_database
 from stellariso.exceptions import StellarIsoError
 from stellariso.facade import MistIso, ParsecIso, UnifiedIso, construct
 from stellariso.grid import IsochroneGrid, open_grid
@@ -22,7 +23,6 @@ from stellariso.provenance import (
     SourceClass,
     SourceRecord,
 )
-from stellariso.retrieval import fetch
 from stellariso.unified import PhaseMapping, UnifiedView
 
 __all__ = [
@@ -49,7 +49,9 @@ __all__ = [
     # entry points
     "open_grid",
     "construct",
-    "fetch",
+    "build_database",
+    "open_database",
+    "Database",
     "UnifiedIso",
     "MistIso",
     "ParsecIso",

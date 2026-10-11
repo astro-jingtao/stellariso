@@ -45,6 +45,8 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "stellariso.registry" = ["*.json"]
+"stellariso.models.mist" = ["*.json"]
+"stellariso.models.parsec" = ["*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,0 +1,69 @@
+{
+  "family": "mist",
+  "channel": "packages",
+  "source_note": "Official MIST tarballs published by the model team on waps.cfa.harvard.edu. The upstream publishes no checksums; sha256 is computed at download time and recorded in each MANIFEST. URL layout verified 2026-10-11: v1.2 tarballs sit directly under tarballs_v1.2/, v2.5 one level deeper under tarballs_v2.5/isos/.",
+  "format_notes": {
+    "isochrones": "MIST .iso theoretical isochrone table: '#' commented header, one 'number of EEPs, cols' line per isochrone age block, column names on the '# EEP ...' line, whitespace-separated rows; each block's age is carried by the log10_isochrone_age_yr column.",
+    "tracks": "MIST EEP track table: same header convention as the isochrone tables; one track per initial mass per file."
+  },
+  "releases": [
+    {
+      "release": "1.2",
+      "products": [
+        {
+          "label": "vvcrit0.0_full_isos",
+          "kind": "isochrones",
+          "physics": { "vvcrit": 0.0, "columns": "full" },
+          "filename": "MIST_v1.2_vvcrit0.0_full_isos.txz",
+          "url": "http://waps.cfa.harvard.edu/MIST/data/tarballs_v1.2/MIST_v1.2_vvcrit0.0_full_isos.txz",
+          "format": "isochrones"
+        },
+        {
+          "label": "vvcrit0.4_full_isos",
+          "kind": "isochrones",
+          "physics": { "vvcrit": 0.4, "columns": "full" },
+          "filename": "MIST_v1.2_vvcrit0.4_full_isos.txz",
+          "url": "http://waps.cfa.harvard.edu/MIST/data/tarballs_v1.2/MIST_v1.2_vvcrit0.4_full_isos.txz",
+          "format": "isochrones"
+        },
+        {
+          "label": "vvcrit0.0_basic_isos",
+          "kind": "isochrones",
+          "physics": { "vvcrit": 0.0, "columns": "basic" },
+          "filename": "MIST_v1.2_vvcrit0.0_basic_isos.txz",
+          "url": "http://waps.cfa.harvard.edu/MIST/data/tarballs_v1.2/MIST_v1.2_vvcrit0.0_basic_isos.txz",
+          "format": "isochrones"
+        },
+        {
+          "label": "vvcrit0.4_basic_isos",
+          "kind": "isochrones",
+          "physics": { "vvcrit": 0.4, "columns": "basic" },
+          "filename": "MIST_v1.2_vvcrit0.4_basic_isos.txz",
+          "url": "http://waps.cfa.harvard.edu/MIST/data/tarballs_v1.2/MIST_v1.2_vvcrit0.4_basic_isos.txz",
+          "format": "isochrones"
+        }
+      ]
+    },
+    {
+      "release": "2.5",
+      "products": [
+        {
+          "label": "vvcrit0.0_full_isos",
+          "kind": "isochrones",
+          "physics": { "vvcrit": 0.0, "columns": "full" },
+          "filename": "MIST_v2.5_vvcrit0.0_full_isos.txz",
+          "url": "http://waps.cfa.harvard.edu/MIST/data/tarballs_v2.5/isos/MIST_v2.5_vvcrit0.0_full_isos.txz",
+          "format": "isochrones"
+        },
+        {
+          "label": "vvcrit0.4_full_isos",
+          "kind": "isochrones",
+          "physics": { "vvcrit": 0.4, "columns": "full" },
+          "filename": "MIST_v2.5_vvcrit0.4_full_isos.txz",
+          "url": "http://waps.cfa.harvard.edu/MIST/data/tarballs_v2.5/isos/MIST_v2.5_vvcrit0.4_full_isos.txz",
+          "format": "isochrones"
+        }
+      ]
+    }
+  ]
+}
