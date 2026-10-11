@@ -19,11 +19,15 @@ from ...exceptions import DataIntegrityError
 from ...isochrone import Isochrone, IsochroneSet
 from ...native import NativeTable
 from ...provenance import Provenance, Reference
+from ...unified import UnifiedView
+from .mappings import MIST_FIELD_SPECS, MIST_PHASE_MAPPING
 from .reader import MistFile, parse_mist_iso
 
 __all__ = ["read_mist", "mist_identity", "mist_parameters", "MIST_REFERENCES"]
 
 MAPPING_VERSION = "1"
+
+_FIELD_SPEC_DICT = {spec.name: spec for spec in MIST_FIELD_SPECS}
 
 MIST_REFERENCES = (
     Reference(
@@ -198,8 +202,12 @@ def read_mist(
                 native=block_native,
                 identity=identity,
                 parameters=params,
+                field_specs=_FIELD_SPEC_DICT,
                 provenance=prov,
                 selection=selection,
+                unified_view=UnifiedView(
+                    block_native, _FIELD_SPEC_DICT, MIST_PHASE_MAPPING
+                ),
             )
         )
 

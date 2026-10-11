@@ -71,6 +71,34 @@ class Isochrone:
                 return spec
         raise KeyError(f"no parameter named {name!r}")
 
+    # -- unified field access -------------------------------------------------
+
+    def get(self, name: str):
+        """Unified field values (same as ``self.unified[name]``)."""
+        return self.unified[name]
+
+    def has_field(self, name: str) -> bool:
+        return name in self.field_specs
+
+    def field_info(self, name: str) -> FieldSpec:
+        """The FieldSpec tracing unified field ``name`` back to native data."""
+        try:
+            return self.field_specs[name]
+        except KeyError:
+            raise KeyError(
+                f"no unified field {name!r}; available: {sorted(self.field_specs)}"
+            ) from None
+
+    def __getattr__(self, name: str):
+        # called only when normal attribute lookup fails; expose unified
+        # fields as attributes (iso.log_surface_gravity, iso.initial_mass...)
+        specs = object.__getattribute__(self, "field_specs")
+        if name in specs:
+            return object.__getattribute__(self, "unified")[name]
+        raise AttributeError(
+            f"{type(self).__name__!r} object has no attribute {name!r}"
+        )
+
     def parameter_value(self, name: str) -> Any:
         """The scalar value of a parameter for this isochrone.
 
