@@ -17,8 +17,8 @@ __all__ = ["fetch"]
 def _channels() -> dict:
     # imported lazily: model fetch modules import retrieval.cache, and a
     # module-level import here would make the two packages circular
-    from ..exceptions import SourceUnavailableError
-    from ..models.mist.fetch import fetch_mist_subset, fetch_mist_tarball
+    from stellariso.exceptions import SourceUnavailableError
+    from stellariso.models.mist.fetch import fetch_mist_subset, fetch_mist_tarball
 
     def _parsec_manual(**kwargs):
         raise SourceUnavailableError(
@@ -45,7 +45,7 @@ def _channels() -> dict:
 def fetch(model: str, channel: str = "subset", **kwargs: Any) -> tuple[Path, Any]:
     """Fetch data for ``model`` through ``channel`` and return
     ``(path, provenance)``."""
-    from ..exceptions import UnsupportedModelError
+    from stellariso.exceptions import UnsupportedModelError
 
     channels = _channels()
     try:

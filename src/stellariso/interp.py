@@ -22,8 +22,8 @@ from typing import Any, Iterable, Mapping
 import numpy as np
 from scipy.interpolate import PchipInterpolator
 
-from .exceptions import UnsafeInterpolationError
-from .isochrone import Isochrone
+from stellariso.exceptions import UnsafeInterpolationError
+from stellariso.isochrone import Isochrone
 
 __all__ = ["InterpolationRecord", "interpolate_along", "interp_methods"]
 

@@ -14,14 +14,14 @@ from typing import TextIO
 
 import numpy as np
 
-from ...core import ModelIdentity, ParameterRole, ParameterSource, ParameterSpec
-from ...exceptions import DataIntegrityError
-from ...isochrone import Isochrone, IsochroneSet
-from ...native import NativeTable
-from ...provenance import Provenance, Reference
-from ...unified import UnifiedView
-from .mappings import MIST_FIELD_SPECS, MIST_PHASE_MAPPING
-from .reader import MistFile, open_mist_text, parse_mist_iso
+from stellariso.core import ModelIdentity, ParameterRole, ParameterSource, ParameterSpec
+from stellariso.exceptions import DataIntegrityError
+from stellariso.isochrone import Isochrone, IsochroneSet
+from stellariso.native import NativeTable
+from stellariso.provenance import Provenance, Reference
+from stellariso.unified import UnifiedView
+from stellariso.models.mist.mappings import MIST_FIELD_SPECS, MIST_PHASE_MAPPING
+from stellariso.models.mist.reader import MistFile, open_mist_text, parse_mist_iso
 
 __all__ = [
     "read_mist",

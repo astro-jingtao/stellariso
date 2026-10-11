@@ -14,9 +14,9 @@ from typing import Any, Mapping
 import numpy as np
 from astropy.table import Table
 
-from .core import FieldSpec, ModelIdentity, ParameterSpec
-from .native import NativeTable
-from .provenance import Provenance
+from stellariso.core import FieldSpec, ModelIdentity, ParameterSpec
+from stellariso.native import NativeTable
+from stellariso.provenance import Provenance
 
 __all__ = ["Isochrone", "IsochroneSet"]
 
@@ -159,7 +159,7 @@ class Isochrone:
         is a string); with ``record=True`` returns ``(values, record)``.
         No extrapolation; see :mod:`stellariso.interp`.
         """
-        from .interp import interpolate_along
+        from stellariso.interp import interpolate_along
 
         if fields is None:
             # discrete stage fields are not interpolable; use get_phase-style

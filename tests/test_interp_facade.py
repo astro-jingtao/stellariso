@@ -177,7 +177,7 @@ class TestConstructFetch:
             construct("mist")
 
     def test_construct_fetches_through_fake_session(self, tmp_path):
-        from .test_retrieval import FakeSession
+        from tests.test_retrieval import FakeSession
 
         payload = FIXTURE.read_bytes()
         session = FakeSession(payload)

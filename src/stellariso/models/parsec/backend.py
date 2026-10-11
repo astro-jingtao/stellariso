@@ -6,13 +6,13 @@ import os
 from pathlib import Path
 from typing import TextIO
 
-from ...core import ModelIdentity, ParameterRole, ParameterSource, ParameterSpec
-from ...isochrone import Isochrone, IsochroneSet
-from ...native import NativeTable
-from ...provenance import Provenance, Reference
-from ...unified import UnifiedView
-from .mappings import PARSEC_FIELD_SPECS, PARSEC_PHASE_MAPPING
-from .reader import ParsecFile, parse_parsec_cmd
+from stellariso.core import ModelIdentity, ParameterRole, ParameterSource, ParameterSpec
+from stellariso.isochrone import Isochrone, IsochroneSet
+from stellariso.native import NativeTable
+from stellariso.provenance import Provenance, Reference
+from stellariso.unified import UnifiedView
+from stellariso.models.parsec.mappings import PARSEC_FIELD_SPECS, PARSEC_PHASE_MAPPING
+from stellariso.models.parsec.reader import ParsecFile, parse_parsec_cmd
 
 __all__ = ["read_parsec", "recognize_parsec", "PARSEC_REFERENCES"]
 
@@ -45,7 +45,7 @@ _FIELD_SPEC_DICT = {spec.name: spec for spec in PARSEC_FIELD_SPECS}
 
 def recognize_parsec(source: str | os.PathLike | TextIO) -> bool:
     """Cheap sniff for CMD isochrone tables (header + column signature)."""
-    from .reader import open_parsec_text
+    from stellariso.models.parsec.reader import open_parsec_text
 
     fh, opened = open_parsec_text(source)
     try:

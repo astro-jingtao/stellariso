@@ -15,9 +15,9 @@ import numpy as np
 from astropy.table import Table
 from astropy import units as u
 
-from .core import FieldOrigin, FieldSpec
-from .native import NativeTable
-from .warnings import PhaseMappingWarning
+from stellariso.core import FieldOrigin, FieldSpec
+from stellariso.native import NativeTable
+from stellariso.warnings import PhaseMappingWarning
 
 import warnings
 

@@ -23,16 +23,16 @@ from pathlib import Path
 
 import requests
 
-from ...exceptions import DataIntegrityError, SourceUnavailableError
-from ...provenance import (
+from stellariso.exceptions import DataIntegrityError, SourceUnavailableError
+from stellariso.provenance import (
     DataAsset,
     Provenance,
     SourceClass,
     SourceRecord,
     SourceStatus,
 )
-from ...retrieval.cache import product_dir
-from ...retrieval.integrity import sha256_bytes, verify_checksum
+from stellariso.retrieval.cache import product_dir
+from stellariso.retrieval.integrity import sha256_bytes, verify_checksum
 
 __all__ = [
     "FORM_URL",

@@ -16,14 +16,14 @@ from typing import Any, Iterable
 
 import numpy as np
 
-from .exceptions import (
+from stellariso.exceptions import (
     AmbiguousFormatError,
     GridPointNotFoundError,
     UnrecognizedFormatError,
 )
-from .isochrone import Isochrone, IsochroneSet
-from .models import get_backend
-from .warnings import NearestGridPointWarning
+from stellariso.isochrone import Isochrone, IsochroneSet
+from stellariso.models import get_backend
+from stellariso.warnings import NearestGridPointWarning
 
 __all__ = ["IsochroneGrid", "open_grid"]
 
@@ -130,7 +130,7 @@ class IsochroneGrid:
 
     @property
     def provenance(self):
-        from .provenance import Provenance
+        from stellariso.provenance import Provenance
 
         return Provenance(
             data_sources=tuple(
@@ -270,7 +270,7 @@ def open_grid(
             return IsochroneGrid.from_directory(model, p)
         return IsochroneGrid.from_paths(model, [p])
 
-    from .models import BACKENDS
+    from stellariso.models import BACKENDS
 
     paths = (
         sorted(q for q in p.rglob("*") if q.is_file() and not q.name.startswith("."))

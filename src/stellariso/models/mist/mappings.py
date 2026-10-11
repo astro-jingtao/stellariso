@@ -16,8 +16,8 @@ enumerated WD population.
 
 from __future__ import annotations
 
-from ...core import FieldOrigin, FieldSpec
-from ...unified import PhaseMapping
+from stellariso.core import FieldOrigin, FieldSpec
+from stellariso.unified import PhaseMapping
 
 __all__ = ["MIST_FIELD_SPECS", "MIST_PHASE_MAPPING", "MIST_EEP_ANCHORS"]
 

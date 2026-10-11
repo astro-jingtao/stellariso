@@ -9,9 +9,9 @@ from __future__ import annotations
 
 from typing import Callable
 
-from ..exceptions import UnsupportedModelError
-from .mist.backend import read_mist, recognize_mist
-from .parsec.backend import read_parsec, recognize_parsec
+from stellariso.exceptions import UnsupportedModelError
+from stellariso.models.mist.backend import read_mist, recognize_mist
+from stellariso.models.parsec.backend import read_parsec, recognize_parsec
 
 __all__ = ["BACKENDS", "get_backend", "register_backend"]
 

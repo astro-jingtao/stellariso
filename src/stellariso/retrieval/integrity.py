@@ -5,8 +5,8 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-from ..exceptions import DataIntegrityError
-from ..warnings import ChecksumUnavailableWarning
+from stellariso.exceptions import DataIntegrityError
+from stellariso.warnings import ChecksumUnavailableWarning
 
 __all__ = ["sha256_file", "sha256_bytes", "verify_checksum"]
 

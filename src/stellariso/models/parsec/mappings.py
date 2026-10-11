@@ -15,8 +15,8 @@ under its native name to avoid a silent sign/representation change.
 
 from __future__ import annotations
 
-from ...core import FieldOrigin, FieldSpec
-from ...unified import PhaseMapping
+from stellariso.core import FieldOrigin, FieldSpec
+from stellariso.unified import PhaseMapping
 
 __all__ = ["PARSEC_FIELD_SPECS", "PARSEC_PHASE_MAPPING", "PARSEC_REFERENCES"]
 

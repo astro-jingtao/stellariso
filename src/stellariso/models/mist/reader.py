@@ -37,8 +37,8 @@ from typing import Any, TextIO
 import numpy as np
 from astropy.table import Table
 
-from ...exceptions import DataIntegrityError, UnrecognizedFormatError
-from ...native import NativeTable
+from stellariso.exceptions import DataIntegrityError, UnrecognizedFormatError
+from stellariso.native import NativeTable
 
 __all__ = ["MistFile", "parse_mist_iso", "open_mist_text"]
 

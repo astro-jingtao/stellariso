@@ -7,14 +7,14 @@ single-star evolution models.
 
 __version__ = "0.1.0"
 
-from .core import FieldSpec, ModelIdentity, ParameterRole, ParameterSpec
-from .exceptions import StellarIsoError
-from .facade import MistIso, ParsecIso, UnifiedIso, construct
-from .grid import IsochroneGrid, open_grid
-from .interp import InterpolationRecord, interpolate_along
-from .isochrone import Isochrone, IsochroneSet
-from .native import NativeTable
-from .provenance import (
+from stellariso.core import FieldSpec, ModelIdentity, ParameterRole, ParameterSpec
+from stellariso.exceptions import StellarIsoError
+from stellariso.facade import MistIso, ParsecIso, UnifiedIso, construct
+from stellariso.grid import IsochroneGrid, open_grid
+from stellariso.interp import InterpolationRecord, interpolate_along
+from stellariso.isochrone import Isochrone, IsochroneSet
+from stellariso.native import NativeTable
+from stellariso.provenance import (
     DataAsset,
     Provenance,
     Reference,
@@ -22,8 +22,8 @@ from .provenance import (
     SourceClass,
     SourceRecord,
 )
-from .retrieval import fetch
-from .unified import PhaseMapping, UnifiedView
+from stellariso.retrieval import fetch
+from stellariso.unified import PhaseMapping, UnifiedView
 
 __all__ = [
     "__version__",

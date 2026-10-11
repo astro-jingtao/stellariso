@@ -13,10 +13,10 @@ from abc import ABC
 from pathlib import Path
 from typing import Any, Iterable
 
-from .exceptions import UnsupportedModelError
-from .grid import IsochroneGrid
-from .interp import InterpolationRecord
-from .isochrone import IsochroneSet
+from stellariso.exceptions import UnsupportedModelError
+from stellariso.grid import IsochroneGrid
+from stellariso.interp import InterpolationRecord
+from stellariso.isochrone import IsochroneSet
 
 __all__ = ["UnifiedIso", "MistIso", "ParsecIso", "construct"]
 
@@ -104,7 +104,7 @@ class UnifiedIso(IsochroneGrid, ABC):
 
         import numpy as np
 
-        from .warnings import PhaseMappingWarning
+        from stellariso.warnings import PhaseMappingWarning
 
         coordinates = dict(kw)
         selection = coordinates.pop("selection", "nearest")
@@ -163,8 +163,8 @@ class MistIso(UnifiedIso):
         fetched explicitly through ``stellariso.retrieval.fetch('mist',
         channel='tarball')`` rather than as a silent default.
         """
-        from .models.mist.backend import read_mist
-        from .models.mist.fetch import fetch_mist_subset
+        from stellariso.models.mist.backend import read_mist
+        from stellariso.models.mist.fetch import fetch_mist_subset
 
         if paths is not None:
             grid = IsochroneGrid.from_paths("mist", _as_path_list(paths))

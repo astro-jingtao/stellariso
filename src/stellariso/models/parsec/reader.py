@@ -25,8 +25,8 @@ from typing import TextIO
 import numpy as np
 from astropy.table import Table
 
-from ...exceptions import DataIntegrityError, UnrecognizedFormatError
-from ...native import NativeTable
+from stellariso.exceptions import DataIntegrityError, UnrecognizedFormatError
+from stellariso.native import NativeTable
 
 __all__ = ["ParsecFile", "parse_parsec_cmd", "open_parsec_text"]
 
