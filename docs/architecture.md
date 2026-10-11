@@ -6,10 +6,14 @@ the objects that carry them.
 
 ```mermaid
 flowchart LR
-    F[upstream file<br/>.iso / CMD table] --> R[backend reader<br/>models/&lt;family&gt;/reader.py]
+    C[release catalog<br/>models/&lt;family&gt;/catalog.json] --> B[build_database<br/>official packages only]
+    B --> D[local database<br/>MANIFEST per product, self-contained]
+    D --> R[backend reader<br/>models/&lt;family&gt;/reader.py]
+    F[user-held file<br/>.iso / CMD table] --> R
     R --> N[NativeTable<br/>verbatim columns, header, facts]
     N --> S[IsochroneSet / Isochrone<br/>per-age slices with selection metadata]
     S --> U[UnifiedView<br/>renamed + documented transforms]
+    Q[unified-parameter registry<br/>registry/unified_parameters.json] --> U
     U --> G[IsochroneGrid / UnifiedIso<br/>selection + point queries]
     R --> P[Provenance<br/>sources, assets, references]
     P --> G
@@ -46,6 +50,54 @@ stating the native column, units, representation, transformation, backend,
 and mapping version. `to_table()` materializes the unified layer with units
 and embedded mapping metadata.
 
+## The unified-parameter registry
+
+The vocabulary itself — allowed unified fields and coarse stages, the
+physical parameters a product can carry, each backend's field/phase
+mappings, static parameter knowledge, and the literature references —
+lives in one data file,
+`src/stellariso/registry/unified_parameters.json`, not in Python code.
+`stellariso.registry` loads and validates it (unknown unified names,
+non-standard stages, and unimplemented transformations are rejected at
+load). Values that only the data files know (a file's [Fe/H], its age
+list) are injected at read time through `resolve_parameters(backend,
+dynamic)`; variants such as PARSEC's initial_z present/absent or the
+conditional eta_reimers are declared in the data file, not coded as
+branches.
+
+The human-readable reference
+[docs/unified-parameters.md](unified-parameters.md) is generated from the
+registry by `tools/generate_parameter_docs.py`; a test keeps the two in
+sync. Built databases carry a snapshot of the same document.
+
+## The local database
+
+`stellariso.database` replaces any notion of a cache. A database is one
+directory the user chooses and passes explicitly (`database=...`); there is
+no environment variable and no implicit fallback location.
+
+- `build_database(database=...)` downloads, once, the complete published
+  matrix declared in per-family release catalogs
+  (`models/<family>/catalog.json`): every release and every parameter set
+  the source offers as an official package. The official archives are kept
+  (the database doubles as the offline backup), extracted, and described
+  by a per-product `MANIFEST.json` — source URL, sha256, size, retrieval
+  time, file format, citations. Verified products are never re-downloaded.
+- `open_database(database=...)` / `Database.grid("mist/1.2", label=...)`
+  query the database fully offline.
+- Self-containment: the root carries `database.json` (inventory),
+  `README.md` (summary with format notes and citations), and a
+  `unified-parameters.md` snapshot, so the data stays interpretable with
+  the upstream websites gone.
+- Portability: manifests store relative paths only; the whole database or
+  any subset of its product directories can be copied to another machine
+  and opened there.
+
+Sources without a package channel (PARSEC today) make `build_database`
+fail loudly with the manual acquisition procedure;
+`register_local_product` records manually obtained files with the same
+manifest shape and an explicit `local_user_file` source class.
+
 ## Parameters
 
 `ParameterSpec` (`stellariso.core`) records each physical parameter with a
@@ -74,9 +126,9 @@ other.
 - `scientific_references` / `software_references` — what to cite, kept apart
   from download URLs.
 
-The data cache (`stellariso.retrieval`) doubles as the offline backup:
-checksum-matching files are never re-fetched, and every asset is recorded in
-a JSON registry.
+Acquisition provenance for a database product is read from its MANIFEST
+(`Database.provenance`); synthesized products append their transformation
+to the chain.
 
 ## Selection and interpolation
 
@@ -100,18 +152,22 @@ A backend (see `stellariso/models/`) contributes:
 
 1. a cheap `recognize` sniffer,
 2. a literal `reader` producing `NativeTable` + facts + blocks,
-3. product knowledge: `ModelIdentity`, `ParameterSpec`s, field and phase
-   mappings,
-4. (optionally) fetch channels for `stellariso.retrieval`.
+3. product knowledge: `ModelIdentity` and the reader-side value injection
+   into the registry's parameter templates,
+4. a release `catalog` (`models/<family>/catalog.json`) declaring every
+   official package the database builder acquires.
 
 Core code dispatches through the registry (`stellariso.models.get_backend`);
 there are no model-name branches outside the backends. Adding a model family
 means adding a package under `models/` and registering it — the grid, unified
-view, selection, interpolation, and facade machinery are model-agnostic.
+view, selection, interpolation, database, and facade machinery are
+model-agnostic.
 
 ## Versioning
 
-Four versions coexist and never collapse into one: the stellariso package
-version (`stellariso.__version__`), the unified schema version, per-backend
-field-mapping versions (`FieldSpec.mapping_version`), and the upstream model
-release (`ModelIdentity.release`).
+Five versions coexist and never collapse into one: the stellariso package
+version (`stellariso.__version__`), the unified-registry schema version,
+per-backend field-mapping versions (`FieldSpec.mapping_version`), the
+release-catalog contents (each product records its source URL and checksum
+in its MANIFEST), and the upstream model release (`ModelIdentity.release`,
+which every version-qualified model spec is validated against).

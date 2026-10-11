@@ -150,13 +150,6 @@ class TestGridAndFacade:
         with pytest.raises(ValueError, match="paths="):
             construct("parsec/v1.2S")
 
-    def test_database_build_is_manual(self, tmp_path):
-        from stellariso.database import build_database
-
-        with pytest.raises(SourceUnavailableError, match="publishes no downloadable"):
-            build_database(tmp_path / "db", models=["parsec"])
-        assert not (tmp_path / "db").exists()  # nothing left behind on failure
-
 
 class TestCrossModelParity:
     """The API behaves the same across backends; the models stay different."""

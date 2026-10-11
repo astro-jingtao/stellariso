@@ -4,11 +4,15 @@ The unified view renames a product's columns to canonical field names and
 computes documented transformations, but it is not a second copy of the data:
 native columns are referenced, transformed columns are computed on demand,
 and every field carries its :class:`~stellariso.core.FieldSpec` describing
-exactly how it maps back to native data.
+exactly how it maps back to native data. Derived fields are computed by
+named rules (``computations``) attached by the backend; file-metadata fields
+read per-product constants (for example a track's initial mass, stated by
+its filename).
 """
 
 from __future__ import annotations
 
+import math
 from typing import Any, Callable, Mapping
 
 import numpy as np
@@ -28,6 +32,8 @@ __all__ = ["UnifiedView", "PhaseMapping", "TRANSFORMATIONS", "UNIFIED_PHASES"]
 # A FieldSpec's `transformation` string must be one of these.
 TRANSFORMATIONS: dict[str, Callable[[np.ndarray], np.ndarray]] = {
     "10 ** x": lambda a: np.power(10.0, a),
+    # IAU 2015 nominal solar radius: 6.957e10 cm
+    "x - log10(Rsun/cm)": lambda a: a - math.log10(6.957e10),
 }
 
 # Coarse unified evolutionary stages — the allowed vocabulary, declared in
@@ -83,8 +89,10 @@ class PhaseMapping:
 class UnifiedView:
     """Lazy unified access over one native table.
 
-    ``view[name]`` returns the unified field's values (native column when
-    the origin is native, the documented transformation when it is not).
+    ``view[name]`` returns the unified field's values: the native column
+    when the origin is native, the named transformation when it is
+    transformed, the attached computation rule when it is derived, or the
+    per-product constant when it is file metadata.
     ``to_table()`` materializes the unified layer as an astropy Table.
     """
 
@@ -92,11 +100,13 @@ class UnifiedView:
         self,
         native: NativeTable,
         field_specs: Mapping[str, FieldSpec],
-        phase_mapping: PhaseMapping | None = None,
+        computations: Mapping[str, Callable[[NativeTable], np.ndarray]] | None = None,
+        constants: Mapping[str, Any] | None = None,
     ):
         self._native = native
         self._specs = dict(field_specs)
-        self._phase_mapping = phase_mapping
+        self._computations = dict(computations or {})
+        self._constants = dict(constants or {})
 
     @property
     def field_names(self) -> list[str]:
@@ -120,6 +130,22 @@ class UnifiedView:
         spec = self.field_spec(name)
         if spec.origin is FieldOrigin.MISSING:
             raise KeyError(f"unified field {name!r} is not available in this product")
+        if spec.origin is FieldOrigin.FILE_METADATA:
+            try:
+                return np.asarray(self._constants[spec.native_name])
+            except KeyError:
+                raise KeyError(
+                    f"unified field {name!r} is file metadata keyed "
+                    f"{spec.native_name!r}, which the reader did not supply"
+                ) from None
+        if spec.origin is FieldOrigin.DERIVED:
+            try:
+                fn = self._computations[name]
+            except KeyError:
+                raise NotImplementedError(
+                    f"derived field {name!r} has no computation rule attached"
+                ) from None
+            return fn(self._native)
         if spec.native_name is None:
             raise KeyError(
                 f"unified field {name!r} has no native source declared"
@@ -138,11 +164,8 @@ class UnifiedView:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", RuntimeWarning)
                 return fn(values)
-        # derived: only the phase mapping is currently derivable
-        if name == "phase" and self._phase_mapping is not None:
-            return self._phase_mapping(values)
         raise NotImplementedError(
-            f"derived field {name!r} has no computation rule in the unified view"
+            f"origin {spec.origin!r} of field {name!r} is not implemented"
         )
 
     def to_table(self) -> Table:
@@ -151,11 +174,6 @@ class UnifiedView:
             "stellariso_layer": "unified",
             "field_specs": {n: s.to_dict() for n, s in self._specs.items()},
         }
-        if self._phase_mapping is not None:
-            meta["phase_mapping"] = {
-                "backend": self._phase_mapping.backend,
-                "version": self._phase_mapping.version,
-            }
         for name in self.field_names:
             spec = self._specs[name]
             if spec.origin is FieldOrigin.MISSING:

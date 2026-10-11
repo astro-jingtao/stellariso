@@ -38,10 +38,11 @@ __all__ = [
     "MIST_EEP_ANCHORS",
 ]
 
-_FIELD_SPEC_DICT = field_spec_dict("mist")
-_MIST_PHASE_MAPPING = phase_mapping("mist")
+_FIELD_SPEC_DICT = field_spec_dict("mist", "isochrones")
+_MIST_PHASE_MAPPING = phase_mapping("mist", "isochrones")
+_PHASE_COMPUTATION = {"phase": lambda nt: _MIST_PHASE_MAPPING(np.asarray(nt["phase"]))}
 MIST_REFERENCES = references("mist")
-MIST_EEP_ANCHORS = eep_anchors("mist") or {}
+MIST_EEP_ANCHORS = eep_anchors("mist", "isochrones") or {}
 
 
 def recognize_mist(source: str | os.PathLike | TextIO) -> bool:
@@ -99,7 +100,7 @@ def mist_parameters(facts: dict, log_ages: tuple) -> tuple:
         "initial_helium": facts["yinit"],
         "initial_z": facts["zinit"],
     }
-    return resolve_parameters("mist", dynamic)
+    return resolve_parameters("mist", "isochrones", dynamic)
 
 
 def read_mist(
@@ -159,7 +160,9 @@ def read_mist(
                 provenance=prov,
                 selection=selection,
                 unified_view=UnifiedView(
-                    block_native, _FIELD_SPEC_DICT, _MIST_PHASE_MAPPING
+                    block_native,
+                    _FIELD_SPEC_DICT,
+                    computations=_PHASE_COMPUTATION,
                 ),
             )
         )

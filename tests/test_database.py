@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+import stellariso
 from stellariso.database import (
     Database,
     build_database,
@@ -289,8 +290,89 @@ class TestSafeExtract:
             info = tarfile.TarInfo(name="../evil.txt")
             info.size = len(data)
             tf.addfile(info, BytesIO(data))
-        buf.seek(0)
-        with tarfile.open(fileobj=buf, mode="r:") as tf, pytest.raises(
-            ValueError, match="escapes"
-        ):
-            dbmod._safe_extract(tf, tmp_path / "out")
+        archive = tmp_path / "evil.txz"
+        archive.write_bytes(buf.getvalue())
+        with pytest.raises(ValueError, match="escapes"):
+            dbmod._safe_extract(archive, tmp_path / "out")
+
+
+class TestZipProductsAndCaBundle:
+    def test_build_zip_archive_product(self, tmp_path, monkeypatch):
+        import zipfile
+
+        dat_a = (
+            b"MODELL MASS AGE LOG_L LOG_TE LOG_R PHASE\n"
+            b"1.20 1.20 1.0e5 -1.0 3.6 10.8 1\n"
+        )
+        buf = BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("Z0.0001Y0.249OUTA1.74_F7_M001.200.DAT", dat_a)
+            zf.writestr("readme.txt", "notes")
+        zip_catalog = {
+            "family": "parsec",
+            "channel": "packages",
+            "source_note": "test",
+            "releases": [
+                {
+                    "release": "v1.2S",
+                    "products": [
+                        {
+                            "label": "all_tracks",
+                            "kind": "tracks",
+                            "physics": {},
+                            "filename": "all_tracks_Pv1.2s.zip",
+                            "url": "https://fake.example/all_tracks_Pv1.2s.zip",
+                            "size_bytes": len(buf.getvalue()),
+                            "format": "tracks_v12s",
+                        }
+                    ],
+                }
+            ],
+        }
+        session = FakeStreamSession({zip_catalog["releases"][0]["products"][0]["url"]: buf.getvalue()})
+        monkeypatch.setattr("stellariso.database.catalog", lambda family: zip_catalog)
+        monkeypatch.setattr("stellariso.database.backend_names", lambda: ("parsec",))
+        db = build_database(tmp_path / "db", session=session)
+        assert len(db.products) == 1
+        product_dir = tmp_path / "db" / "parsec" / "v1.2S" / "all_tracks"
+        assert (product_dir / "all_tracks_Pv1.2s.zip").exists()
+        assert (product_dir / "Z0.0001Y0.249OUTA1.74_F7_M001.200.DAT").exists()
+        manifest = json.loads((product_dir / "MANIFEST.json").read_text(encoding="utf-8"))
+        assert manifest["n_data_files"] == 1
+
+    def test_default_session_gets_declared_ca_bundle(self, tmp_path, monkeypatch):
+        import stellariso.database as dbmod
+
+        monkeypatch.setattr(
+            "stellariso.database.catalog",
+            lambda family: {
+                "family": family,
+                "channel": "packages",
+                "ca_bundle": "ZeroSSLRSADVSSLCA2.crt",
+                "releases": [],
+            },
+        )
+        sessions = dbmod._sessions(tmp_path / "db", ["parsec"], None)
+        bundle = Path(sessions["parsec"].verify)
+        assert bundle.exists()
+        import certifi
+
+        content = bundle.read_bytes()
+        certifi_pem = Path(certifi.where()).read_bytes()
+        shipped = (
+            Path(stellariso.__file__).parent
+            / "models" / "parsec" / "ZeroSSLRSADVSSLCA2.crt"
+        ).read_bytes()
+        assert certifi_pem[:100] in content
+        assert shipped in content  # the bundled intermediate was appended
+        assert content.count(b"BEGIN CERTIFICATE") == (
+            certifi_pem.count(b"BEGIN CERTIFICATE")
+            + shipped.count(b"BEGIN CERTIFICATE")
+        )
+
+    def test_user_session_used_untouched(self, tmp_path):
+        import stellariso.database as dbmod
+
+        sentinel = object()
+        sessions = dbmod._sessions(tmp_path, ["mist"], sentinel)
+        assert sessions["mist"] is sentinel

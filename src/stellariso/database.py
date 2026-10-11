@@ -30,6 +30,8 @@ from __future__ import annotations
 import hashlib
 import json
 import tarfile
+import warnings
+import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -43,6 +45,7 @@ from stellariso.integrity import sha256_file
 from stellariso.models import catalog, parse_model_spec
 from stellariso.provenance import Provenance, SourceClass, SourceRecord, SourceStatus
 from stellariso.registry import backend_names, references
+from stellariso.warnings import CatalogSizeMismatchWarning
 
 __all__ = ["Database", "ProductRecord", "build_database", "open_database"]
 
@@ -203,32 +206,38 @@ def open_database(database: str | Path) -> Database:
 # -- building -----------------------------------------------------------------
 
 
-def _safe_extract(archive: tarfile.TarFile, target: Path) -> list[str]:
-    """Extract a tarball refusing anything that escapes the target dir."""
+def _safe_extract(archive_path: Path, target: Path) -> list[str]:
+    """Extract a tar or zip archive refusing anything that escapes target."""
     target = target.resolve()
     extracted = []
-    for member in archive.getmembers():
-        dest = (target / member.name).resolve()
+
+    def _check(name: str) -> None:
+        dest = (target / name).resolve()
         if not str(dest).startswith(str(target)):
             raise ValueError(
-                f"archive member {member.name!r} escapes the target directory"
+                f"archive member {name!r} escapes the target directory"
             )
-        archive.extract(member, target, filter="data")
-        extracted.append(member.name)
+
+    if archive_path.suffix == ".zip":
+        with zipfile.ZipFile(archive_path) as zf:
+            for info in zf.infolist():
+                _check(info.filename)
+                zf.extract(info, target)
+                extracted.append(info.filename)
+        return extracted
+
+    with tarfile.open(archive_path, mode="r:*") as tf:
+        for member in tf.getmembers():
+            _check(member.name)
+            tf.extract(member, target, filter="data")
+            extracted.append(member.name)
     return extracted
 
 
-def _download(
-    url: str,
-    target: Path,
-    session: requests.Session | None,
-) -> tuple[str, int]:
-    s = session or requests.Session()
-    if session is None:
-        s.headers["User-Agent"] = "stellariso (isochrone database builder)"
+def _download(url: str, target: Path, session: requests.Session) -> tuple[str, int]:
     digest = hashlib.sha256()
     tmp = target.with_suffix(target.suffix + ".part")
-    with s.get(url, stream=True, timeout=_TIMEOUT_GET) as resp:
+    with session.get(url, stream=True, timeout=_TIMEOUT_GET) as resp:
         resp.raise_for_status()
         with open(tmp, "wb") as fh:
             for chunk in resp.iter_content(chunk_size=_CHUNK):
@@ -248,6 +257,18 @@ def _atomic_write_json(path: Path, payload: dict) -> None:
 
 def _product_target(database: Path, family: str, release: str, label: str) -> Path:
     return database / family / release / label
+
+
+_DATA_SUFFIXES = (".iso", ".track", ".eep", ".dat")
+
+
+def _count_data_files(target_dir: Path) -> int:
+    return sum(
+        1
+        for p in target_dir.rglob("*")
+        if p.is_file()
+        and (p.suffix.lower() in _DATA_SUFFIXES or p.name.lower().endswith(".iso.gz"))
+    )
 
 
 def build_database(
@@ -287,15 +308,28 @@ def build_database(
                 jobs.append((family, release_entry["release"], product))
 
     if dry_run:
+        total = 0
+        missing_size = 0
         for family, release, product in jobs:
-            print(f"{family}/{release}/{product['label']}  {product['url']}")
-        print(f"{len(jobs)} product(s) would be processed")
+            size = product.get("size_bytes")
+            if size is None:
+                missing_size += 1
+                size_text = "size unknown"
+            else:
+                total += size
+                size_text = f"{size:,} bytes"
+            print(f"{family}/{release}/{product['label']}  {size_text}  {product['url']}")
+        print(
+            f"{len(jobs)} product(s), {total:,} bytes total "
+            f"({total / 1e9:.1f} GB, {missing_size} with unknown size)"
+        )
         return None
 
     root.mkdir(parents=True, exist_ok=True)
+    sessions = _sessions(root, families, session)
 
     for family, release, product in jobs:
-        _build_product(root, family, release, product, session, verify_existing)
+        _build_product(root, family, release, product, sessions[family], verify_existing)
 
     _write_inventory(root)
     return open_database(root)
@@ -308,6 +342,52 @@ def _fail_manual(database: Path, family: str, cat: dict) -> None:
         f"under {database / family}, and create their MANIFESTs with "
         f"stellariso.register_local_product()."
     )
+
+
+def _default_session() -> requests.Session:
+    s = requests.Session()
+    s.headers["User-Agent"] = "stellariso (isochrone database builder)"
+    return s
+
+
+def _sessions(
+    database: Path, families: list[str], session: requests.Session | None
+) -> dict[str, requests.Session]:
+    """One session per family: an explicit session is used as given; default
+    sessions honor a family's declared CA bundle (hosts whose TLS chain
+    omits an intermediate — currently stev.oapd.inaf.it — get the bundled
+    intermediate appended to the standard trust store, so verification
+    stays ON instead of being switched off)."""
+    if session is not None:
+        return {family: session for family in families}
+
+    sessions = {}
+    for family in families:
+        s = _default_session()
+        bundle_name = catalog(family).get("ca_bundle")
+        if bundle_name:
+            s.verify = str(_ca_bundle(database, family, bundle_name))
+        sessions[family] = s
+    return sessions
+
+
+def _ca_bundle(database: Path, family: str, name: str) -> Path:
+    import certifi
+
+    model_dir = Path(__file__).parent / "models" / family
+    intermediate = model_dir / name
+    if not intermediate.exists():
+        raise SourceUnavailableError(
+            f"catalog of {family!r} declares CA bundle {name!r}, which is "
+            f"missing from {model_dir}"
+        )
+    tls_dir = database / ".tls"
+    tls_dir.mkdir(parents=True, exist_ok=True)
+    combined = tls_dir / f"{family}-ca-bundle.pem"
+    combined.write_bytes(
+        Path(certifi.where()).read_bytes() + b"\n" + intermediate.read_bytes()
+    )
+    return combined
 
 
 def _build_product(
@@ -342,18 +422,20 @@ def _build_product(
         sha, size = _download(product["url"], archive, session)
         fresh = True
 
-    data_files = sorted(
-        p.name
-        for p in target_dir.iterdir()
-        if p.is_file()
-        and (p.suffix in (".iso", ".track") or p.name.endswith(".iso.gz"))
-    )
-    if fresh or not data_files:
-        with tarfile.open(archive, mode="r:*") as tf:
-            extracted = _safe_extract(tf, target_dir)
-        data_files = sorted(
-            n for n in extracted if n.endswith((".iso", ".track", ".iso.gz"))
+    expected = product.get("size_bytes")
+    if expected is not None and fresh and size != expected:
+        warnings.warn(
+            f"{family}/{release}/{product['label']}: downloaded {size:,} bytes "
+            f"but the release catalog recorded {expected:,} bytes; the "
+            "upstream file may have been replaced",
+            CatalogSizeMismatchWarning,
+            stacklevel=2,
         )
+
+    n_data_files = _count_data_files(target_dir)
+    if fresh or n_data_files == 0:
+        _safe_extract(archive, target_dir)
+        n_data_files = _count_data_files(target_dir)
 
     manifest.update(
         {
@@ -365,6 +447,8 @@ def _build_product(
             "url": product["url"],
             "sha256": sha,
             "size_bytes": size,
+            "expected_size_bytes": product.get("size_bytes"),
+            "n_data_files": n_data_files,
             "retrieved_at": manifest.get("retrieved_at") if not fresh else _now_iso(),
             "source_class": "official_origin",
             "note": catalog(family).get(

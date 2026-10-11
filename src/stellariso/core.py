@@ -127,7 +127,8 @@ class FieldOrigin(Enum):
 
     NATIVE = "native"  # same numbers, possibly renamed
     TRANSFORMED_NATIVE = "transformed_native"  # unit or representation change
-    DERIVED = "derived"  # computed from several native fields
+    DERIVED = "derived"  # computed from native fields through stated rules
+    FILE_METADATA = "file_metadata"  # stated by the file's name/header, not a column
     MISSING = "missing"  # no source in this product
 
 
@@ -168,6 +169,11 @@ class FieldSpec:
         if self.origin is FieldOrigin.DERIVED and self.transformation is None:
             raise ValueError(
                 f"field {self.name!r} with origin=derived must declare transformation"
+            )
+        if self.origin is FieldOrigin.FILE_METADATA and self.native_name is None:
+            raise ValueError(
+                f"field {self.name!r} with origin=file_metadata must declare "
+                "native_name (the metadata key it names)"
             )
 
     def to_dict(self) -> dict:

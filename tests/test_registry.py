@@ -20,6 +20,8 @@ from stellariso.registry import (
     load_registry,
     phase_code_meanings,
     phase_mapping,
+    product_names,
+    product_notes,
     references,
     resolve_parameters,
     unified_field_names,
@@ -34,10 +36,12 @@ class TestRegistryData:
         assert REGISTRY_FILE.exists()
         assert REGISTRY_FILE.suffix == ".json"
 
-    def test_loads_and_lists_backends(self):
+    def test_loads_and_lists_backends_and_products(self):
         reg = load_registry()
+        assert reg["schema_version"] == 2
         assert set(backend_names()) == {"mist", "parsec"}
-        assert reg["schema_version"] == 1
+        assert product_names("mist") == ("isochrones",)
+        assert set(product_names("parsec")) == {"cmd_table", "tracks_v12s"}
 
     def test_unified_vocabulary_present(self):
         names = unified_field_names()
@@ -47,14 +51,15 @@ class TestRegistryData:
             "log_surface_gravity",
             "phase",
             "effective_temperature",
+            "co_core_mass",
         ):
             assert required in names
         assert "unknown" in unified_phases()
 
 
 class TestFieldSpecs:
-    def test_mist_specs_map_to_native_columns(self):
-        specs = field_specs("mist")
+    def test_mist_isochrone_specs_map_to_native_columns(self):
+        specs = field_specs("mist", "isochrones")
         by_name = {s.name: s for s in specs}
         assert by_name["current_mass"].native_name == "star_mass"
         assert by_name["log_surface_gravity"].native_name == "log_g"
@@ -63,35 +68,65 @@ class TestFieldSpecs:
 
     def test_transformed_fields_declare_implemented_transformation(self):
         for backend in backend_names():
-            for spec in field_specs(backend):
-                if spec.origin is FieldOrigin.TRANSFORMED_NATIVE:
-                    from stellariso.unified import TRANSFORMATIONS
+            for product in product_names(backend):
+                for spec in field_specs(backend, product):
+                    if spec.origin is FieldOrigin.TRANSFORMED_NATIVE:
+                        from stellariso.unified import TRANSFORMATIONS
 
-                    assert spec.transformation in TRANSFORMATIONS
-                    assert spec.native_unit is not None
+                        assert spec.transformation in TRANSFORMATIONS
+                        assert spec.native_unit is not None
 
-    def test_parsec_specs(self):
-        specs = field_spec_dict("parsec")
+    def test_parsec_cmd_specs(self):
+        specs = field_spec_dict("parsec", "cmd_table")
         assert specs["current_mass"].native_name == "M_act"
         assert specs["log_surface_gravity"].native_name == "logG"
         assert specs["log_mass_loss_rate"].native_name == "logMdot"
 
+    def test_parsec_track_specs(self):
+        specs = field_spec_dict("parsec", "tracks_v12s")
+        assert specs["current_mass"].native_name == "MASS"
+        assert specs["log_luminosity"].native_name == "LOG_L"
+        assert specs["log_radius"].origin is FieldOrigin.TRANSFORMED_NATIVE
+        assert specs["log_radius"].native_unit == "dex(cm)"
+        assert specs["log_surface_gravity"].origin is FieldOrigin.DERIVED
+        assert specs["initial_mass"].origin is FieldOrigin.FILE_METADATA
+        assert specs["log_mass_loss_rate"].origin is FieldOrigin.MISSING
+
 
 class TestPhaseMapping:
     def test_mist_phase_mapping_from_registry(self):
-        mapping = phase_mapping("mist")
+        mapping = phase_mapping("mist", "isochrones")
         out = mapping([0, 2, 9])
         assert list(out) == ["main_sequence", "red_giant_branch", "wolf_rayet"]
 
+    def test_parsec_track_phase_variants(self):
+        standard = phase_mapping("parsec", "tracks_v12s")
+        out = standard([3, 5, 8, 13, 15])
+        assert list(out) == [
+            "pre_main_sequence",
+            "main_sequence",
+            "red_giant_branch",
+            "core_helium_burning",
+            "unknown",
+        ]
+        hb = phase_mapping("parsec", "tracks_v12s", variant="hb")
+        assert list(hb([1, 4])) == [
+            "core_helium_burning",
+            "early_asymptotic_giant_branch",
+        ]
+
     def test_code_meanings_cover_the_table(self):
         for backend in backend_names():
-            meanings = phase_code_meanings(backend)
-            table = phase_mapping(backend).table
-            assert set(meanings) == set(table)
+            for product in product_names(backend):
+                meanings = phase_code_meanings(backend, product)
+                table = phase_mapping(backend, product).table
+                # meanings may additionally document codes that are
+                # deliberately unmapped (they resolve to 'unknown')
+                assert set(table) <= set(meanings)
 
-    def test_eep_anchors_mist_only(self):
-        assert eep_anchors("mist")["ZAMS"] == 202
-        assert eep_anchors("parsec") is None
+    def test_eep_anchors_mist_isochrones_only(self):
+        assert eep_anchors("mist", "isochrones")["ZAMS"] == 202
+        assert eep_anchors("parsec", "tracks_v12s") is None
 
 
 class TestResolveParametersMist:
@@ -104,7 +139,10 @@ class TestResolveParametersMist:
     }
 
     def test_roles_and_values(self):
-        specs = {p.name: p for p in resolve_parameters("mist", self.DYNAMIC)}
+        specs = {
+            p.name: p
+            for p in resolve_parameters("mist", "isochrones", self.DYNAMIC)
+        }
         assert specs["log_age"].role is ParameterRole.AXIS
         assert specs["log_age"].values == (9.0, 9.5)
         assert specs["log_age"].unit == "dex(log10(age/yr))"
@@ -121,15 +159,16 @@ class TestResolveParametersMist:
         dynamic = dict(self.DYNAMIC)
         del dynamic["initial_helium"]
         with pytest.raises(KeyError, match="initial_helium"):
-            resolve_parameters("mist", dynamic)
+            resolve_parameters("mist", "isochrones", dynamic)
 
 
 class TestResolveParametersParsec:
-    def test_with_z_and_eta(self):
+    def test_cmd_table_with_z_and_eta(self):
         specs = {
             p.name: p
             for p in resolve_parameters(
                 "parsec",
+                "cmd_table",
                 {
                     "log_age": (9.0,),
                     "initial_z": (0.0152,),
@@ -150,14 +189,34 @@ class TestResolveParametersParsec:
         assert specs["alpha_fe"].value == 0.0
         assert specs["initial_rotation"].role is ParameterRole.NOT_APPLICABLE
 
-    def test_without_z_or_eta_selects_fallbacks(self):
+    def test_cmd_table_without_z_or_eta_selects_fallbacks(self):
         specs = {
             p.name: p
-            for p in resolve_parameters("parsec", {"log_age": (9.0,)})
+            for p in resolve_parameters("parsec", "cmd_table", {"log_age": (9.0,)})
         }
         assert specs["initial_z"].role is ParameterRole.IMPLICIT
         assert specs["initial_z"].status == "not_in_file"
         assert "eta_reimers" not in specs
+
+    def test_tracks_v12s(self):
+        specs = {
+            p.name: p
+            for p in resolve_parameters(
+                "parsec",
+                "tracks_v12s",
+                {
+                    "initial_mass": (0.6, 0.8, 1.0),
+                    "initial_z": 0.0001,
+                    "initial_helium": 0.249,
+                },
+            )
+        }
+        assert specs["initial_mass"].role is ParameterRole.AXIS
+        assert specs["initial_mass"].values == (0.6, 0.8, 1.0)
+        assert specs["initial_z"].value == 0.0001
+        assert specs["initial_helium"].value == 0.249
+        assert specs["initial_rotation"].role is ParameterRole.NOT_APPLICABLE
+        assert "log_age" not in specs  # tracks vary age per row, not per product
 
 
 class TestReferencesAndNotes:
@@ -170,6 +229,7 @@ class TestReferencesAndNotes:
     def test_notes_exist(self):
         for backend in backend_names():
             assert backend_notes(backend)
+        assert product_notes("parsec", "tracks_v12s")
 
 
 class TestGeneratedDocument:

@@ -23,6 +23,7 @@ from stellariso.provenance import (
     SourceClass,
     SourceRecord,
 )
+from stellariso.synthesis import SynthesisRecord, synthesize_isochrone, synthesize_isochrones
 from stellariso.unified import PhaseMapping, UnifiedView
 
 __all__ = [
@@ -58,6 +59,10 @@ __all__ = [
     # interpolation
     "InterpolationRecord",
     "interpolate_along",
+    # synthesis
+    "SynthesisRecord",
+    "synthesize_isochrone",
+    "synthesize_isochrones",
     # errors
     "StellarIsoError",
 ]

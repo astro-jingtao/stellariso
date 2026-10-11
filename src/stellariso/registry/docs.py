@@ -117,6 +117,11 @@ def render_documentation() -> str:
     add("")
 
     titles = {"mist": "MIST", "parsec": "PARSEC / Padova"}
+    product_titles = {
+        "isochrones": "Isochrone tables",
+        "cmd_table": "CMD isochrone tables (web form)",
+        "tracks_v12s": "v1.2S stellar tracks (official archive)",
+    }
     for name, backend in reg["backends"].items():
         add(f"## {titles.get(name, name)} (`{name}`)")
         add("")
@@ -126,48 +131,65 @@ def render_documentation() -> str:
             add(f"- {note}")
         add("")
 
-        add("### Field mappings")
-        add("")
-        add("| Unified field | Native column | Origin | Transformation | Notes |")
-        add("|---|---|---|---|---|")
-        for m in backend["field_mappings"]:
-            add(
-                f"| `{m['unified']}` | `{m['native']}` | {m['origin']} "
-                f"| {_escape(m.get('transformation'))} "
-                f"| {_escape(m.get('description'))} |"
-            )
-        add("")
-
-        add("### Phase mapping")
-        add("")
-        add("| Native code | Official meaning | Unified stage |")
-        add("|---|---|---|")
-        meanings = backend["phase_code_meanings"]
-        for code, stage in backend["phase_mapping"].items():
-            add(f"| {code} | {_escape(meanings.get(code))} | `{stage}` |")
-        add("")
-
-        if "eep_anchors" in backend:
-            add("### Primary EEP anchors")
+        for product_key, product in backend["products"].items():
+            add(f"### {product_titles.get(product_key, product_key)} (`{product_key}`)")
             add("")
-            add("| Anchor | EEP number |")
-            add("|---|---|")
-            for anchor, eep in backend["eep_anchors"].items():
-                add(f"| {anchor} | {eep} |")
+            for note in product.get("notes", []):
+                add(f"- {note}")
+            if product.get("notes"):
+                add("")
+
+            add("#### Field mappings")
+            add("")
+            add("| Unified field | Native source | Origin | Transformation | Notes |")
+            add("|---|---|---|---|---|")
+            for m in product["field_mappings"]:
+                native = m.get("native")
+                native_text = f"`{native}`" if native else "—"
+                add(
+                    f"| `{m['unified']}` | {native_text} | {m['origin']} "
+                    f"| {_escape(m.get('transformation'))} "
+                    f"| {_escape(m.get('description'))} |"
+                )
             add("")
 
-        add("### Physical parameters")
-        add("")
-        add("| Parameter | Role | Value / source | Notes |")
-        add("|---|---|---|---|")
-        for entry in backend["parameters"]:
-            role = _ROLE_LABELS.get(entry.get("role", ""), entry.get("role", "—"))
-            notes = entry.get("description") or entry.get("status") or ""
-            add(
-                f"| `{entry['name']}` | {role} "
-                f"| {_escape(_value_source(entry))} | {_escape(notes)} |"
-            )
-        add("")
+            for pm_key, pm_title in (
+                ("phase_mapping", "Phase mapping"),
+                ("hb_phase_mapping", "Phase mapping — HB track files"),
+            ):
+                if pm_key not in product:
+                    continue
+                add(f"#### {pm_title}")
+                add("")
+                add("| Native code | Meaning | Unified stage |")
+                add("|---|---|---|")
+                meaning_key = pm_key.replace("phase_mapping", "phase_code_meanings")
+                meanings = product.get(meaning_key, {})
+                for code, stage in product[pm_key].items():
+                    add(f"| {code} | {_escape(meanings.get(code))} | `{stage}` |")
+                add("")
+
+            if "eep_anchors" in product:
+                add("#### Primary EEP anchors")
+                add("")
+                add("| Anchor | EEP number |")
+                add("|---|---|")
+                for anchor, eep in product["eep_anchors"].items():
+                    add(f"| {anchor} | {eep} |")
+                add("")
+
+            add("#### Physical parameters")
+            add("")
+            add("| Parameter | Role | Value / source | Notes |")
+            add("|---|---|---|---|")
+            for entry in product["parameters"]:
+                role = _ROLE_LABELS.get(entry.get("role", ""), entry.get("role", "—"))
+                notes = entry.get("description") or entry.get("status") or ""
+                add(
+                    f"| `{entry['name']}` | {role} "
+                    f"| {_escape(_value_source(entry))} | {_escape(notes)} |"
+                )
+            add("")
 
         add("### Scientific references")
         add("")

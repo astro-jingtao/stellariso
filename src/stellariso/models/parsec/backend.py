@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 from typing import TextIO
 
+import numpy as np
+
 from stellariso.core import ModelIdentity
 from stellariso.isochrone import Isochrone, IsochroneSet
 from stellariso.native import NativeTable
@@ -22,8 +24,11 @@ from stellariso.models.parsec.reader import ParsecFile, parse_parsec_cmd
 __all__ = ["read_parsec", "recognize_parsec", "PARSEC_REFERENCES"]
 
 PARSEC_REFERENCES = references("parsec")
-_FIELD_SPEC_DICT = field_spec_dict("parsec")
-_PARSEC_PHASE_MAPPING = phase_mapping("parsec")
+_FIELD_SPEC_DICT = field_spec_dict("parsec", "cmd_table")
+_PARSEC_PHASE_MAPPING = phase_mapping("parsec", "cmd_table")
+_PHASE_COMPUTATION = {
+    "phase": lambda nt: _PARSEC_PHASE_MAPPING(np.asarray(nt["label"]))
+}
 
 
 def recognize_parsec(source: str | os.PathLike | TextIO) -> bool:
@@ -85,7 +90,7 @@ def parsec_parameters(facts: dict, block_z, log_ages) -> tuple:
         dynamic["initial_z"] = tuple(sorted(z_values))
     if facts.get("eta_reimers") is not None:
         dynamic["eta_reimers"] = facts["eta_reimers"]
-    return resolve_parameters("parsec", dynamic)
+    return resolve_parameters("parsec", "cmd_table", dynamic)
 
 
 def read_parsec(
@@ -132,7 +137,9 @@ def read_parsec(
                 provenance=prov,
                 selection=selection,
                 unified_view=UnifiedView(
-                    block_native, _FIELD_SPEC_DICT, _PARSEC_PHASE_MAPPING
+                    block_native,
+                    _FIELD_SPEC_DICT,
+                    computations=_PHASE_COMPUTATION,
                 ),
             )
         )
