@@ -31,6 +31,7 @@ class SourceClass(Enum):
     """
 
     OFFICIAL_ORIGIN = "official_origin"  # the model team's own site
+    OFFICIAL_COMPUTED = "official_computed"  # the team's own on-request computation service (e.g. the CMD form)
     OFFICIAL_ARCHIVE = "official_archive"  # archive designated by the team
     SCIENTIFIC_ARCHIVE = "scientific_archive"  # CDS, Zenodo, CADC, ...
     OFFICIAL_SOFTWARE_DISTRIBUTION = "official_software_distribution"

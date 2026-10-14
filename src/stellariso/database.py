@@ -325,23 +325,31 @@ def build_database(
     verify_existing: bool = True,
     dry_run: bool = False,
     extract: bool = True,
+    form_pause: float = 5.0,
 ) -> Database | None:
     """Build (or complete) a local database with the full published matrix.
 
-    Every release and every parameter set each registered source publishes
-    as an official package is downloaded, checksummed, extracted, and
-    recorded in a per-product MANIFEST; nothing is fetched on demand and no
-    web-form-computed subsets are used. Products already present with a
-    matching checksum are kept as-is (re-verified unless
-    ``verify_existing=False``).
+    Package products (every release and parameter set a source publishes
+    as an official package) are downloaded, checksummed, extracted, and
+    recorded in a per-product MANIFEST. Form products (a source whose
+    only isochrone channel is an official computation service — the
+    PARSEC CMD web form) are computed by that service: each product
+    submits its declared payload, verifies the server's header echo,
+    and archives the table with the complete acquisition record (exact
+    payload, timestamps, sha256). Products already present with a
+    matching checksum are never re-acquired, whichever the channel — a
+    form job is server-side compute, so re-running the build only
+    completes what is missing.
 
     ``models`` limits the build to the given families (default: all).
-    ``dry_run=True`` only reports what would be downloaded. With
+    ``dry_run=True`` only reports what would be fetched. With
     ``extract=False`` only the official archives are kept (the complete,
     self-contained backup); ``Database.grid`` extracts a product on first
     open, verifying the archive's sha256 first — the right mode when the
     disk cannot hold the extracted form of every package at once (the
-    extracted size is several times the archive size).
+    extracted size is several times the archive size). ``form_pause``
+    seconds are waited between consecutive form jobs (the service is a
+    small public host; the default keeps submissions polite).
     """
     root = Path(database)
     families = list(models) if models is not None else list(backend_names())
@@ -356,20 +364,22 @@ def build_database(
         cat = catalogs[family]
         for release_entry in cat["releases"]:
             for product in release_entry["products"]:
-                jobs.append((family, release_entry["release"], product))
+                jobs.append((family, release_entry, product))
 
     if dry_run:
         total = 0
         missing_size = 0
-        for family, release, product in jobs:
+        for family, release_entry, product in jobs:
             size = product.get("size_bytes")
-            if size is None:
+            if "fields" in product:
+                size_text = "computed by the official form on request"
+            elif size is None:
                 missing_size += 1
                 size_text = "size unknown"
             else:
                 total += size
                 size_text = f"{size:,} bytes"
-            print(f"{family}/{release}/{product['label']}  {size_text}  {product['url']}")
+            print(f"{family}/{release_entry['release']}/{product['label']}  {size_text}")
         print(
             f"{len(jobs)} product(s), {total:,} bytes total "
             f"({total / 1e9:.1f} GB, {missing_size} with unknown size)"
@@ -379,14 +389,106 @@ def build_database(
     root.mkdir(parents=True, exist_ok=True)
     sessions = _sessions(root, families, session)
 
-    for family, release, product in jobs:
-        _build_product(
-            root, family, release, product, sessions[family], verify_existing,
-            extract=extract,
-        )
+    for family, release_entry, product in jobs:
+        if "fields" in product:
+            _build_form_product(
+                root, family, release_entry, product, pause=form_pause
+            )
+        else:
+            _build_product(
+                root, family, release_entry["release"], product,
+                sessions[family], verify_existing, extract=extract,
+            )
 
     _write_inventory(root)
     return open_database(root)
+
+
+def _build_form_product(
+    database: Path,
+    family: str,
+    release_entry: dict,
+    product: dict,
+    pause: float = 5.0,
+) -> None:
+    """Acquire one form-computed product through its official service.
+
+    The product's catalog entry declares the payload (``fields``, the
+    form's own names) and the header substring the server's echo must
+    carry (``verify_header``). The table is archived as ``output.dat``
+    with its full acquisition record beside it (``output.dat.record.json``)
+    and the same MANIFEST shape package products get — source class
+    ``official_computed``, url = the job's output link. A present,
+    checksum-matching product is kept as-is: form jobs are server-side
+    compute and are never re-run for already-acquired data.
+    """
+    import time
+
+    from stellariso.models.parsec.cmd_form import CmdFieldSet, CmdFormClient
+
+    release = release_entry["release"]
+    release_dir = release_entry.get("release_dir") or release
+    target_dir = _product_target(database, family, release_dir, product["label"])
+    target_dir.mkdir(parents=True, exist_ok=True)
+    data_file = target_dir / "output.dat"
+    manifest_path = target_dir / "MANIFEST.json"
+    manifest = (
+        json.loads(manifest_path.read_text(encoding="utf-8"))
+        if manifest_path.exists()
+        else {}
+    )
+
+    if data_file.exists():
+        recorded = manifest.get("sha256")
+        if recorded and sha256_file(data_file) == recorded:
+            print(f"keep verified {family}/{release_dir}/{product['label']}")
+            return
+
+    fields = CmdFieldSet.from_overrides(**product["fields"])
+    client = CmdFormClient(cmd_version=str(product.get("cmd_version", "3.9")))
+    print(f"submitting form job for {family}/{release_dir}/{product['label']}")
+    job = client.submit(fields)
+    out = client.fetch_output(job)
+
+    expected = product.get("verify_header")
+    if expected and not any(expected in ln for ln in out.comment_lines):
+        raise SourceUnavailableError(
+            f"{family}/{release_dir}/{product['label']}: the server's "
+            f"header echo does not contain {expected!r}; echo was "
+            f"{[ln for ln in out.comment_lines[:4]]}"
+        )
+
+    data_file.write_bytes(out.content)
+    record_path = target_dir / (data_file.name + ".record.json")
+    record_path.write_text(
+        json.dumps(out.record(), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    manifest.update(
+        {
+            "family": family,
+            "release": release,
+            "label": product["label"],
+            "kind": product["kind"],
+            "physics": product.get("physics"),
+            "url": out.url,
+            "sha256": out.sha256,
+            "size_bytes": len(out.content),
+            "expected_size_bytes": None,
+            "n_data_files": 1,
+            "extracted": True,
+            "retrieved_at": out.retrieved_at,
+            "source_class": "official_computed",
+            "note": catalog(family).get("source_note", "official form"),
+            "format": product.get("format", "cmd_table_3_9"),
+            "n_data_rows": out.n_data_rows,
+            "acquisition_record": record_path.name,
+            "references": [r.citation for r in references(family)],
+        }
+    )
+    _atomic_write_json(manifest_path, manifest)
+    time.sleep(pause)
 
 
 def _fail_manual(database: Path, family: str, cat: dict) -> None:
