@@ -23,6 +23,7 @@ __all__ = [
     "DataIntegrityError",
     "SourceUnavailableError",
     "LicenseUnavailableError",
+    "CmdFormError",
 ]
 
 
@@ -87,3 +88,8 @@ class SourceUnavailableError(StellarIsoError):
 
 class LicenseUnavailableError(StellarIsoError):
     """The redistribution license of an asset could not be established."""
+
+
+class CmdFormError(StellarIsoError):
+    """The Padova CMD web form rejected, drifted from, or failed a
+    submission (including the accepted-but-empty failure mode)."""

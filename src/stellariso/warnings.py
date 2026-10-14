@@ -17,6 +17,7 @@ __all__ = [
     "ChecksumUnavailableWarning",
     "CatalogSizeMismatchWarning",
     "SynthesizedProductWarning",
+    "CmdFormDriftWarning",
 ]
 
 
@@ -64,3 +65,9 @@ class SynthesizedProductWarning(StellarIsoWarning):
     otherwise derived) rather than published by the model team; its
     numbers follow stellariso's documented transformation, not the team's
     own isochrone pipeline."""
+
+
+class CmdFormDriftWarning(StellarIsoWarning):
+    """The live CMD web form declares fields the submitted payload does not
+    send; if any of them is required upstream, the job will come back as a
+    header-only table (which fetch_output refuses loudly)."""

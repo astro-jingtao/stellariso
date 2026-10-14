@@ -52,3 +52,20 @@ class TestCatalogUrlsLive:
             for product in release["products"]:
                 resp = session.head(product["url"], timeout=_HEAD_TIMEOUT, allow_redirects=True)
                 assert resp.status_code == 200, (product["url"], resp.status_code)
+
+
+class TestCmdFormLive:
+    def test_submit_single_isochrone_end_to_end(self):
+        # one smallest-possible job: the complete default field set asks for
+        # a single isochrone (1e9 yr, Z = 0.0152); the server computes it
+        # synchronously in seconds. Also proves the honest (non-browser)
+        # User-Agent is served real tables, not header-only output.
+        from stellariso.models.parsec.cmd_form import CmdFieldSet, CmdFormClient
+
+        client = CmdFormClient()
+        job = client.submit(CmdFieldSet.from_overrides())
+        out = client.fetch_output(job)
+        assert out.n_data_rows > 100  # a real isochrone, not the empty mode
+        record = out.record()
+        assert record["cmd_version"] == "3.9"
+        assert any("isochrones based on PARSEC release" in ln for ln in record["server_header_echo"])
