@@ -166,7 +166,16 @@ verification stays on; it is never disabled.
   line per isochrone age block; column-name line starts with `# EEP`;
   rows are whitespace-separated floats; the age of each row is carried by
   the `log10_isochrone_age_yr` column.
-- CMD isochrone tables: `#`-commented header; columns such as `M_ini`,
-  `M_act`, `logL/Lo`, `logTe`, `logG`, `int_IMF`, `C/O`, `M_hec`,
-  `logMdot`, `label` (evolutionary stage: 0=PMS, 1=MS, 2=SGB, 3=RGB,
-  4/5/6=CHEB stages, 7=EAGB, 8=TP-AGB, 9=post-AGB).
+- CMD 3.9 isochrone tables (the layout real outputs use): `#`-commented
+  header whose first line states the CMD version; per-row columns `Zini`
+  `MH` `logAge` `Mini` `int_IMF` `Mass` `logL` `logTe` `logg` `label`
+  (stage: 0=PMS, 1=MS, 2=SGB, 3=RGB, 4/5/6=CHEB stages, 7=EAGB, 8=TP-AGB,
+  9=post-AGB) `McoreTP` `C_O` ... plus the photometric magnitudes; every
+  isochrone block is introduced by a repeated column-name comment line and
+  the file ends with `#isochrone terminated`.
+- Older CMD isochrone tables (the documented Girardi-readme layout, no
+  version echo): `log(age/yr)`, `M_ini`, `M_act`, `logL/Lo`, `logTe`,
+  `logG`, magnitudes, `int_IMF`, `C/O`, `M_hec`, `logMdot`, with
+  per-isochrone `Z=/Y=/X=` block headers. Reading is version-anchored:
+  the file's own version echo selects the parser; both layouts are
+  accepted, and no layout is guessed for an unanchored file.

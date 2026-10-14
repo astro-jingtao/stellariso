@@ -151,7 +151,7 @@ Field mapping version: `1`.
 - Stage labels follow the official CMD FAQ, which itself cautions that labels are approximate and not carefully checked for all masses and metallicities.
 - Mass-loss sign convention difference: MIST's star_mdot is negative while the star loses mass; CMD's logMdot is log10 of the (positive) rate. Both are preserved natively; the unified signed mass_loss_rate is mapped only for MIST, and PARSEC keeps logMdot under log_mass_loss_rate to avoid a silent sign/representation change.
 
-### CMD web-form isochrone tables (`cmd_table`)
+### CMD isochrone tables (documented layout) (`cmd_table`)
 
 #### Field mappings
 
@@ -193,6 +193,56 @@ Field mapping version: `1`.
 | `initial_helium` | derived (stated relation) | relation `Y_p + dYdZ * initial_z` (Y_p=0.2485, dYdZ=1.78) | scaled-solar helium enrichment law of the PARSEC v1.2S grid (stated on the CMD form) |
 | `alpha_fe` | fixed (known value for the whole product) | `0.0` | scaled-solar (CAF09) composition; the CMD v1.2S products carry no alpha enhancement |
 | `initial_rotation` | not applicable under this physics | — | PARSEC v1.2S tracks are non-rotating; rotation exists only in the PARSEC v2.0 products |
+| `eta_reimers` | fixed (known value for the whole product) | file value `eta_reimers`; only when {'available': 'eta_reimers'} | RGB Reimers mass-loss efficiency (file header) |
+| `mixing_length` | implicit (used by the model, not recoverable) | — | not_reported |
+
+### CMD 3.9 web-form isochrone tables (`cmd_table_3_9`)
+
+- Real CMD 3.9 output layout (verified against server-computed tables, 2026-10-14): per-row columns Zini MH logAge Mini int_IMF Mass logL logTe logg label McoreTP C_O period0..period4 pmode Mloss tau1m X Y Xc Xn Xo Cexcess Z plus the photometric-system magnitudes; every isochrone block is introduced by a REPEATED column-name comment line (no per-block Z=/Y=/X= headers exist) and the file ends with '#isochrone terminated'.
+- X and Y are the CURRENT surface H and He mass fractions; Y drifts along the isochrone (dredge-up, AGB) and equals the initial helium at the ZAMS, confirming the enrichment law used for the derived initial_helium parameter.
+- Zini and MH state the initial metallicity and [M/H] of the isochrone (constant within a block; MH = 0 returns Z = 0.014711, not the present-solar 0.01524).
+- No unified mapping exists for log_mass_loss_rate in this layout: the real 3.9 vocabulary has no logMdot column. Mloss is the integrated mass lost (not a rate) and tau1m is left unmapped as well; both stay available under their native names.
+- period0..period4, pmode, Xc, Xn, Xo, Cexcess, and the actual surface Z are preserved natively without unified mappings.
+
+#### Field mappings
+
+| Unified field | Native source | Origin | Transformation | Notes |
+|---|---|---|---|---|
+| `initial_mass` | `Mini` | native | — | initial (age-zero) mass of the isochrone point |
+| `current_mass` | `Mass` | native | — | actual mass including the mass-loss history (Reimers RGB winds with the eta stated in the file header) |
+| `log_luminosity` | `logL` | native | — | — |
+| `log_effective_temperature` | `logTe` | native | — | — |
+| `log_surface_gravity` | `logg` | native | — | — |
+| `native_phase` | `label` | native | — | CMD evolutionary stage label (approximate per the official FAQ) |
+| `phase` | `label` | derived | CMD stage label mapped to unified coarse stages | — |
+| `imf_integral` | `int_IMF` | native | — | — |
+| `c_over_o` | `C_O` | native | — | photospheric C/O ratio (ZAMS value printed before the TP-AGB) |
+| `he_core_mass_tp` | `McoreTP` | native | — | H-exhausted core mass on the TP-AGB (0 before it) |
+
+#### Phase mapping
+
+| Native code | Meaning | Unified stage |
+|---|---|---|
+| 0 | pre-main sequence | `pre_main_sequence` |
+| 1 | main sequence | `main_sequence` |
+| 2 | subgiant branch | `subgiant` |
+| 3 | red giant branch | `red_giant_branch` |
+| 4 | core He burning, stage I | `core_helium_burning` |
+| 5 | core He burning, stage II | `core_helium_burning` |
+| 6 | core He burning, stage III | `core_helium_burning` |
+| 7 | early AGB | `early_asymptotic_giant_branch` |
+| 8 | thermally pulsing AGB | `thermally_pulsing_asymptotic_giant_branch` |
+| 9 | post-AGB | `post_agb` |
+
+#### Physical parameters
+
+| Parameter | Role | Value / source | Notes |
+|---|---|---|---|
+| `log_age` | axis (varies across the published grid) | file values `log_age` | — |
+| `initial_z` | axis (varies across the published grid) | file values `initial_z` | initial metal mass fraction, stated per row by the Zini column |
+| `initial_helium` | derived (stated relation) | relation `Y_p + dYdZ * initial_z` (Y_p=0.2485, dYdZ=1.78) | scaled-solar helium enrichment law of the PARSEC v1.2S grid (stated on the CMD form); the table's own Y column equals it at the ZAMS |
+| `alpha_fe` | fixed (known value for the whole product) | `0.0` | scaled-solar (CAF09) composition; the CMD v1.2S products carry no alpha enhancement |
+| `initial_rotation` | not applicable under this physics | — | PARSEC v1.2S isochrones are non-rotating; rotation exists only in the PARSEC v2.0 products |
 | `eta_reimers` | fixed (known value for the whole product) | file value `eta_reimers`; only when {'available': 'eta_reimers'} | RGB Reimers mass-loss efficiency (file header) |
 | `mixing_length` | implicit (used by the model, not recoverable) | — | not_reported |
 

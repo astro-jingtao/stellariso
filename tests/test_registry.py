@@ -47,7 +47,7 @@ class TestRegistryData:
         assert reg["schema_version"] == 3
         assert set(backend_names()) == {"mist", "parsec"}
         assert product_names("mist") == ("isochrones",)
-        assert set(product_names("parsec")) == {"cmd_table"}
+        assert set(product_names("parsec")) == {"cmd_table", "cmd_table_3_9"}
 
     def test_unified_vocabulary_present(self):
         names = unified_field_names()

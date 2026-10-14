@@ -187,6 +187,153 @@
           "status": "not_reported"
         }
       ]
+    },
+    "cmd_table_3_9": {
+      "field_mappings": [
+        {
+          "unified": "initial_mass",
+          "native": "Mini",
+          "origin": "native",
+          "description": "initial (age-zero) mass of the isochrone point"
+        },
+        {
+          "unified": "current_mass",
+          "native": "Mass",
+          "origin": "native",
+          "description": "actual mass including the mass-loss history (Reimers RGB winds with the eta stated in the file header)"
+        },
+        {
+          "unified": "log_luminosity",
+          "native": "logL",
+          "origin": "native"
+        },
+        {
+          "unified": "log_effective_temperature",
+          "native": "logTe",
+          "origin": "native"
+        },
+        {
+          "unified": "log_surface_gravity",
+          "native": "logg",
+          "origin": "native"
+        },
+        {
+          "unified": "native_phase",
+          "native": "label",
+          "origin": "native",
+          "description": "CMD evolutionary stage label (approximate per the official FAQ)"
+        },
+        {
+          "unified": "phase",
+          "native": "label",
+          "origin": "derived",
+          "transformation": "CMD stage label mapped to unified coarse stages"
+        },
+        {
+          "unified": "imf_integral",
+          "native": "int_IMF",
+          "origin": "native"
+        },
+        {
+          "unified": "c_over_o",
+          "native": "C_O",
+          "origin": "native",
+          "description": "photospheric C/O ratio (ZAMS value printed before the TP-AGB)"
+        },
+        {
+          "unified": "he_core_mass_tp",
+          "native": "McoreTP",
+          "origin": "native",
+          "description": "H-exhausted core mass on the TP-AGB (0 before it)"
+        }
+      ],
+      "phase_mapping": {
+        "0": "pre_main_sequence",
+        "1": "main_sequence",
+        "2": "subgiant",
+        "3": "red_giant_branch",
+        "4": "core_helium_burning",
+        "5": "core_helium_burning",
+        "6": "core_helium_burning",
+        "7": "early_asymptotic_giant_branch",
+        "8": "thermally_pulsing_asymptotic_giant_branch",
+        "9": "post_agb"
+      },
+      "phase_code_meanings": {
+        "0": "pre-main sequence",
+        "1": "main sequence",
+        "2": "subgiant branch",
+        "3": "red giant branch",
+        "4": "core He burning, stage I",
+        "5": "core He burning, stage II",
+        "6": "core He burning, stage III",
+        "7": "early AGB",
+        "8": "thermally pulsing AGB",
+        "9": "post-AGB"
+      },
+      "notes": [
+        "Real CMD 3.9 output layout (verified against server-computed tables, 2026-10-14): per-row columns Zini MH logAge Mini int_IMF Mass logL logTe logg label McoreTP C_O period0..period4 pmode Mloss tau1m X Y Xc Xn Xo Cexcess Z plus the photometric-system magnitudes; every isochrone block is introduced by a REPEATED column-name comment line (no per-block Z=/Y=/X= headers exist) and the file ends with '#isochrone terminated'.",
+        "X and Y are the CURRENT surface H and He mass fractions; Y drifts along the isochrone (dredge-up, AGB) and equals the initial helium at the ZAMS, confirming the enrichment law used for the derived initial_helium parameter.",
+        "Zini and MH state the initial metallicity and [M/H] of the isochrone (constant within a block; MH = 0 returns Z = 0.014711, not the present-solar 0.01524).",
+        "No unified mapping exists for log_mass_loss_rate in this layout: the real 3.9 vocabulary has no logMdot column. Mloss is the integrated mass lost (not a rate) and tau1m is left unmapped as well; both stay available under their native names.",
+        "period0..period4, pmode, Xc, Xn, Xo, Cexcess, and the actual surface Z are preserved natively without unified mappings."
+      ],
+      "parameters": [
+        {
+          "name": "log_age",
+          "role": "axis",
+          "values_from": "log_age",
+          "source": "native"
+        },
+        {
+          "name": "initial_z",
+          "role": "axis",
+          "values_from": "initial_z",
+          "source": "native",
+          "description": "initial metal mass fraction, stated per row by the Zini column"
+        },
+        {
+          "name": "initial_helium",
+          "role": "derived",
+          "depends_on": [
+            "initial_z"
+          ],
+          "relation": "Y_p + dYdZ * initial_z",
+          "relation_parameters": {
+            "Y_p": 0.2485,
+            "dYdZ": 1.78
+          },
+          "source": "derived_from_official_relation",
+          "description": "scaled-solar helium enrichment law of the PARSEC v1.2S grid (stated on the CMD form); the table's own Y column equals it at the ZAMS"
+        },
+        {
+          "name": "alpha_fe",
+          "role": "fixed",
+          "value": 0.0,
+          "source": "official_documentation",
+          "description": "scaled-solar (CAF09) composition; the CMD v1.2S products carry no alpha enhancement"
+        },
+        {
+          "name": "initial_rotation",
+          "role": "not_applicable",
+          "description": "PARSEC v1.2S isochrones are non-rotating; rotation exists only in the PARSEC v2.0 products"
+        },
+        {
+          "name": "eta_reimers",
+          "when": {
+            "available": "eta_reimers"
+          },
+          "role": "fixed",
+          "value_from": "eta_reimers",
+          "source": "native",
+          "description": "RGB Reimers mass-loss efficiency (file header)"
+        },
+        {
+          "name": "mixing_length",
+          "role": "implicit",
+          "status": "not_reported"
+        }
+      ]
     }
   }
 }

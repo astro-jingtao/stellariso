@@ -24,11 +24,11 @@ from stellariso.models.parsec.reader import ParsecFile, parse_parsec_cmd
 __all__ = ["read_parsec", "recognize_parsec", "PARSEC_REFERENCES"]
 
 PARSEC_REFERENCES = references("parsec")
-_FIELD_SPEC_DICT = field_spec_dict("parsec", "cmd_table")
-_PARSEC_PHASE_MAPPING = phase_mapping("parsec", "cmd_table")
-_PHASE_COMPUTATION = {
-    "phase": lambda nt: _PARSEC_PHASE_MAPPING(np.asarray(nt["label"]))
-}
+
+
+def _phase_computation(product: str):
+    mapping = phase_mapping("parsec", product)
+    return {"phase": lambda nt: mapping(np.asarray(nt["label"]))}
 
 
 def recognize_parsec(source: str | os.PathLike | TextIO) -> bool:
@@ -76,13 +76,13 @@ def parsec_identity(facts: dict) -> ModelIdentity:
     )
 
 
-def parsec_parameters(facts: dict, block_z, log_ages) -> tuple:
+def parsec_parameters(product: str, facts: dict, block_z, log_ages) -> tuple:
     """ParameterSpecs for one CMD isochrone table.
 
     Static knowledge (roles, the v1.2S helium enrichment law, the
     not-applicable rotation) comes from the unified-parameter registry;
     the file supplies the age list, the per-block Z values when the
-    header states them, and the Reimers eta when present.
+    table states them, and the Reimers eta when present.
     """
     dynamic = {"log_age": tuple(sorted(set(log_ages)))}
     z_values = {z for z in block_z if z is not None}
@@ -90,7 +90,7 @@ def parsec_parameters(facts: dict, block_z, log_ages) -> tuple:
         dynamic["initial_z"] = tuple(sorted(z_values))
     if facts.get("eta_reimers") is not None:
         dynamic["eta_reimers"] = facts["eta_reimers"]
-    return resolve_parameters("parsec", "cmd_table", dynamic)
+    return resolve_parameters("parsec", product, dynamic)
 
 
 def read_parsec(
@@ -102,8 +102,11 @@ def read_parsec(
     facts = parsed.facts
     identity = parsec_identity(facts)
 
+    product = parsed.format
+    specs = field_spec_dict("parsec", product)
+    phase_computation = _phase_computation(product)
     params = parsec_parameters(
-        facts, [b.z for b in parsed.blocks], facts["ages"]
+        product, facts, [b.z for b in parsed.blocks], facts["ages"]
     )
 
     prov = provenance if provenance is not None else Provenance()
@@ -133,13 +136,13 @@ def read_parsec(
                 native=block_native,
                 identity=identity,
                 parameters=params,
-                field_specs=_FIELD_SPEC_DICT,
+                field_specs=specs,
                 provenance=prov,
                 selection=selection,
                 unified_view=UnifiedView(
                     block_native,
-                    _FIELD_SPEC_DICT,
-                    computations=_PHASE_COMPUTATION,
+                    specs,
+                    computations=phase_computation,
                 ),
             )
         )

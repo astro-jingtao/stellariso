@@ -29,6 +29,17 @@ match the current field set (verified 2026-10-11 with the pre-`isoc_` field
 names); `CmdFormClient.fetch_output` refuses such outputs loudly. Derived
 from the same capture as `output_table.dat` by dropping the data rows.
 
+## `output_grid.dat`
+
+A SYNTHETIC multi-block grid fixture in the same real 3.9 layout, derived
+from `output_table.dat` by `make_cmd39_grid_fixture.py` (committed next to
+it): three isochrone blocks — (logAge 9.0, Z 0.0152), (9.5, 0.0152),
+(9.0, 0.0001) — obtained by rewriting the per-block keying columns
+(`Zini`, `MH`, `logAge`) of the captured rows. All other columns are
+carried over unchanged from the Z = 0.0152 capture: the fixture exercises
+the multi-block FORMAT (repeated column lines, per-row keying, version
+anchoring), not the physics of the alternative compositions.
+
 Both `.dat` captures are gzip-plain (output_gzip unchecked); the column
 vocabulary (`Zini MH logAge Mini int_IMF Mass ... mbolmag ... Kmag`) is the
 real CMD 3.9 isochrone-table layout, which differs from the older
