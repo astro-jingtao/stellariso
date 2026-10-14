@@ -164,6 +164,9 @@ registry, verification dates, and known caveats.
   registry, the database, parameters, provenance, backends.
 - [Data sources](docs/data-sources.md) — verified upstream sources and
   their caveats.
+- [The CMD 3.9 web form](docs/cmd-form.md) — the complete wire-level
+  documentation of the PARSEC isochrone form: every field, the output
+  formats, and the protocol pitfalls.
 - [Unified parameters](docs/unified-parameters.md) — the unified
   vocabulary and every source's mapping into it, generated from the
   registry data file.

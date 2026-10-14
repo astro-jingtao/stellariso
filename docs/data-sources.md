@@ -91,7 +91,9 @@ the official CMD web form (`https://stev.oapd.inaf.it/cgi-bin/cmd`,
 multipart POST to the versioned endpoint `/cgi-bin/cmd_3.9`), which
 stellariso drives programmatically through the request-layer client
 `stellariso.models.parsec.cmd_form` (CLI:
-`tools/fetch_parsec_isochrones.py`).
+`tools/fetch_parsec_isochrones.py`). The form's complete wire-level
+documentation — every field, output layout, protocol pitfalls — is
+[cmd-form.md](cmd-form.md).
 
 The form is scriptable — verified live 2026-10-14 with an honest
 non-browser User-Agent — under a strict wire protocol the client encodes:
