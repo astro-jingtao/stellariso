@@ -136,7 +136,7 @@ database, or any subset of its product directories, can be copied to
 another machine and opened there. Verified products are never
 re-downloaded; re-running the build completes whatever is missing.
 
-What the sources publish (verified live 2026-10-11; all sizes exact):
+What the sources publish (verified live 2026-10-11/10-15; all sizes exact):
 
 - MIST: v1.2 (full + basic isochrones, vvcrit 0.0/0.4) and v2.5 (full
   isochrones, vvcrit 0.0/0.4) — the isochrone theory products; the
@@ -145,9 +145,12 @@ What the sources publish (verified live 2026-10-11; all sizes exact):
   download and recorded.
 - PARSEC: no isochrone packages exist. The official CMD web form computes
   isochrone tables server-side on request and is scriptable when given
-  the complete current field set (verified 2026-10-14); stellariso
-  acquires PARSEC isochrones through it, archiving the exact payload and
-  the server's own header echo with every table.
+  the complete current field set (verified 2026-10-14); the catalog
+  declares its full product matrix — 206 tables across every track-set
+  combination the form accepts, on a 0.1 dex metallicity grid over each
+  set's full range and fine log-age grids (0.02 dex for the current
+  sets), plus one product per auxiliary option value. Every table is
+  archived with its exact payload and the server's own header echo.
 
 See [docs/data-sources.md](docs/data-sources.md) for the full source
 registry, verification dates, and known caveats.
