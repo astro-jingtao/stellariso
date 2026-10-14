@@ -15,14 +15,18 @@ server's echo is authoritative, the payload is what was asked for.
 
 Two wire facts this layer encodes because they were learned the hard way:
 
-- The payload must be the COMPLETE current field set. Submissions carrying
+- The payload must be the COMPLETE current field set (the one exception:
+  an unchecked ``output_gzip`` is legitimately absent — the ``.cgifields``
+  protocol below covers it). Submissions carrying
   stale field names (the pre-``isoc_`` vocabulary) or partial sets are
   accepted and run, but yield header-only tables — zero data rows, no
   error message (verified 2026-10-11). The CGI checkbox protocol requires
   every checkbox name to be listed in ``.cgifields`` (repeated field)
   whether checked or not, so the CGI can tell "unchecked" from "absent".
   :class:`CmdFieldSet` therefore validates against the full inventory
-  before anything is sent, :meth:`CmdFormClient.submit` re-checks the
+  and the form's own value vocabulary (closed option sets, numeric
+  bounds, ordered ranges; captured 2026-10-15) before anything is sent,
+  :meth:`CmdFormClient.submit` re-checks the
   payload against the live form's field names when ``check_form`` is on,
   and :meth:`CmdFormClient.fetch_output` refuses empty tables after
   download.
@@ -50,13 +54,17 @@ import certifi
 import requests
 
 from stellariso.exceptions import CmdFormError
-from stellariso.warnings import CmdFormDriftWarning
+from stellariso.warnings import CmdFormDriftWarning, CmdFormOptionWarning
 
 __all__ = [
     "CMD_FORM_URL",
     "CMD_ENDPOINTS",
     "CGI_FIELD_NAMES",
     "DEFAULT_FIELDS",
+    "RADIO_VALUES",
+    "SELECT_VALUES",
+    "IMF_FILES",
+    "NUMERIC_BOUNDS",
     "CmdFieldSet",
     "CmdFormClient",
     "CmdJob",
@@ -138,10 +146,292 @@ DEFAULT_FIELDS: dict[str, str] = {
     "submit_form": "Submit",
 }
 
-# The empty-table failure mode is specific to incomplete payloads; gzip
-# output (output_gzip) is deliberately not settable — its checked-value
-# wire form is unverified, and the plain .dat is what the reader takes.
-_SUPPORTED_FIELDS = frozenset(DEFAULT_FIELDS)
+# Every field the baseline declares is required in every payload; the
+# checkbox output_gzip is the one OPTIONAL field (an unchecked CGI.pm
+# checkbox is simply absent — .cgifields declares it either way). Its
+# checked wire form ("1") was verified live 2026-10-15: the job is
+# accepted and the output arrives gzipped.
+_REQUIRED_FIELDS = frozenset(DEFAULT_FIELDS)
+_SUPPORTED_FIELDS = _REQUIRED_FIELDS | frozenset({"output_gzip"})
+
+#: Closed value sets the live form declares for its radio/select controls
+#: and fixed hidden switches (captured 2026-10-15; docs/cmd-form.md).
+RADIO_VALUES: dict[str, frozenset[str]] = {
+    "cmd_version": frozenset({"3.9"}),
+    "track_parsec": frozenset(
+        {"parsec_CAF09_v2.0", "parsec_CAF09_v1.2S", "parsec_CAF09_v1.1",
+         "parsec_CAF09_v1.0"}
+    ),
+    "track_colibri": frozenset(
+        {"parsec_CAF09_v1.2S_S_LMC_08_web", "parsec_CAF09_v1.2S_S35",
+         "parsec_CAF09_v1.2S_S07", "parsec_CAF09_v1.2S_NOV13", "no"}
+    ),
+    "track_postagb": frozenset({"no"}),
+    "photsys_version": frozenset({"YBC", "YBCnewVega", "odfnew"}),
+    "dust_sourceM": frozenset(
+        {"nodustM", "sil", "AlOx", "dpmod60alox40", "dpmod"}
+    ),
+    "dust_sourceC": frozenset({"nodustC", "gra", "AMC", "AMCSIC15"}),
+    "kind_interp": frozenset({"1"}),
+    "kind_postagb": frozenset({"-1"}),
+    "kind_mag": frozenset({"2"}),
+    "kind_dust": frozenset({"0"}),
+    "extinction_coeff": frozenset({"constant"}),
+    "extinction_curve": frozenset({"cardelli"}),
+    "kind_LPV": frozenset({"1", "2", "3", "4"}),
+    "isoc_isagelog": frozenset({"0", "1"}),
+    "isoc_ismetlog": frozenset({"0", "1"}),
+    "output_kind": frozenset({"0", "1", "3", "4"}),
+    "output_evstage": frozenset({"1"}),
+    "output_gzip": frozenset({"1"}),
+}
+
+#: The single-value selects, verbatim from the captured form.
+IMF_FILES = (
+    "tab_imf/imf_salpeter.dat",
+    "tab_imf/imf_chabrier_exponential.dat",
+    "tab_imf/imf_chabrier_lognormal.dat",
+    "tab_imf/imf_chabrier_lognormal_salpeter.dat",
+    "tab_imf/imf_kroupa_orig.dat",
+)
+SELECT_VALUES: dict[str, tuple[str, ...]] = {
+    "imf_file": IMF_FILES,
+    "photsys_file": (
+        # 104 systems under tab_mag_odfnew/ and YBC_tab_mag_odfnew/
+        "tab_mag_odfnew/tab_mag_.dat",
+        "YBC_tab_mag_odfnew/tab_mag_2mass_spitzer.dat",
+        "YBC_tab_mag_odfnew/tab_mag_2mass_spitzer_wise.dat",
+        "YBC_tab_mag_odfnew/tab_mag_2mass.dat",
+        "YBC_tab_mag_odfnew/tab_mag_ogle_2mass_spitzer.dat",
+        "YBC_tab_mag_odfnew/tab_mag_ubvrijhk.dat",
+        "YBC_tab_mag_odfnew/tab_mag_bessell.dat",
+        "YBC_tab_mag_odfnew/tab_mag_akari.dat",
+        "YBC_tab_mag_odfnew/tab_mag_batc.dat",
+        "YBC_tab_mag_odfnew/tab_mag_megacam_wircam.dat",
+        "YBC_tab_mag_odfnew/tab_mag_wircam.dat",
+        "YBC_tab_mag_odfnew/tab_mag_megacam_post2014.dat",
+        "YBC_tab_mag_odfnew/tab_mag_megacam.dat",
+        "YBC_tab_mag_odfnew/tab_mag_ciber.dat",
+        "tab_mag_odfnew/tab_mag_ciber2.dat",
+        "YBC_tab_mag_odfnew/tab_mag_clue_galex.dat",
+        "YBC_tab_mag_odfnew/tab_mag_CSST.dat",
+        "YBC_tab_mag_odfnew/tab_mag_decam.dat",
+        "YBC_tab_mag_odfnew/tab_mag_denis.dat",
+        "YBC_tab_mag_odfnew/tab_mag_dmc14.dat",
+        "YBC_tab_mag_odfnew/tab_mag_dmc15.dat",
+        "YBC_tab_mag_odfnew/tab_mag_eis.dat",
+        "YBC_tab_mag_odfnew/tab_mag_wfi.dat",
+        "YBC_tab_mag_odfnew/tab_mag_wfi2.dat",
+        "YBC_tab_mag_odfnew/tab_mag_euclid_nisp.dat",
+        "YBC_tab_mag_odfnew/tab_mag_galex_sloan.dat",
+        "YBC_tab_mag_odfnew/tab_mag_galex.dat",
+        "YBC_tab_mag_odfnew/tab_mag_gaia_tycho2_2mass.dat",
+        "YBC_tab_mag_odfnew/tab_mag_gaiaDR2_tycho2_2mass.dat",
+        "YBC_tab_mag_odfnew/tab_mag_gaiaDR2weiler_tycho2_2mass.dat",
+        "YBC_tab_mag_odfnew/tab_mag_gaiaEDR3.dat",
+        "YBC_tab_mag_odfnew/tab_mag_gaia.dat",
+        "YBC_tab_mag_odfnew/tab_mag_gaiaDR2.dat",
+        "YBC_tab_mag_odfnew/tab_mag_gaiaDR2maiz.dat",
+        "YBC_tab_mag_odfnew/tab_mag_gaiaDR2weiler.dat",
+        "YBC_tab_mag_odfnew/tab_mag_UVbright.dat",
+        "YBC_tab_mag_odfnew/tab_mag_acs_hrc.dat",
+        "YBC_tab_mag_odfnew/tab_mag_acs_wfc_pos04jul06.dat",
+        "YBC_tab_mag_odfnew/tab_mag_acs_wfc_202101.dat",
+        "tab_mag_odfnew/tab_mag_acs_wfc3_nircam.dat",
+        "YBC_tab_mag_odfnew/tab_mag_nicmosab.dat",
+        "YBC_tab_mag_odfnew/tab_mag_nicmosvega.dat",
+        "YBC_tab_mag_odfnew/tab_mag_stis.dat",
+        "YBC_tab_mag_odfnew/tab_mag_wfc3_wideverywide.dat",
+        "YBC_tab_mag_odfnew/tab_mag_wfc3_202101_verywide.dat",
+        "YBC_tab_mag_odfnew/tab_mag_wfc3_202101_medium.dat",
+        "YBC_tab_mag_odfnew/tab_mag_wfc3_202101_wide.dat",
+        "YBC_tab_mag_odfnew/tab_mag_wfpc2.dat",
+        "YBC_tab_mag_odfnew/tab_mag_hipparcos.dat",
+        "YBC_tab_mag_odfnew/tab_mag_int_wfc.dat",
+        "YBC_tab_mag_odfnew/tab_mag_iphas.dat",
+        "tab_mag_odfnew/tab_mag_jpas.dat",
+        "YBC_tab_mag_odfnew/tab_mag_jwst_miri_wide.dat",
+        "tab_mag_odfnew/tab_mag_jwst_narrow.dat",
+        "YBC_tab_mag_odfnew/tab_mag_jwst_nircam_miri_wide.dat",
+        "tab_mag_odfnew/tab_mag_jwst_nircam_wide.dat",
+        "tab_mag_odfnew/tab_mag_jwst_nircam_widemedium_dec23.dat",
+        "tab_mag_odfnew/tab_mag_jwst_nircam_widemedium_nov22.dat",
+        "tab_mag_odfnew/tab_mag_jwst_nircam_widemedium.dat",
+        "YBC_tab_mag_odfnew/tab_mag_jwst_niriss_nov22.dat",
+        "tab_mag_odfnew/tab_mag_jwst_nirspec.dat",
+        "tab_mag_odfnew/tab_mag_jwst_fnl.dat",
+        "YBC_tab_mag_odfnew/tab_mag_kepler.dat",
+        "YBC_tab_mag_odfnew/tab_mag_kepler_2mass.dat",
+        "YBC_tab_mag_odfnew/tab_mag_vst_vista.dat",
+        "YBC_tab_mag_odfnew/tab_mag_lbt_lbc.dat",
+        "YBC_tab_mag_odfnew/tab_mag_lsst_wfirst_proposed2017.dat",
+        "tab_mag_odfnew/tab_mag_lsstR1.9_gaiaEDR3_euclid_Roman2024.dat",
+        "tab_mag_odfnew/tab_mag_lsst.dat",
+        "tab_mag_odfnew/tab_mag_lsstDP0.dat",
+        "tab_mag_odfnew/tab_mag_lsstR1.9.dat",
+        "YBC_tab_mag_odfnew/tab_mag_nmbs.dat",
+        "YBC_tab_mag_odfnew/tab_mag_noao_ctio_mosaic2.dat",
+        "YBC_tab_mag_odfnew/tab_mag_ogle.dat",
+        "YBC_tab_mag_odfnew/tab_mag_PLATO.dat",
+        "YBC_tab_mag_odfnew/tab_mag_panstarrs1.dat",
+        "tab_mag_odfnew/tab_mag_Roman2021.dat",
+        "tab_mag_odfnew/tab_mag_Roman2024.dat",
+        "tab_mag_odfnew/tab_mag_splus.dat",
+        "YBC_tab_mag_odfnew/tab_mag_sloan.dat",
+        "YBC_tab_mag_odfnew/tab_mag_sloan_2mass.dat",
+        "YBC_tab_mag_odfnew/tab_mag_sloan_ukidss.dat",
+        "YBC_tab_mag_odfnew/tab_mag_swift_uvot.dat",
+        "YBC_tab_mag_odfnew/tab_mag_skymapper.dat",
+        "YBC_tab_mag_odfnew/tab_mag_spitzer.dat",
+        "YBC_tab_mag_odfnew/tab_mag_stroemgren.dat",
+        "YBC_tab_mag_odfnew/tab_mag_hsc.dat",
+        "YBC_tab_mag_odfnew/tab_mag_suprimecam.dat",
+        "tab_mag_odfnew/tab_mag_SuperBIT.dat",
+        "YBC_tab_mag_odfnew/tab_mag_TESS_2mass.dat",
+        "YBC_tab_mag_odfnew/tab_mag_TESS_2mass_kepler.dat",
+        "YBC_tab_mag_odfnew/tab_mag_ukidss.dat",
+        "YBC_tab_mag_odfnew/tab_mag_unions.dat",
+        "YBC_tab_mag_odfnew/tab_mag_uvit.dat",
+        "YBC_tab_mag_odfnew/tab_mag_vertecs.dat",
+        "YBC_tab_mag_odfnew/tab_mag_visir.dat",
+        "YBC_tab_mag_odfnew/tab_mag_vista.dat",
+        "YBC_tab_mag_odfnew/tab_mag_vphas.dat",
+        "YBC_tab_mag_odfnew/tab_mag_vst_omegacam.dat",
+        "YBC_tab_mag_odfnew/tab_mag_vilnius.dat",
+        "YBC_tab_mag_odfnew/tab_mag_wfc3_uvisCaHK.dat",
+        "YBC_tab_mag_odfnew/tab_mag_washington_ddo51.dat",
+        "YBC_tab_mag_odfnew/tab_mag_ztf.dat",
+        "YBC_tab_mag_odfnew/tab_mag_deltaa.dat",
+    ),
+}
+
+#: Free-text numeric fields: (minimum, maximum or None); value must parse
+#: as a number and lie inside the bounds. Range pairs additionally
+#: require low <= upp and a non-negative step.
+NUMERIC_BOUNDS: dict[str, tuple[float | None, float | None]] = {
+    "track_omegai": (0.0, 0.99),
+    "n_inTPC": (1, None),
+    "eta_reimers": (0.0, 1.0),
+    "extinction_av": (0.0, None),
+    "lf_maginf": (None, None),
+    "lf_magsup": (None, None),
+    "lf_deltamag": (0.0, None),
+    "sim_mtot": (0.0, None),
+    "isoc_agelow": (0.0, None),
+    "isoc_ageupp": (0.0, None),
+    "isoc_dage": (0.0, None),
+    "isoc_lagelow": (None, None),
+    "isoc_lageupp": (None, None),
+    "isoc_dlage": (0.0, None),
+    "isoc_zlow": (0.0, None),
+    "isoc_zupp": (0.0, None),
+    "isoc_dz": (0.0, None),
+    "isoc_metlow": (None, None),
+    "isoc_metupp": (None, None),
+    "isoc_dmet": (0.0, None),
+}
+_RANGE_PAIRS = (
+    ("isoc_agelow", "isoc_ageupp", "isoc_dage"),
+    ("isoc_lagelow", "isoc_lageupp", "isoc_dlage"),
+    ("isoc_zlow", "isoc_zupp", "isoc_dz"),
+    ("isoc_metlow", "isoc_metupp", "isoc_dmet"),
+    ("lf_maginf", "lf_magsup", None),
+)
+_INTEGER_FIELDS = frozenset({"n_inTPC"})
+
+
+def _validate_values(merged: dict[str, str]) -> None:
+    """Value-level validation against the captured form's own vocabulary.
+
+    Closed-set fields accept only declared values; numeric fields must
+    parse and respect bounds; range families need low <= upp and a
+    non-negative step. Advisories (upstream-documented combinations that
+    are accepted but pointless) warn instead of failing.
+    """
+    import warnings
+
+    for name, allowed in RADIO_VALUES.items():
+        if name in merged and merged[name] not in allowed:
+            raise ValueError(
+                f"CMD form field {name!r} does not take {merged[name]!r}; "
+                f"declared values: {sorted(allowed)}"
+            )
+    for name, allowed in SELECT_VALUES.items():
+        if name in merged and merged[name] not in allowed:
+            raise ValueError(
+                f"CMD form field {name!r} does not take {merged[name]!r}; "
+                f"it must be one of the {len(allowed)} declared files "
+                f"(IMF_FILES / SELECT_VALUES[{name!r}])"
+            )
+    for name, (lo, hi) in NUMERIC_BOUNDS.items():
+        if name not in merged:
+            continue
+        try:
+            value = float(merged[name])
+        except ValueError:
+            raise ValueError(
+                f"CMD form field {name!r} must be numeric, got "
+                f"{merged[name]!r}"
+            ) from None
+        if name in _INTEGER_FIELDS and float(merged[name]) != int(value):
+            raise ValueError(f"CMD form field {name!r} must be an integer")
+        if (lo is not None and value < lo) or (hi is not None and value > hi):
+            raise ValueError(
+                f"CMD form field {name!r}={merged[name]!r} outside the "
+                f"form's range [{lo}, {hi}]"
+            )
+    for low, upp, step in _RANGE_PAIRS:
+        if float(merged[low]) > float(merged[upp]):
+            raise ValueError(
+                f"CMD form range {low}={merged[low]!r} exceeds "
+                f"{upp}={merged[upp]!r}"
+            )
+        if step is not None and float(merged[step]) < 0:
+            raise ValueError(
+                f"CMD form step {step}={merged[step]!r} must be >= 0 "
+                "(0 selects a single value)"
+            )
+
+    track = merged["track_parsec"]
+    if track != "parsec_CAF09_v2.0":
+        if float(merged["track_omegai"]) != 0.0:
+            warnings.warn(
+                "track_omegai applies only to PARSEC v2.0 tracks; the "
+                f"selected set {track!r} ignores it",
+                CmdFormOptionWarning,
+                stacklevel=3,
+            )
+    else:
+        if merged["eta_reimers"] != DEFAULT_FIELDS["eta_reimers"]:
+            warnings.warn(
+                "Reimers mass loss is not applied on PARSEC v2.0 tracks; "
+                "eta_reimers has no effect for this track set",
+                CmdFormOptionWarning,
+                stacklevel=3,
+            )
+        if float(merged["extinction_av"]) != 0.0:
+            warnings.warn(
+                "star-by-star interstellar extinction does not work on "
+                "the rotating PARSEC v2.0 models (upstream statement); "
+                "the magnitudes will not carry it",
+                CmdFormOptionWarning,
+                stacklevel=3,
+            )
+    if track != "parsec_CAF09_v1.2S" and merged["track_colibri"] != "no":
+        warnings.warn(
+            "COLIBRI options apply only to PARSEC v1.2S tracks; the "
+            f"selected set {track!r} ignores them",
+            CmdFormOptionWarning,
+            stacklevel=3,
+        )
+    if float(merged["eta_reimers"]) > 0.5:
+        warnings.warn(
+            "eta_reimers > 0.5 exceeds the range upstream calls "
+            "well-tested ('mass loss works fine as long as eta < 0.5; "
+            "check the results for higher values')",
+            CmdFormOptionWarning,
+            stacklevel=3,
+        )
 
 
 @dataclass(frozen=True)
@@ -149,9 +439,11 @@ class CmdFieldSet:
     """One complete, validated CMD form payload (the form's own names).
 
     Built from :data:`DEFAULT_FIELDS` plus overrides; every override name
-    must be a field the current form defines, and the result must still
-    cover the full inventory — the two payload defects that make the CGI
-    silently return header-only tables.
+    must be a field the current form defines, every value must be one the
+    form's own vocabulary declares (closed sets, numeric bounds, ordered
+    ranges), and the result must still cover the full inventory — the
+    payload defects that make the CGI silently return header-only tables
+    or run a job that ignores what was asked for.
     """
 
     values: tuple[tuple[str, str], ...]
@@ -168,13 +460,20 @@ class CmdFieldSet:
                 f"{sorted(_SUPPORTED_FIELDS)}"
             )
         merged.update({name: str(value) for name, value in overrides.items()})
-        missing = sorted(_SUPPORTED_FIELDS - set(merged))
+        missing = sorted(_REQUIRED_FIELDS - set(merged))
         if missing:
             raise ValueError(
                 f"incomplete CMD form payload, missing {missing}; the CGI "
                 "accepts incomplete payloads but answers with empty tables"
             )
-        return cls(values=tuple(merged.items()))
+        _validate_values(merged)
+        # wire order: the verified baseline order, optional extras
+        # inserted before the pressed submit button (which stays last)
+        ordered = [k for k in DEFAULT_FIELDS if k in merged and k != _SUBMIT_BUTTON]
+        ordered += [k for k in merged if k not in DEFAULT_FIELDS]
+        if _SUBMIT_BUTTON in merged:
+            ordered.append(_SUBMIT_BUTTON)
+        return cls(values=tuple((k, merged[k]) for k in ordered))
 
     @classmethod
     def from_mapping(cls, mapping: Mapping[str, str]) -> "CmdFieldSet":

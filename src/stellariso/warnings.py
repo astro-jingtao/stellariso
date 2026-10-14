@@ -17,6 +17,7 @@ __all__ = [
     "ChecksumUnavailableWarning",
     "CatalogSizeMismatchWarning",
     "CmdFormDriftWarning",
+    "CmdFormOptionWarning",
 ]
 
 
@@ -63,3 +64,9 @@ class CmdFormDriftWarning(StellarIsoWarning):
     """The live CMD web form declares fields the submitted payload does not
     send; if any of them is required upstream, the job will come back as a
     header-only table (which fetch_output refuses loudly)."""
+
+
+class CmdFormOptionWarning(StellarIsoWarning):
+    """A CMD form option combination that upstream documents as accepted
+    but ineffective (or outside the well-tested range); the job will run
+    without applying what the option suggests."""

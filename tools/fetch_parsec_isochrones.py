@@ -31,8 +31,9 @@ from stellariso.models.parsec.cmd_form import (
     CmdFormClient,
 )
 
-#: fields a CLI flag may override (everything the form defines)
-_FLAGGED = tuple(DEFAULT_FIELDS)
+#: fields a CLI flag may override (everything the form defines, plus the
+#: optional gzip checkbox)
+_FLAGGED = tuple(DEFAULT_FIELDS) + ("output_gzip",)
 
 
 def main(argv: list[str] | None = None) -> int:

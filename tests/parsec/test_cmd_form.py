@@ -18,11 +18,15 @@ from stellariso.models.parsec.cmd_form import (
     CMD_FORM_URL,
     CMD_ENDPOINTS,
     DEFAULT_FIELDS,
+    IMF_FILES,
+    RADIO_VALUES,
+    SELECT_VALUES,
     CmdFieldSet,
     CmdFormClient,
     _parse_result_page,
     form_field_names,
 )
+from stellariso.warnings import CmdFormOptionWarning
 
 FIXTURES = Path(__file__).parent.parent / "data" / "parsec" / "cmd_form"
 RESULT_PAGE = (FIXTURES / "result_page.html").read_text(encoding="utf-8")
@@ -106,6 +110,137 @@ class TestCmdFieldSet:
         ]
         assert [n for n, _ in pairs[: -len(CGI_FIELD_NAMES)]] == list(DEFAULT_FIELDS)
         assert pairs[0] == ("cmd_version", "3.9")
+
+
+class TestValueValidation:
+    """Every option the form declares is settable; nothing else is."""
+
+    def test_every_track_set_selectable(self):
+        for value in ("parsec_CAF09_v2.0", "parsec_CAF09_v1.2S",
+                      "parsec_CAF09_v1.1", "parsec_CAF09_v1.0"):
+            # COLIBRI exists only for v1.2S; switch it off elsewhere
+            extra = {} if value == "parsec_CAF09_v1.2S" else {"track_colibri": "no"}
+            fs = CmdFieldSet.from_overrides(track_parsec=value, **extra)
+            assert fs.as_dict()["track_parsec"] == value
+
+    def test_every_colibri_option_selectable(self):
+        for value in RADIO_VALUES["track_colibri"]:
+            CmdFieldSet.from_overrides(track_colibri=value)
+
+    def test_every_photsys_version_selectable(self):
+        for value in RADIO_VALUES["photsys_version"]:
+            CmdFieldSet.from_overrides(photsys_version=value)
+
+    def test_every_dust_combination_selectable(self):
+        for m in RADIO_VALUES["dust_sourceM"]:
+            for c in RADIO_VALUES["dust_sourceC"]:
+                CmdFieldSet.from_overrides(dust_sourceM=m, dust_sourceC=c)
+
+    def test_every_imf_selectable(self):
+        for value in IMF_FILES:
+            CmdFieldSet.from_overrides(imf_file=value)
+
+    def test_every_lpv_prescription_selectable(self):
+        for value in RADIO_VALUES["kind_LPV"]:
+            CmdFieldSet.from_overrides(kind_LPV=value)
+
+    def test_every_output_kind_selectable(self):
+        for value in RADIO_VALUES["output_kind"]:
+            CmdFieldSet.from_overrides(output_kind=value)
+
+    def test_every_photsys_file_selectable(self):
+        files = SELECT_VALUES["photsys_file"]
+        assert len(files) == 104
+        for value in files:
+            CmdFieldSet.from_overrides(photsys_file=value)
+
+    def test_undisclosed_radio_value_rejected(self):
+        with pytest.raises(ValueError, match="does not take.*parsec_CAF09_v9"):
+            CmdFieldSet.from_overrides(track_parsec="parsec_CAF09_v9")
+
+    def test_undisclosed_select_value_rejected(self):
+        with pytest.raises(ValueError, match="imf_file"):
+            CmdFieldSet.from_overrides(imf_file="tab_imf/imf_no.dat")
+
+    def test_fixed_hidden_switch_rejects_other_values(self):
+        with pytest.raises(ValueError, match="cmd_version"):
+            CmdFieldSet.from_overrides(cmd_version="2.7")
+        with pytest.raises(ValueError, match="kind_interp"):
+            CmdFieldSet.from_overrides(kind_interp="2")
+
+    def test_omega_bounds_enforced(self):
+        with pytest.raises(ValueError, match="outside the form's range"):
+            CmdFieldSet.from_overrides(track_parsec="parsec_CAF09_v2.0",
+                                       track_omegai="1.5")
+
+    def test_numeric_fields_must_parse(self):
+        with pytest.raises(ValueError, match="must be numeric"):
+            CmdFieldSet.from_overrides(eta_reimers="zero")
+
+    def test_integer_fields_must_be_integral(self):
+        with pytest.raises(ValueError, match="integer"):
+            CmdFieldSet.from_overrides(n_inTPC="10.5")
+
+    def test_range_low_above_upp_rejected(self):
+        with pytest.raises(ValueError, match="exceeds"):
+            CmdFieldSet.from_overrides(isoc_isagelog=1, isoc_lagelow="9.5",
+                                       isoc_lageupp="9.0")
+        with pytest.raises(ValueError, match="exceeds"):
+            CmdFieldSet.from_overrides(isoc_zlow="0.03", isoc_zupp="0.0152")
+
+    def test_negative_step_rejected(self):
+        with pytest.raises(ValueError, match="outside the form's range"):
+            CmdFieldSet.from_overrides(isoc_dlage="-0.1")
+
+    def test_bad_extinction_negative_rejected(self):
+        with pytest.raises(ValueError, match="outside the form's range"):
+            CmdFieldSet.from_overrides(extinction_av="-0.5")
+
+    def test_output_gzip_is_the_one_optional_field(self):
+        # baseline stays without it; setting it appends before submit_form
+        base = CmdFieldSet.from_overrides()
+        assert "output_gzip" not in base.as_dict()
+        gz = CmdFieldSet.from_overrides(output_gzip="1")
+        assert gz.as_dict()["output_gzip"] == "1"
+        names = [n for n, _ in gz.multipart_pairs()][
+            : -len(CGI_FIELD_NAMES)
+        ]
+        assert names[-1] == "submit_form"  # the pressed button stays last
+        assert names[-2] == "output_gzip"
+        with pytest.raises(ValueError, match="does not take"):
+            CmdFieldSet.from_overrides(output_gzip="0")  # absent means off
+
+    def test_advisory_omega_on_non_v20_warns(self):
+        with pytest.warns(CmdFormOptionWarning, match="only to PARSEC v2.0"):
+            CmdFieldSet.from_overrides(track_omegai="0.3")
+
+    def test_advisory_colibri_on_non_v12s_warns(self):
+        with pytest.warns(CmdFormOptionWarning, match="only to PARSEC v1.2S"):
+            CmdFieldSet.from_overrides(track_parsec="parsec_CAF09_v2.0")
+
+    def test_advisory_eta_on_v20_warns(self):
+        with pytest.warns(CmdFormOptionWarning, match="not applied"):
+            CmdFieldSet.from_overrides(track_parsec="parsec_CAF09_v2.0",
+                                       track_colibri="no", eta_reimers="0.4")
+
+    def test_advisory_extinction_on_v20_warns(self):
+        with pytest.warns(CmdFormOptionWarning, match="rotating"):
+            CmdFieldSet.from_overrides(track_parsec="parsec_CAF09_v2.0",
+                                       track_colibri="no", extinction_av="0.5")
+
+    def test_advisory_high_eta_warns(self):
+        with pytest.warns(CmdFormOptionWarning, match="0.5"):
+            CmdFieldSet.from_overrides(eta_reimers="0.7")
+
+    def test_default_payload_is_warning_free(self):
+        import warnings as _w
+
+        with _w.catch_warnings():
+            _w.simplefilter("error")
+            CmdFieldSet.from_overrides(isoc_isagelog=1, isoc_lagelow="9.0",
+                                       isoc_lageupp="10.0", isoc_dlage="0.5",
+                                       isoc_ismetlog=1, isoc_metlow="-1",
+                                       isoc_metupp="0", isoc_dmet="1")
 
 
 class TestFormFieldNames:
