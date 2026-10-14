@@ -35,6 +35,18 @@ class TestRealTable:
         assert parsed.format == "cmd_table_3_9"
         assert parsed.facts["cmd_version"] == "3.9"
 
+    def test_gzip_detected_by_content_not_just_suffix(self, tmp_path):
+        # the server force-gzips outputs above 50 MB under the same
+        # output.dat name, so a gzipped table without the .gz suffix must
+        # still read
+        import gzip as _gzip
+
+        gz = tmp_path / "output.dat"  # no .gz suffix, gzip content
+        gz.write_bytes(_gzip.compress(REAL.read_bytes()))
+        parsed = parse_parsec_cmd(gz)
+        assert parsed.format == "cmd_table_3_9"
+        assert len(parsed.blocks) == 1
+
     def test_header_facts(self):
         facts = parse_parsec_cmd(REAL).facts
         assert facts["release"] == RELEASE

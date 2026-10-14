@@ -90,9 +90,16 @@ def open_parsec_text(source: str | os.PathLike | TextIO) -> tuple[TextIO, bool]:
     path = Path(source)
     if not path.exists():
         raise FileNotFoundError(path)
-    if path.suffix == ".gz":
+    if path.suffix == ".gz" or _is_gzip_content(path):
+        # the CMD server force-gzips outputs above 50 MB regardless of the
+        # requested output_gzip, so gzip is detected by content too
         return gzip.open(path, mode="rt", encoding="utf-8", errors="replace"), True
     return open(path, mode="r", encoding="utf-8", errors="replace"), False
+
+
+def _is_gzip_content(path: Path) -> bool:
+    with open(path, "rb") as raw:
+        return raw.read(2) == b"\x1f\x8b"
 
 
 def _looks_like_columns_documented(tokens: list[str]) -> bool:
@@ -204,9 +211,12 @@ def _read_cmd_3_9(text: str) -> ParsecFile:
     _require_columns(
         columns,
         ("Zini", "MH", "logAge", "Mini", "int_IMF", "Mass", "logL", "logTe",
-         "logg", "label", "McoreTP", "C_O"),
+         "logg", "label"),
         "CMD 3.9 table",
     )
+    # McoreTP / C_O / the LPV columns exist only when the TP-AGB is
+    # included (COLIBRI products); outputs without it legitimately lack
+    # them, and the corresponding unified fields are then absent too
     age_col = columns.index("logAge")
     z_col = columns.index("Zini")
     mh_col = columns.index("MH")
