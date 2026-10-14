@@ -1,69 +1,8 @@
 {
   "family": "parsec",
-  "channel": "packages",
+  "channel": "form",
   "ca_bundle": "ZeroSSLRSADVSSLCA2.crt",
-  "source_note": "Official PARSEC track archives published by the Padova group under https://stev.oapd.inaf.it/PARSEC/Database/ (plain static downloads, verified live 2026-10-11). The upstream publishes no checksums; sha256 is computed at download time and recorded in each MANIFEST. The host's TLS chain omits its intermediate CA (ZeroSSL RSA DV SSL CA 2); the bundled intermediate completes the chain so verification stays on. PARSEC publishes NO isochrone packages: the CMD web form computes isochrone tables server-side on request and cannot be scripted (header-only results, verified 2026-10-11); it is not an acquisition channel — build isochrones locally from these tracks with stellariso.synthesis instead.",
-  "scope_note": "Track products: PARSEC v1.2S (the CMD interface's default track set, read and synthesized by stellariso), and the PARSEC v2.0 lines (rotating, very-massive-star, pure-helium) which are downloaded as data; v2.0 track readers are not implemented yet (different 95-column format). Historical pre-2006 tracks on pleiadi.oapd.inaf.it are out of scope.",
-  "format_notes": {
-    "tracks_v12s": "PARSEC v1.2S track zip: one plain-text file per initial mass named like Z0.0001Y0.249OUTA1.74_F7_M001.200.DAT (M{initial mass:7.3f}), one uncommented header line of 24 column names, then fixed-width data rows: MODELL MASS AGE LOG_L LOG_TE LOG_R LOG_RAT M_CORE_HE M_CORE_C H_CEN HE_CEN C_cen O_cen LX LY LC LNEUTR L_GRAV H_SUP HE_SUP C_SUP N_SUP O_SUP PHASE. AGE is in years; LOG_R is log10 radius in cm (solar radius = 10^10.844 cm); there is no log_g column. *.HB.DAT files are horizontal-branch tracks with the same header; the single *ADD.DAT file per zip is to be discarded (readme instruction).",
-    "tracks_v20": "PARSEC v2.0 rotating tracks: 95-column format without a PHASE column; very-low-mass entries (M <~ 0.7 Msun) keep the old 22-column v1.2S subset. Not yet read by stellariso."
-  },
-  "releases": [
-    {
-      "release": "v1.2S",
-      "products": [
-        {
-          "label": "all_tracks",
-          "kind": "tracks",
-          "physics": {},
-          "filename": "all_tracks_Pv1.2s.zip",
-          "url": "https://stev.oapd.inaf.it/PARSEC/Database/PARSECv1.2/all_tracks_Pv1.2s.zip",
-          "size_bytes": 265152329,
-          "format": "tracks_v12s"
-        }
-      ]
-    },
-    {
-      "release": "v2.0+ROT",
-      "products": [
-        {
-          "label": "all_rot_all_z",
-          "kind": "tracks",
-          "physics": {"rotating": true},
-          "filename": "ALL_Z_ALL_ROT.zip",
-          "url": "https://stev.oapd.inaf.it/PARSEC/Database/PARSECv2.0_ROT_2025/ALL_Z_ALL_ROT.zip",
-          "size_bytes": 5804662522,
-          "format": "tracks_v20"
-        }
-      ]
-    },
-    {
-      "release": "v2.0+VMS",
-      "products": [
-        {
-          "label": "all_tracks",
-          "kind": "tracks",
-          "physics": {"very_massive": true},
-          "filename": "all_tracks.zip",
-          "url": "https://stev.oapd.inaf.it/PARSEC/Database/PARSECv2.0_VMS/all_tracks.zip",
-          "size_bytes": 1282140114,
-          "format": "tracks_v20"
-        }
-      ]
-    },
-    {
-      "release": "v2.0+PureHe",
-      "products": [
-        {
-          "label": "all_purehe_tracks",
-          "kind": "tracks",
-          "physics": {"pure_helium": true},
-          "filename": "all_PureHe_tracks.zip",
-          "url": "https://stev.oapd.inaf.it/PARSEC/Database/PARSECv2.0_PureHe/all_PureHe_tracks.zip",
-          "size_bytes": 891751421,
-          "format": "tracks_v20"
-        }
-      ]
-    }
-  ]
+  "source_note": "PARSEC publishes no isochrone packages: the official CMD web form (https://stev.oapd.inaf.it/cgi-bin/cmd) computes isochrone tables server-side on request and is the isochrone acquisition channel (scriptable with a complete current field set, verified live 2026-10-14). The host's TLS chain omits its intermediate CA (ZeroSSL RSA DV SSL CA 2); the bundled intermediate completes the chain so verification stays on.",
+  "scope_note": "Isochrone products computed by the CMD web form (request-layer client: stellariso.models.parsec.cmd_form). The PARSEC track archives are out of scope; historical pre-2006 tracks on pleiadi.oapd.inaf.it remain out of scope as well.",
+  "releases": []
 }

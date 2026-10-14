@@ -15,11 +15,6 @@ from stellariso.grid import IsochroneGrid, open_grid
 from stellariso.interp import InterpolationRecord, interpolate_along
 from stellariso.isochrone import Isochrone, IsochroneSet
 from stellariso.native import NativeTable
-from stellariso.models.parsec.tracks import (
-    ParsecTrack,
-    ParsecTrackSet,
-    parse_parsec_tracks,
-)
 from stellariso.provenance import (
     DataAsset,
     Provenance,
@@ -28,11 +23,7 @@ from stellariso.provenance import (
     SourceClass,
     SourceRecord,
 )
-from stellariso.synthesis import SynthesisRecord, synthesize_isochrone, synthesize_isochrones
 from stellariso.unified import PhaseMapping, UnifiedView
-
-#: friendly alias: read a PARSEC v1.2S track set (zip or directory)
-read_parsec_tracks = parse_parsec_tracks
 
 __all__ = [
     "__version__",
@@ -67,14 +58,6 @@ __all__ = [
     # interpolation
     "InterpolationRecord",
     "interpolate_along",
-    # synthesis
-    "SynthesisRecord",
-    "synthesize_isochrone",
-    "synthesize_isochrones",
-    # PARSEC tracks
-    "ParsecTrack",
-    "ParsecTrackSet",
-    "read_parsec_tracks",
     # errors
     "StellarIsoError",
 ]

@@ -151,7 +151,7 @@ Field mapping version: `1`.
 - Stage labels follow the official CMD FAQ, which itself cautions that labels are approximate and not carefully checked for all masses and metallicities.
 - Mass-loss sign convention difference: MIST's star_mdot is negative while the star loses mass; CMD's logMdot is log10 of the (positive) rate. Both are preserved natively; the unified signed mass_loss_rate is mapped only for MIST, and PARSEC keeps logMdot under log_mass_loss_rate to avoid a silent sign/representation change.
 
-### CMD isochrone tables (hand-downloaded) (`cmd_table`)
+### CMD web-form isochrone tables (`cmd_table`)
 
 #### Field mappings
 
@@ -194,71 +194,6 @@ Field mapping version: `1`.
 | `alpha_fe` | fixed (known value for the whole product) | `0.0` | scaled-solar (CAF09) composition; the CMD v1.2S products carry no alpha enhancement |
 | `initial_rotation` | not applicable under this physics | — | PARSEC v1.2S tracks are non-rotating; rotation exists only in the PARSEC v2.0 products |
 | `eta_reimers` | fixed (known value for the whole product) | file value `eta_reimers`; only when {'available': 'eta_reimers'} | RGB Reimers mass-loss efficiency (file header) |
-| `mixing_length` | implicit (used by the model, not recoverable) | — | not_reported |
-
-### v1.2S stellar tracks (official archive) (`tracks_v12s`)
-
-- Files follow the official readme of the PARSEC v1.2S track database (Bressan+2012; Chen+2014; Tang+2014; Chen+2015; Fu+2018).
-- One plain-text file per initial mass, whitespace-separated: MODELL MASS AGE LOG_L LOG_TE LOG_R LOG_RAT M_CORE_HE M_CORE_C H_CEN HE_CEN C_cen O_cen LX LY LC LNEUTR L_GRAV H_SUP HE_SUP C_SUP N_SUP O_SUP PHASE. AGE is in years; LOG_R is log10(R/cm).
-- The single *ADD.DAT file in each zip is discarded (official readme instruction: it only exists to merge sections across critical points).
-- The *.HB.DAT files are horizontal-branch (post-helium-flash) tracks of low-mass stars; their PHASE numbering restarts with its own meaning and uses the separate hb mapping. They are parsed but excluded from isochrone synthesis (the helium flash is discontinuous; bridging it is not attempted).
-- The PHASE column is fractional between integers by design; codes are floored before stage mapping.
-- LOG_RAT (log mass-loss rate) keeps its -30 'no mass loss' sentinel and is therefore not exposed as a unified field.
-- The phase-code mapping is stellariso's derivation from physical inspection of the published tracks, not an official enumeration — the official readme names PHASE but lists no code table.
-
-#### Field mappings
-
-| Unified field | Native source | Origin | Transformation | Notes |
-|---|---|---|---|---|
-| `initial_mass` | `initial_mass` | file_metadata | — | initial mass, stated by the track filename (Z...Y...OUTA..._M<mass:7.3f>.DAT pattern), not by a column |
-| `current_mass` | `MASS` | native | — | stellar mass in Msun (official readme: 'stellar mass'); constant along tracks without wind mass loss |
-| `log_luminosity` | `LOG_L` | native | — | — |
-| `log_effective_temperature` | `LOG_TE` | native | — | log10 effective temperature in K (official readme words it as 'effective temperature in K'; the printed values are the base-10 logarithm) |
-| `log_radius` | `LOG_R` | transformed_native | x - log10(Rsun/cm) | official readme: 'stellar radius in Log cm'; shifted to log10(R/Rsun) with the IAU 2015 nominal solar radius |
-| `log_surface_gravity` | `MASS, LOG_R` | derived | log10(G * MASS[Msun] * Msun_g / (10**LOG_R[cm])**2), G = 6.67430e-8 cm3 g-1 s-2 (CODATA 2018), Msun_g = 1.98847e33 g (IAU 2015 nominal solar mass); the tracks print no gravity column | — |
-| `he_core_mass` | `M_CORE_HE` | native | — | official readme: 'mass of H exhausted core' — the core inside the H-burning shell |
-| `co_core_mass` | `M_CORE_C` | native | — | official readme: 'mass of He exhausted core' |
-| `native_phase` | `PHASE` | native | — | PARSEC track phase (critical point number); fractional values between integers are intentional, designed for interpolation |
-| `phase` | `PHASE` | derived | floor(PHASE + 1e-9) mapped to unified coarse stages; the official readme names the column but does not enumerate the codes — the mapping below was derived from the physical state at each integer transition (central abundances, nuclear luminosity fractions, core masses) in the published Z=0.0001Y0.249 set | — |
-| `log_mass_loss_rate` | — | missing | — | not mapped: the track LOG_RAT column uses a -30 sentinel for 'no mass loss', which is not a log10 rate |
-
-#### Phase mapping
-
-| Native code | Meaning | Unified stage |
-|---|---|---|
-| 1 | track start, fully convective pre-main sequence (LX = 0) | `pre_main_sequence` |
-| 2 | pre-main sequence, nuclear burning beginning (LX << 1) | `pre_main_sequence` |
-| 3 | late pre-main sequence (LX rising) | `pre_main_sequence` |
-| 4 | approaching the ZAMS (LX ~ 1) | `pre_main_sequence` |
-| 5 | ZAMS (LX = 1) | `main_sequence` |
-| 6 | end of the main sequence (H_CEN ~ 0.03) | `main_sequence` |
-| 7 | central hydrogen exhausted (H_CEN = 0) | `subgiant` |
-| 8 | shell hydrogen burning / Hertzsprung crossing into the giant branch | `red_giant_branch` |
-| 9 | ascending the giant branch | `red_giant_branch` |
-| 10 | upper giant branch | `red_giant_branch` |
-| 11 | core helium ignition | `core_helium_burning` |
-| 12 | core helium burning settling | `core_helium_burning` |
-| 13 | core helium burning (HE_CEN decreasing) | `core_helium_burning` |
-| 14 | central helium exhausted (HE_CEN = 0), early AGB | `early_asymptotic_giant_branch` |
-
-#### Phase mapping — HB track files
-
-| Native code | Meaning | Unified stage |
-|---|---|---|
-| 1 | horizontal-branch track start, core helium burning (H_CEN = 0, HE_CEN ~ 0.95) | `core_helium_burning` |
-| 2 | core helium burning (HE_CEN ~ 0.5) | `core_helium_burning` |
-| 3 | late core helium burning (HE_CEN ~ 0.3) | `core_helium_burning` |
-| 4 | central helium exhausted (HE_CEN = 0), AGB ascent | `early_asymptotic_giant_branch` |
-| 5 | end of the HB track | `early_asymptotic_giant_branch` |
-
-#### Physical parameters
-
-| Parameter | Role | Value / source | Notes |
-|---|---|---|---|
-| `initial_mass` | axis (varies across the published grid) | file values `initial_mass` | initial masses of the track files present in this set (stated by the filenames) |
-| `initial_z` | fixed (known value for the whole product) | file value `initial_z` | initial metallicity Z, stated by the zip/directory name (e.g. Z0.0001Y0.249) |
-| `initial_helium` | fixed (known value for the whole product) | file value `initial_helium` | initial helium fraction Y, stated by the zip/directory name next to Z |
-| `initial_rotation` | not applicable under this physics | — | PARSEC v1.2S tracks are non-rotating |
 | `mixing_length` | implicit (used by the model, not recoverable) | — | not_reported |
 
 ### Scientific references

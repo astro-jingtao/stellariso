@@ -123,8 +123,7 @@ def render_documentation() -> str:
     titles = {"mist": "MIST", "parsec": "PARSEC / Padova"}
     product_titles = {
         "isochrones": "Isochrone tables",
-        "cmd_table": "CMD isochrone tables (hand-downloaded)",
-        "tracks_v12s": "v1.2S stellar tracks (official archive)",
+        "cmd_table": "CMD web-form isochrone tables",
     }
     for name, backend in reg["backends"].items():
         add(f"## {titles.get(name, name)} (`{name}`)")

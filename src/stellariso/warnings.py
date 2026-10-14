@@ -16,7 +16,6 @@ __all__ = [
     "ThirdPartySourceWarning",
     "ChecksumUnavailableWarning",
     "CatalogSizeMismatchWarning",
-    "SynthesizedProductWarning",
     "CmdFormDriftWarning",
 ]
 
@@ -58,13 +57,6 @@ class CatalogSizeMismatchWarning(StellarIsoWarning):
     """A downloaded archive's size differs from the size recorded in the
     release catalog at verification time (the upstream file may have been
     replaced)."""
-
-
-class SynthesizedProductWarning(StellarIsoWarning):
-    """The product being read was synthesized locally from tracks (or
-    otherwise derived) rather than published by the model team; its
-    numbers follow stellariso's documented transformation, not the team's
-    own isochrone pipeline."""
 
 
 class CmdFormDriftWarning(StellarIsoWarning):

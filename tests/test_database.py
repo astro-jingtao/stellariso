@@ -326,13 +326,10 @@ class TestZipProductsAndCaBundle:
     def test_build_zip_archive_product(self, tmp_path, monkeypatch):
         import zipfile
 
-        dat_a = (
-            b"MODELL MASS AGE LOG_L LOG_TE LOG_R PHASE\n"
-            b"1.20 1.20 1.0e5 -1.0 3.6 10.8 1\n"
-        )
+        dat_a = b"# a data file inside a zip product\n1.0 2.0 3.0\n"
         buf = BytesIO()
         with zipfile.ZipFile(buf, "w") as zf:
-            zf.writestr("Z0.0001Y0.249OUTA1.74_F7_M001.200.DAT", dat_a)
+            zf.writestr("output1.dat", dat_a)
             zf.writestr("readme.txt", "notes")
         zip_catalog = {
             "family": "parsec",
@@ -343,13 +340,13 @@ class TestZipProductsAndCaBundle:
                     "release": "v1.2S",
                     "products": [
                         {
-                            "label": "all_tracks",
-                            "kind": "tracks",
+                            "label": "zipped_tables",
+                            "kind": "isochrones",
                             "physics": {},
-                            "filename": "all_tracks_Pv1.2s.zip",
-                            "url": "https://fake.example/all_tracks_Pv1.2s.zip",
+                            "filename": "zipped_tables.zip",
+                            "url": "https://fake.example/zipped_tables.zip",
                             "size_bytes": len(buf.getvalue()),
-                            "format": "tracks_v12s",
+                            "format": "cmd_table",
                         }
                     ],
                 }
@@ -360,9 +357,9 @@ class TestZipProductsAndCaBundle:
         monkeypatch.setattr("stellariso.database.backend_names", lambda: ("parsec",))
         db = build_database(tmp_path / "db", session=session)
         assert len(db.products) == 1
-        product_dir = tmp_path / "db" / "parsec" / "v1.2S" / "all_tracks"
-        assert (product_dir / "all_tracks_Pv1.2s.zip").exists()
-        assert (product_dir / "Z0.0001Y0.249OUTA1.74_F7_M001.200.DAT").exists()
+        product_dir = tmp_path / "db" / "parsec" / "v1.2S" / "zipped_tables"
+        assert (product_dir / "zipped_tables.zip").exists()
+        assert (product_dir / "output1.dat").exists()
         manifest = json.loads((product_dir / "MANIFEST.json").read_text(encoding="utf-8"))
         assert manifest["n_data_files"] == 1
 

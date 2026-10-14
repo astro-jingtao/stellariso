@@ -11,9 +11,10 @@ isochrones from single-star evolution models.
 - Preserve native model data without loss.
 - Provide a traceable unified interface.
 - Record all physical parameters, including fixed and derived values.
-- Acquire data only as complete official packages, never as server-computed
-  subsets; where a source publishes no isochrone packages, build isochrones
-  locally and transparently from its official tracks.
+- Acquire data as the source publishes it: complete official packages where
+  they exist, and — where a source's only isochrone channel is an official
+  computation service (the PARSEC CMD web form) — that service, driven
+  programmatically with a complete acquisition record of every request.
 - Record complete source chains and transformation histories.
 - Avoid unsafe interpolation and silent physical assumptions.
 
@@ -21,8 +22,7 @@ isochrones from single-star evolution models.
 
 `stellariso` focuses on single-star theoretical isochrones.
 
-It does not currently provide evolutionary-track analysis tools (tracks
-are acquired and stored as backup data and as synthesis input),
+It does not provide evolutionary-track analysis tools,
 binary evolution, synthetic photometry, spectra, population synthesis,
 CMD simulation, or stellar-parameter inference.
 
@@ -71,32 +71,34 @@ mist_iso.get_phase(mass=1.0, log_age=9.5, initial_feh=0.0)  # 'main_sequence'
 mist_iso.last_record                                        # bracketing nodes, phases
 ```
 
-PARSEC isochrones are synthesized locally from the official tracks
-(PARSEC publishes track packages but no isochrone packages; its CMD web
-form computes tables server-side on request, which stellariso does not
-treat as a data channel):
+PARSEC publishes no isochrone packages; its isochrones are computed by the
+official CMD web form, which stellariso drives programmatically
+(`stellariso.models.parsec.cmd_form` — every submission archives the exact
+ordered payload, the server's own header echo, and the file checksum):
 
 ```python
-tracks = stellariso.read_parsec_tracks(
-    "path/to/database/parsec/v1.2S/all_tracks/Z0.0001Y0.249.zip"
-)                                                # ParsecTrackSet: one track per initial mass
-isos = stellariso.synthesize_isochrones(tracks, log_ages=[9.0, 9.5, 10.0])
-# isos: IsochroneSet of locally synthesized isochrones; each carries the
-# transformation statement in its provenance and warns that it is a
-# synthesized product, not a model-team isochrone.
-parsec_iso = stellariso.ParsecIso([isos])        # ParsecIso: the same facade over them
-parsec_iso.get_logg(mass=0.8, log_age=9.0)
+from stellariso.models.parsec.cmd_form import CmdFieldSet, CmdFormClient
 
-# CMD tables downloaded by hand from the web form remain readable as-is:
-parsec_cmd = stellariso.construct("parsec/v1.2S +  COLIBRI S_37 + S_35 + PR16",
-                                  paths=["path/to/cmd_table.dat"])
+client = CmdFormClient()                          # CMD 3.9 endpoint
+job = client.submit(CmdFieldSet.from_overrides(isoc_isagelog=1,
+                                               isoc_lagelow="9.0",
+                                               isoc_lageupp="10.0",
+                                               isoc_dlage="0.5"))
+out = client.fetch_output(job)                     # refuses header-only tables
+out.record()                                       # full acquisition record
+
+# the downloaded table reads like any other isochrone product:
+parsec_iso = stellariso.construct("parsec/v1.2S +  COLIBRI S_37 + S_35 + PR16",
+                                  paths=["path/to/output1.dat"])
+parsec_iso.get_logg(mass=0.8, log_age=9.0)
 ```
 
-The CLI form of synthesis, for use outside Python:
+The CLI form of fetching, for use outside Python:
 
 ```bash
-python tools/synthesize_parsec_isochrones.py Z0.0001Y0.249.zip \
-    --log-ages 8.0,8.5,9.0,9.5,10.0 --out my_isos.dat
+python tools/fetch_parsec_isochrones.py \
+    --isoc_isagelog 1 --isoc_lagelow 9.0 --isoc_lageupp 10.0 --isoc_dlage 0.5 \
+    [--out my_isos.dat]
 ```
 
 ## Building a local database
@@ -110,8 +112,7 @@ and query it fully offline, passing `database=` explicitly everywhere.
 # see everything that would be downloaded, with exact sizes
 stellariso.build_database("path/to/database", dry_run=True)
 
-# build it (about 49 GB for MIST: v1.2 and v2.5 isochrones + tracks;
-# about 10 GB for PARSEC track archives)
+# build it (about 16.5 GB for the MIST isochrone products)
 db = stellariso.build_database("path/to/database")
 
 # query it offline, by version-qualified model
@@ -135,15 +136,15 @@ re-downloaded; re-running the build completes whatever is missing.
 What the sources publish (verified live 2026-10-11; all sizes exact):
 
 - MIST: v1.2 (full + basic isochrones, vvcrit 0.0/0.4) and v2.5 (full
-  isochrones, vvcrit 0.0/0.4) plus the complete EEPS track tarballs
-  (30 for v1.2, 166 for v2.5) — the theory products only; the
-  per-photometric-system repackages are out of scope. Upstream publishes
-  no checksums; sha256 is computed at download and recorded.
-- PARSEC: official static track archives — v1.2S (all compositions) and
-  the v2.0 rotating / very-massive / pure-helium sets. No isochrone
-  packages exist, and stellariso recognizes no isochrone channel for
-  PARSEC: the CMD web form computes tables server-side on request
-  (opaque, not scriptable), hence the local synthesis above.
+  isochrones, vvcrit 0.0/0.4) — the isochrone theory products; the
+  per-photometric-system repackages and the EEPS track tarballs are out
+  of scope. Upstream publishes no checksums; sha256 is computed at
+  download and recorded.
+- PARSEC: no isochrone packages exist. The official CMD web form computes
+  isochrone tables server-side on request and is scriptable when given
+  the complete current field set (verified 2026-10-14); stellariso
+  acquires PARSEC isochrones through it, archiving the exact payload and
+  the server's own header echo with every table.
 
 See [docs/data-sources.md](docs/data-sources.md) for the full source
 registry, verification dates, and known caveats.
@@ -153,14 +154,7 @@ registry, verification dates, and known caveats.
 - Within one isochrone: `linear` or `pchip` along `initial_mass` (or any
   monotonic coordinate), with an audit record of the bracketing nodes and
   their phases. Extrapolation raises.
-- Within one track (synthesis): linear in age between the bracketing
-  models. No cross-track interpolation, no extrapolation; tracks whose
-  age span does not cover the target are omitted and the omission is
-  recorded. The helium-flash discontinuity is not bridged: separate HB
-  track files are excluded from synthesis, so post-flash stages are
-  absent from synthesized isochrones at old ages — a recorded per-track
-  omission, not a hidden gap.
-- Across isochrones or tracks (age, composition): **not performed**.
+- Across isochrones (age, composition): **not performed**.
   Exact and nearest selection only; nearest warns and records what was
   substituted.
 
@@ -180,11 +174,9 @@ registry, verification dates, and known caveats.
 
 ```bash
 pytest                # offline suite (network tests deselected)
-pytest -m network     # live catalog-URL checks (204 MIST + 4 PARSEC)
+pytest -m network     # live catalog-URL checks (6 MIST) + one live CMD form job
 ```
 
 Fixtures under `tests/data/` derive from real upstream data where
-possible: MIST isochrone excerpts, real trimmed PARSEC track files
-(captured from the official static archive), and a documented
-format-equivalent synthetic CMD table (the web form cannot be scripted).
-See the fixture READMEs.
+possible: MIST isochrone excerpts and CMD form captures (result page,
+real table excerpt, empty-table failure shape). See the fixture READMEs.

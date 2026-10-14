@@ -22,7 +22,6 @@ from stellariso.registry import (
     phase_code_meanings,
     phase_mapping,
     product_names,
-    product_notes,
     references,
     resolve_parameters,
     unified_field_names,
@@ -48,7 +47,7 @@ class TestRegistryData:
         assert reg["schema_version"] == 3
         assert set(backend_names()) == {"mist", "parsec"}
         assert product_names("mist") == ("isochrones",)
-        assert set(product_names("parsec")) == {"cmd_table", "tracks_v12s"}
+        assert set(product_names("parsec")) == {"cmd_table"}
 
     def test_unified_vocabulary_present(self):
         names = unified_field_names()
@@ -89,15 +88,10 @@ class TestFieldSpecs:
         assert specs["log_surface_gravity"].native_name == "logG"
         assert specs["log_mass_loss_rate"].native_name == "logMdot"
 
-    def test_parsec_track_specs(self):
-        specs = field_spec_dict("parsec", "tracks_v12s")
-        assert specs["current_mass"].native_name == "MASS"
-        assert specs["log_luminosity"].native_name == "LOG_L"
-        assert specs["log_radius"].origin is FieldOrigin.TRANSFORMED_NATIVE
-        assert specs["log_radius"].native_unit == "dex(cm)"
-        assert specs["log_surface_gravity"].origin is FieldOrigin.DERIVED
-        assert specs["initial_mass"].origin is FieldOrigin.FILE_METADATA
-        assert specs["log_mass_loss_rate"].origin is FieldOrigin.MISSING
+    def test_removed_track_product_fails_loudly(self):
+        # the track product is gone; requesting it must not return anything
+        with pytest.raises(ValueError, match="no product 'tracks_v12s'"):
+            field_spec_dict("parsec", "tracks_v12s")
 
 
 class TestPhaseMapping:
@@ -106,20 +100,15 @@ class TestPhaseMapping:
         out = mapping([0, 2, 9])
         assert list(out) == ["main_sequence", "red_giant_branch", "wolf_rayet"]
 
-    def test_parsec_track_phase_variants(self):
-        standard = phase_mapping("parsec", "tracks_v12s")
-        out = standard([3, 5, 8, 13, 15])
+    def test_parsec_cmd_phase_mapping(self):
+        mapping = phase_mapping("parsec", "cmd_table")
+        out = mapping([0, 1, 3, 8, 9])
         assert list(out) == [
             "pre_main_sequence",
             "main_sequence",
             "red_giant_branch",
-            "core_helium_burning",
-            "unknown",
-        ]
-        hb = phase_mapping("parsec", "tracks_v12s", variant="hb")
-        assert list(hb([1, 4])) == [
-            "core_helium_burning",
-            "early_asymptotic_giant_branch",
+            "thermally_pulsing_asymptotic_giant_branch",
+            "post_agb",
         ]
 
     def test_code_meanings_cover_the_table(self):
@@ -133,7 +122,7 @@ class TestPhaseMapping:
 
     def test_eep_anchors_mist_isochrones_only(self):
         assert eep_anchors("mist", "isochrones")["ZAMS"] == 202
-        assert eep_anchors("parsec", "tracks_v12s") is None
+        assert eep_anchors("parsec", "cmd_table") is None
 
 
 class TestResolveParametersMist:
@@ -205,26 +194,6 @@ class TestResolveParametersParsec:
         assert specs["initial_z"].status == "not_in_file"
         assert "eta_reimers" not in specs
 
-    def test_tracks_v12s(self):
-        specs = {
-            p.name: p
-            for p in resolve_parameters(
-                "parsec",
-                "tracks_v12s",
-                {
-                    "initial_mass": (0.6, 0.8, 1.0),
-                    "initial_z": 0.0001,
-                    "initial_helium": 0.249,
-                },
-            )
-        }
-        assert specs["initial_mass"].role is ParameterRole.AXIS
-        assert specs["initial_mass"].values == (0.6, 0.8, 1.0)
-        assert specs["initial_z"].value == 0.0001
-        assert specs["initial_helium"].value == 0.249
-        assert specs["initial_rotation"].role is ParameterRole.NOT_APPLICABLE
-        assert "log_age" not in specs  # tracks vary age per row, not per product
-
 
 class TestReferencesAndNotes:
     def test_references_are_reference_objects(self):
@@ -236,7 +205,6 @@ class TestReferencesAndNotes:
     def test_notes_exist(self):
         for backend in backend_names():
             assert backend_notes(backend)
-        assert product_notes("parsec", "tracks_v12s")
 
 
 class TestGeneratedDocument:

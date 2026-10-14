@@ -1,4 +1,0 @@
-source zip: Z0.0001Y0.249.zip
-source sha256: 24f102623204de38f2c099e1265aae29406318524215849f98d3a00ff6a8a1c7
-source url: https://stev.oapd.inaf.it/PARSEC/Database/PARSECv1.2/Z0.0001Y0.249.zip
-trimmed by make_parsec_track_fixture.py on 2026-10-11

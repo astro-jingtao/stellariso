@@ -130,8 +130,9 @@ other.
   from download URLs.
 
 Acquisition provenance for a database product is read from its MANIFEST
-(`Database.provenance`); synthesized products append their transformation
-to the chain.
+(`Database.provenance`); CMD form tables additionally archive the exact
+ordered request payload and the server's own header echo in their
+acquisition records.
 
 ## Selection and interpolation
 
