@@ -62,15 +62,15 @@ Zenodo and are not track tables.
 - Bolometric-correction tables are published separately under
   `data/BC_tables/v1/*` and `v2/*` (out of scope).
 
-### Rejected channel: interpolation web form
+### Not used: interpolation web form
 
 `https://mist.science/iso_form.php` accepts a plain POST and returns a
 zip with one `.iso` covering requested (version, rotation, [Fe/H],
-[a/Fe], age list). It functions (verified end-to-end 2026-10-11), but the
-delivered isochrones are computed server-side by the form's own
-interpolation machinery — opaque to this library — so it is not an
-acquisition channel. The published tarballs contain the same model data
-produced by the model team's own pipeline.
+[a/Fe], age list). It works (verified end-to-end 2026-10-11) and is not
+needed: MIST publishes complete isochrone packages, which carry the same
+model data from the model team's own pipeline. A server-side subset
+computed by the form's interpolation machinery adds nothing over the
+published tarballs, so stellariso acquires the packages.
 
 ### Scientific references
 

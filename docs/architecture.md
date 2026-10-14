@@ -6,7 +6,8 @@ the objects that carry them.
 
 ```mermaid
 flowchart LR
-    C[release catalog<br/>models/&lt;family&gt;/catalog.json] --> B[build_database<br/>official packages only]
+    C[release catalog<br/>models/&lt;family&gt;/catalog.json] --> B[build_database<br/>official packages + form jobs]
+    W[CMD web form<br/>request layer cmd_form.py] --> B
     B --> D[local database<br/>MANIFEST per product, self-contained]
     D --> R[backend reader<br/>models/&lt;family&gt;/reader.py]
     F[user-held file<br/>.iso / CMD table] --> R
@@ -79,13 +80,19 @@ sync. Built databases carry a snapshot of the same document.
 directory the user chooses and passes explicitly (`database=...`); there is
 no environment variable and no implicit fallback location.
 
-- `build_database(database=...)` downloads, once, the complete published
+- `build_database(database=...)` acquires, once, the complete published
   matrix declared in per-family release catalogs
-  (`models/<family>/catalog.json`): every release and every parameter set
-  the source offers as an official package. The official archives are kept
-  (the database doubles as the offline backup), extracted, and described
-  by a per-product `MANIFEST.json` — source URL, sha256, size, retrieval
-  time, file format, citations. Verified products are never re-downloaded.
+  (`models/<family>/catalog.json`). Package products are downloaded,
+  kept as the official archives (the database doubles as the offline
+  backup), extracted, and described by a per-product `MANIFEST.json` —
+  source URL, sha256, size, retrieval time, file format, citations.
+  Form products (PARSEC) submit their declared payload through the
+  request-layer client `models/parsec/cmd_form.py`, verify the server's
+  header echo, and archive the table with its complete acquisition
+  record (exact payload, timestamps, checksum) under the
+  `official_computed` source class. Verified products are never
+  re-acquired, whichever the channel — a form job is server-side
+  compute.
 - `open_database(database=...)` / `Database.grid("mist/1.2", label=...)`
   query the database fully offline.
 - Self-containment: the root carries `database.json` (inventory),
@@ -96,7 +103,7 @@ no environment variable and no implicit fallback location.
   any subset of its product directories can be copied to another machine
   and opened there.
 
-A family whose catalog declares no package channel makes `build_database`
+A family whose catalog declares no usable channel makes `build_database`
 fail loudly with the manual registration procedure (no current family
 does); `register_local_product` records locally held files with the same
 manifest shape and an explicit `local_user_file` source class.
@@ -155,11 +162,16 @@ wrong evolutionary stages.
 A backend (see `stellariso/models/`) contributes:
 
 1. a cheap `recognize` sniffer,
-2. a literal `reader` producing `NativeTable` + facts + blocks,
+2. a literal `reader` producing `NativeTable` + facts + blocks
+   (version-anchored where the source's formats differ across versions:
+   the PARSEC reader dispatches on the file's own CMD version echo),
 3. product knowledge: `ModelIdentity` and the reader-side value injection
    into the registry's parameter templates,
 4. a release `catalog` (`models/<family>/catalog.json`) declaring every
-   official package the database builder acquires.
+   product the database builder acquires — official packages (URL,
+   filename, size) or form-computed products (the exact payload and the
+   header echo to verify); request layers that speak a service's wire
+   protocol (the CMD form client) sit beside the backend.
 
 Core code dispatches through the registry (`stellariso.models.get_backend`);
 there are no model-name branches outside the backends. Adding a model family

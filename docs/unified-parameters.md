@@ -54,7 +54,7 @@ Physical parameters a model product can carry. The role a parameter plays in a s
 | Parameter | Unit | Convention | Description |
 |---|---|---|---|
 | `log_age` | dex(log10(age/yr)) | — | log10 of the isochrone age in years |
-| `initial_mass` | solMass | — | initial (age-zero) stellar mass; the axis a track grid varies within one composition |
+| `initial_mass` | solMass | — | initial (age-zero) stellar mass; the axis an isochrone product varies within one composition |
 | `initial_feh` | dex | [Fe/H] of the initial composition | initial metallicity as [Fe/H] |
 | `initial_z` | — | mass fraction | initial metal mass fraction Z |
 | `initial_helium` | — | mass fraction | initial helium mass fraction Y |

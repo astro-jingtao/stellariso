@@ -1,9 +1,10 @@
 """The local isochrone database: explicit, self-contained, portable.
 
 A database is one user-chosen directory built once by ``build_database``
-downloading the complete published matrix (every release and every
-parameter set the sources offer, as official packages — never on-demand
-computed subsets) and queried afterwards by ``open_database`` fully
+acquiring the complete published matrix — official packages where the
+source publishes them, and the declared products of the source's
+official computation service (the PARSEC CMD web form) where that is
+the only channel — and queried afterwards by ``open_database`` fully
 offline. There is no environment-variable lookup and no implicit
 location: every entry point takes ``database`` explicitly.
 
@@ -15,7 +16,9 @@ Layout::
         unified-parameters.md        # mapping documentation snapshot
         <family>/<release>/<product>/
             MANIFEST.json            # source, checksum, identity, format
-            <archive>.txz            # the official package, kept
+            <archive>.txz            # package products: the archive, kept
+            output.dat               # form products: the computed table
+            output.dat.record.json   # ... and its acquisition record
             <extracted data files>
 
 Self-containment: each MANIFEST records what the data is, where it came
@@ -120,7 +123,7 @@ class Database:
         """Open one product as a grid.
 
         ``model`` is version-qualified (``"mist/1.2"``). When a release
-        publishes several products (rotation sets, isochrone/tracks kinds),
+        publishes several products (rotation sets, column variants),
         ``label`` picks one; without ``label`` the choice must be unique.
         """
         family, release = parse_model_spec(model)

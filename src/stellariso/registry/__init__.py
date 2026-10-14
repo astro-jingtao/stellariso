@@ -243,8 +243,8 @@ def field_spec_dict(backend: str, product: str) -> dict[str, FieldSpec]:
 def phase_mapping(backend: str, product: str, variant: str = "standard"):
     """The product's versioned native-phase-code -> unified-stage mapping.
 
-    ``variant`` selects between a product's declared mappings (PARSEC
-    tracks: ``"standard"`` or ``"hb"`` for the post-flash files).
+    ``variant`` selects between a product's declared mappings when it
+    declares more than one.
     """
     from stellariso.unified import PhaseMapping
 

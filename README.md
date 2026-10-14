@@ -103,10 +103,13 @@ python tools/fetch_parsec_isochrones.py \
 
 ## Building a local database
 
-There is no on-demand fetching and no implicit cache location: you build
-a database once — downloading the complete published matrix (every
-release, every parameter set each source offers as official packages) —
-and query it fully offline, passing `database=` explicitly everywhere.
+There is no implicit cache location: you build a database once —
+downloading the complete published matrix where the source publishes
+packages (MIST), and computing the declared products through the
+source's official form where that is the only channel (PARSEC) — and
+query it fully offline afterwards, passing `database=` explicitly
+everywhere. Re-running the build completes whatever is missing; already
+verified products are never re-fetched (or re-computed).
 
 ```python
 # see everything that would be downloaded, with exact sizes

@@ -135,7 +135,7 @@
       "name": "initial_mass",
       "unit": "solMass",
       "convention": null,
-      "description": "initial (age-zero) stellar mass; the axis a track grid varies within one composition"
+      "description": "initial (age-zero) stellar mass; the axis an isochrone product varies within one composition"
     },
     {
       "name": "initial_feh",

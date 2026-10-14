@@ -5,9 +5,9 @@ computes documented transformations, but it is not a second copy of the data:
 native columns are referenced, transformed columns are computed on demand,
 and every field carries its :class:`~stellariso.core.FieldSpec` describing
 exactly how it maps back to native data. Derived fields are computed by
-named rules (``computations``) attached by the backend; file-metadata fields
-read per-product constants (for example a track's initial mass, stated by
-its filename).
+named rules (``computations``) attached by the backend; file-metadata
+fields read per-product constants stated outside the table itself (for
+example by a file's name).
 """
 
 from __future__ import annotations
