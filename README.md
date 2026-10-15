@@ -146,12 +146,16 @@ What the sources publish (verified live 2026-10-11/10-15; all sizes exact):
 - PARSEC: no isochrone packages exist. The official CMD web form computes
   isochrone tables server-side on request and is scriptable when given
   the complete current field set (verified 2026-10-14); the declared
-  acquisition design is the [blueprint](docs/parsec/blueprint.md) — 471
-  cells over every (track set, [M/H], rotation) combination the form
-  accepts, each carrying a fine log-age grid and a linear young-age
-  grid, fetched primary sets at full extent and secondary sets sparsely
-  first. Every archived table keeps its exact complete payload and the
-  server's own header echo, so the identical request can be replayed;
+  acquisition design is the [blueprint](docs/parsec/blueprint.md) — one
+  cell per combination of every form field that changes the isochrone
+  (track set, [M/H], rotation, Reimers eta, circumstellar dust, LPV
+  prescription) wherever that field is effective: 70,308 designed cells,
+  each carrying a fine log-age grid and a linear young-age grid in one
+  directory. The current fetch stage commits to a subset (eta 0.0/0.2/
+  0.4, canonical dust and LPV; primary sets at full [M/H] extent,
+  secondary sets sparsely first): 471 cells, 942 submissions. Every
+  archived table keeps its exact complete payload and the server's own
+  header echo, so the identical request can be replayed;
   `tools/parsec/blueprint_status.py` measures any database against the
   blueprint and marks what is complete, pending, or to be re-fetched.
 

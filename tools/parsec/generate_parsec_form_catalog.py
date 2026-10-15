@@ -1,18 +1,17 @@
 """Generate the PARSEC form-product section of models/parsec/catalog.json.
 
-The declared design of the full acquisition now lives in
-stellariso.models.parsec.blueprint (docs/parsec/blueprint.md): uniform
-fine grids, two age grids per cell, rotation for v2.0. This generator
-remains the record of the catalog state the 2026-10-15/16 fetch
-produced (single log-age submission per product, coarse ages for
-secondary sets, option-variation products) and the mechanism that can
-rewrite that file; wiring the builder to the blueprint's two-file cells
-is future work.
+The catalog's parsec section is the registry of the products the
+2026-10-15/16 form fetch archived: one log-age table per directory
+(coarse ages for the secondary sets), plus one-shot option-variation
+products. The ACQUISITION DESIGN is declared elsewhere —
+stellariso.models.parsec.blueprint (docs/parsec/blueprint.md) fixes the
+full cell space, and stellariso.models.parsec.build builds it — so this
+file is no longer the build driver; it stays the release-identity and
+archived-product registry, and this generator is the mechanism that
+rewrites it consistently.
 
-The matrix exhausts every option combination that changes the computed
-isochrones, at the widest, finest age-metallicity coverage the form
-supports (see docs/parsec/cmd-form.md for the wire protocol and the option
-semantics):
+What the archived fetch holds (see docs/parsec/cmd-form.md for the wire
+protocol and the option semantics):
 
 - Track sets: every (track_parsec, track_colibri) pair the form accepts,
   each over its full documented [M/H] window. Photometry is a
@@ -28,15 +27,14 @@ semantics):
 - Compositions: one product per [M/H] value on a 0.1 dex grid (single
   value per job - the server's range arithmetic drops end points
   through floating point, so ranges are never used for metallicity).
-- Option variations (IMF, LPV prescription, Reimers eta, TP-cycle
-  resolution) change only auxiliary columns (int_IMF; period0-4/pmode)
-  or one continuous physics knob; each value is fetched once at a
-  representative composition and age grid instead of multiplying the
-  whole matrix.
-- Interstellar extinction is fixed at A_V = 0: verified not to change
-  any physical column (docs/parsec/cmd-form.md). Circumstellar dust and the
-  bolometric-correction version affect magnitudes only and stay at the
-  baseline.
+- Option-variation products (IMF, LPV prescription, Reimers eta,
+  TP-cycle resolution) each hold one value at a representative
+  composition; the blueprint now carries these fields as designed cell
+  axes instead.
+- Interstellar extinction is A_V = 0 throughout: verified not to change
+  any physical column (docs/parsec/cmd-form.md). Circumstellar dust and
+  the LPV prescription stayed at the baseline in these archived
+  products; the blueprint covers them as axes.
 
 Run:  python tools/parsec/generate_parsec_form_catalog.py   (rewrites the file)
 """
@@ -63,26 +61,29 @@ STATIC = {
         "(https://stev.oapd.inaf.it/cgi-bin/cmd) computes isochrone tables "
         "server-side on request and is the isochrone acquisition channel "
         "(scriptable with a complete current field set, verified live "
-        "2026-10-14; complete wire documentation: docs/cmd-form.md). The "
-        "host's TLS chain omits its intermediate CA (ZeroSSL RSA DV SSL CA "
-        "2); the bundled intermediate completes the chain so verification "
+        "2026-10-14; complete wire documentation: docs/parsec/cmd-form.md). "
+        "The host's TLS chain omits its intermediate CA (ZeroSSL RSA DV SSL "
+        "CA 2); the bundled intermediate completes the chain so verification "
         "stays on."
     ),
     "scope_note": (
-        "Form-computed isochrone products (request-layer client: "
-        "stellariso.models.parsec.cmd_form). Every track-set combination "
-        "the form accepts, over its full [M/H] window, on a 0.1 dex "
-        "composition grid and fine log-age grids; option variations that "
-        "change only auxiliary columns are fetched once each at a "
-        "representative composition. Historical pre-2006 tracks on "
-        "pleiadi.oapd.inaf.it remain out of scope."
+        "Registry of the form-computed products archived by the "
+        "2026-10-15/16 fetch (request-layer client: "
+        "stellariso.models.parsec.cmd_form): every track-set combination "
+        "the form accepts over its full [M/H] window on a 0.1 dex grid, "
+        "one log-age table per composition, plus one-shot option-variation "
+        "products. The declared acquisition design - the full cell space "
+        "the build completes towards - lives in "
+        "stellariso.models.parsec.blueprint (docs/parsec/blueprint.md). "
+        "Historical pre-2006 tracks on pleiadi.oapd.inaf.it remain out of "
+        "scope."
     ),
     "matrix_notes": {
         "ages": "log10(age/yr) 6.6-10.13; 0.02 dex for the current physics sets, 0.05 dex for secondary sets, 0.1 dex for option variations; the server interpolates intermediate ages itself",
         "metallicities": "one product per [M/H] on a 0.1 dex grid (single-value jobs; range end points are unreliable server-side)",
         "photometry": "placeholder only: YBC UBVRIJHK for YBC-served sets, OBC/odfnew LSST for the older sets (the YBC library does not carry them)",
-        "extinction": "A_V = 0 everywhere; extinction changes magnitudes only (verified 2026-10-15, docs/cmd-form.md)",
-        "skipped_options": "dust compositions and bolometric-correction versions affect magnitudes only; kind_postagb has a single accepted value; v1.1/v1.0 outputs carry no release echo (identity release 'unknown')",
+        "extinction": "A_V = 0 everywhere; extinction changes magnitudes only (verified 2026-10-15, docs/parsec/cmd-form.md)",
+        "archived_options": "the archived products keep circumstellar dust, the LPV prescription, Reimers eta, and the TP-cycle resolution at single values (option variations archived one value each); the blueprint declares them as designed cell axes",
     },
 }
 
