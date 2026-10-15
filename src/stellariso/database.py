@@ -17,8 +17,10 @@ Layout::
         <family>/<release>/<product>/
             MANIFEST.json            # source, checksum, identity, format
             <archive>.txz            # package products: the archive, kept
-            output.dat               # form products: the computed table
-            output.dat.record.json   # ... and its acquisition record
+            output.dat               # form products (blueprint cells): the
+            output.dat.record.json   #   log-age table and its record, plus
+            output_linear.dat        #   the linear young-age refinement
+            output_linear.dat.record.json
             <extracted data files>
 
 Self-containment: each MANIFEST records what the data is, where it came
@@ -336,13 +338,17 @@ def build_database(
     as an official package) are downloaded, checksummed, extracted, and
     recorded in a per-product MANIFEST. Form products (a source whose
     only isochrone channel is an official computation service — the
-    PARSEC CMD web form) are computed by that service: each product
-    submits its declared payload, verifies the server's header echo,
-    and archives the table with the complete acquisition record (exact
-    payload, timestamps, sha256). Products already present with a
-    matching checksum are never re-acquired, whichever the channel — a
-    form job is server-side compute, so re-running the build only
-    completes what is missing.
+    PARSEC CMD web form) are built from that source's declared
+    acquisition blueprint: each fetch-stage cell submits its two age
+    grids as separate jobs into one cell directory, verifies the
+    server's header echo, and archives both tables with their complete
+    acquisition records (exact payload, timestamps, sha256) and one
+    extended cell MANIFEST. Products already present with a matching
+    checksum are never re-acquired, whichever the channel — a form job
+    is server-side compute, so re-running the build only completes what
+    is missing. Cells whose archived log-age half does not conform to
+    the design are skipped with a notice, never patched or overwritten
+    (``tools/parsec/blueprint_status.py`` is the review artifact).
 
     ``models`` limits the build to the given families (default: all).
     ``dry_run=True`` only reports what would be fetched. With
@@ -361,10 +367,14 @@ def build_database(
     for family, cat in catalogs.items():
         if cat.get("channel") == "manual":
             _fail_manual(root, family, cat)
+        if cat.get("channel") == "form":
+            families = [f for f in families if f != family] + [family]
 
     jobs = []
     for family in families:
         cat = catalogs[family]
+        if cat.get("channel") == "form":
+            continue  # acquired through the blueprint below
         for release_entry in cat["releases"]:
             for product in release_entry["products"]:
                 jobs.append((family, release_entry, product))
@@ -374,9 +384,7 @@ def build_database(
         missing_size = 0
         for family, release_entry, product in jobs:
             size = product.get("size_bytes")
-            if "fields" in product:
-                size_text = "computed by the official form on request"
-            elif size is None:
+            if size is None:
                 missing_size += 1
                 size_text = "size unknown"
             else:
@@ -384,114 +392,39 @@ def build_database(
                 size_text = f"{size:,} bytes"
             print(f"{family}/{release_entry['release']}/{product['label']}  {size_text}")
         print(
-            f"{len(jobs)} product(s), {total:,} bytes total "
+            f"{len(jobs)} package product(s), {total:,} bytes total "
             f"({total / 1e9:.1f} GB, {missing_size} with unknown size)"
         )
+        for family, cat in catalogs.items():
+            if cat.get("channel") == "form":
+                from stellariso.models.parsec.build import fetch_plan
+
+                plan = fetch_plan(root if root.exists() else None)
+                print(
+                    f"{family}: {plan['target_cells']} fetch-stage cells "
+                    f"({sum(v['designed_cells'] for v in plan['sets'].values())} "
+                    f"designed), {plan['submissions_to_target']} form submissions "
+                    "to the fetch-stage target"
+                )
         return None
 
     root.mkdir(parents=True, exist_ok=True)
     sessions = _sessions(root, families, session)
 
     for family, release_entry, product in jobs:
-        if "fields" in product:
-            _build_form_product(
-                root, family, release_entry, product, pause=form_pause
-            )
-        else:
-            _build_product(
-                root, family, release_entry["release"], product,
-                sessions[family], verify_existing, extract=extract,
-            )
+        _build_product(
+            root, family, release_entry["release"], product,
+            sessions[family], verify_existing, extract=extract,
+        )
+
+    for family, cat in catalogs.items():
+        if cat.get("channel") == "form":
+            from stellariso.models.parsec.build import build_blueprint
+
+            build_blueprint(root, pause=form_pause)
 
     _write_inventory(root)
     return open_database(root)
-
-
-def _build_form_product(
-    database: Path,
-    family: str,
-    release_entry: dict,
-    product: dict,
-    pause: float = 5.0,
-) -> None:
-    """Acquire one form-computed product through its official service.
-
-    The product's catalog entry declares the payload (``fields``, the
-    form's own names) and the header substring the server's echo must
-    carry (``verify_header``). The table is archived as ``output.dat``
-    with its full acquisition record beside it (``output.dat.record.json``)
-    and the same MANIFEST shape package products get — source class
-    ``official_computed``, url = the job's output link. A present,
-    checksum-matching product is kept as-is: form jobs are server-side
-    compute and are never re-run for already-acquired data.
-    """
-    import time
-
-    from stellariso.models.parsec.cmd_form import CmdFieldSet, CmdFormClient
-
-    release = release_entry["release"]
-    release_dir = release_entry.get("release_dir") or release
-    target_dir = _product_target(database, family, release_dir, product["label"])
-    target_dir.mkdir(parents=True, exist_ok=True)
-    data_file = target_dir / "output.dat"
-    manifest_path = target_dir / "MANIFEST.json"
-    manifest = (
-        json.loads(manifest_path.read_text(encoding="utf-8"))
-        if manifest_path.exists()
-        else {}
-    )
-
-    if data_file.exists():
-        recorded = manifest.get("sha256")
-        if recorded and sha256_file(data_file) == recorded:
-            print(f"keep verified {family}/{release_dir}/{product['label']}")
-            return
-
-    fields = CmdFieldSet.from_overrides(**product["fields"])
-    client = CmdFormClient(cmd_version=str(product.get("cmd_version", "3.9")))
-    print(f"submitting form job for {family}/{release_dir}/{product['label']}")
-    job = client.submit(fields)
-    out = client.fetch_output(job)
-
-    expected = product.get("verify_header")
-    if expected and not any(expected in ln for ln in out.comment_lines):
-        raise SourceUnavailableError(
-            f"{family}/{release_dir}/{product['label']}: the server's "
-            f"header echo does not contain {expected!r}; echo was "
-            f"{[ln for ln in out.comment_lines[:4]]}"
-        )
-
-    data_file.write_bytes(out.content)
-    record_path = target_dir / (data_file.name + ".record.json")
-    record_path.write_text(
-        json.dumps(out.record(), indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-        newline="\n",
-    )
-    manifest.update(
-        {
-            "family": family,
-            "release": release,
-            "label": product["label"],
-            "kind": product["kind"],
-            "physics": product.get("physics"),
-            "url": out.url,
-            "sha256": out.sha256,
-            "size_bytes": len(out.content),
-            "expected_size_bytes": None,
-            "n_data_files": 1,
-            "extracted": True,
-            "retrieved_at": out.retrieved_at,
-            "source_class": "official_computed",
-            "note": catalog(family).get("source_note", "official form"),
-            "format": product.get("format", "cmd_table_3_9"),
-            "n_data_rows": out.n_data_rows,
-            "acquisition_record": record_path.name,
-            "references": [r.citation for r in references(family)],
-        }
-    )
-    _atomic_write_json(manifest_path, manifest)
-    time.sleep(pause)
 
 
 def _fail_manual(database: Path, family: str, cat: dict) -> None:

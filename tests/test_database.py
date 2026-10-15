@@ -402,12 +402,9 @@ class TestZipProductsAndCaBundle:
 
 
 class TestFormProducts:
-    """Form-computed products: acquisition through the official service."""
-
-    RELEASE = "v1.2S +  COLIBRI S_37 + S_35 + PR16"
-    GRID_TABLE = (
-        Path(__file__).parent / "data" / "parsec" / "cmd_form" / "output_grid.dat"
-    ).read_bytes()
+    """Form-channel families: the database builder dispatches to the
+    blueprint cell builder (tests/parsec/test_build.py covers the cell
+    behavior itself; these pin the dispatch and the dry-run plan)."""
 
     @staticmethod
     def _form_catalog() -> dict:
@@ -417,18 +414,13 @@ class TestFormProducts:
             "source_note": "test form catalog",
             "releases": [
                 {
-                    "release": TestFormProducts.RELEASE,
-                    "release_dir": "v1.2S_COLIBRI_S37_S35_PR16",
+                    "release": "v1.2S +  COLIBRI S_37 + S_35 + PR16",
+                    "release_dir": "v1.2S_COLIBRI_web",
                     "products": [
                         {
-                            "label": "demo_grid",
+                            "label": "legacy_registry_entry",
                             "kind": "cmd_form_isochrones",
-                            "fields": {
-                                "isoc_isagelog": 1,
-                                "isoc_lagelow": "9.0",
-                                "isoc_lageupp": "9.5",
-                                "isoc_dlage": "0.5",
-                            },
+                            "fields": {"isoc_isagelog": 1},
                             "verify_header": "PARSEC release v1.2S",
                         }
                     ],
@@ -437,147 +429,39 @@ class TestFormProducts:
         }
 
     @staticmethod
-    def _stub_client(monkeypatch, content: bytes | None = None):
-        """A CmdFormClient stand-in answering from the real grid fixture."""
-        from stellariso.models.parsec.cmd_form import (
-            CMD_ENDPOINTS,
-            CmdFieldSet,
-            CmdJob,
-            CmdOutput,
-        )
-
-        content = TestFormProducts.GRID_TABLE if content is None else content
+    def _form_env(monkeypatch):
         calls: list[dict] = []
 
-        class _Stub:
-            def __init__(self, cmd_version="3.9", **kw):
-                self.cmd_version = cmd_version
-
-            def submit(self, fields):
-                payload = (
-                    fields.as_dict() if isinstance(fields, CmdFieldSet) else dict(fields)
-                )
-                calls.append(payload)
-                return CmdJob(
-                    cmd_version="3.9",
-                    endpoint=CMD_ENDPOINTS["3.9"],
-                    fields=payload,
-                    submitted_at="2026-10-15T00:00:00Z",
-                    completed_at="2026-10-15T00:00:08Z",
-                    output_url="https://stev.oapd.inaf.it/tmp/outputSTUB.dat",
-                    output_name="outputSTUB.dat",
-                    retention_note="2 h",
-                )
-
-            def fetch_output(self, job):
-                text = content.decode("utf-8")
-                return CmdOutput(
-                    job=job,
-                    url=job.output_url,
-                    filename=job.output_name,
-                    content=content,
-                    sha256=sha256_bytes(content),
-                    retrieved_at="2026-10-15T00:00:09Z",
-                    comment_lines=tuple(
-                        ln for ln in text.splitlines() if ln.lstrip().startswith("#")
-                    ),
-                    n_data_rows=sum(
-                        1
-                        for ln in text.splitlines()
-                        if ln.strip() and not ln.lstrip().startswith("#")
-                    ),
-                )
+        def _fake_build_blueprint(database, *, client_factory=None, pause=5.0, log=print):
+            calls.append({"database": Path(database), "pause": pause})
+            return {"kept": 0, "fetched": 0, "mismatch": 0}
 
         monkeypatch.setattr(
-            "stellariso.models.parsec.cmd_form.CmdFormClient", _Stub
+            "stellariso.models.parsec.build.build_blueprint", _fake_build_blueprint
+        )
+        monkeypatch.setattr(
+            "stellariso.database.catalog", lambda family: TestFormProducts._form_catalog()
+        )
+        monkeypatch.setattr(
+            "stellariso.database.backend_names", lambda: ("parsec",)
         )
         return calls
 
-    def _build(self, tmp_path, monkeypatch, **kw):
-        cat = self._form_catalog()
-        self._stub_client(monkeypatch)
-        monkeypatch.setattr("stellariso.database.catalog", lambda family: cat)
-        monkeypatch.setattr(
-            "stellariso.database.backend_names", lambda: ("parsec",)
-        )
-        return build_database(tmp_path / "db", form_pause=0.0, **kw)
-
-    def test_acquires_and_archives_the_table(self, tmp_path, monkeypatch):
-        calls = self._stub_client(monkeypatch)
-        cat = self._form_catalog()
-        monkeypatch.setattr("stellariso.database.catalog", lambda family: cat)
-        monkeypatch.setattr(
-            "stellariso.database.backend_names", lambda: ("parsec",)
-        )
-        db = build_database(tmp_path / "db", form_pause=0.0)
-        assert len(calls) == 1
-        product = tmp_path / "db" / "parsec" / "v1.2S_COLIBRI_S37_S35_PR16" / "demo_grid"
-        assert (product / "output.dat").read_bytes() == self.GRID_TABLE
-        record = json.loads(
-            (product / "output.dat.record.json").read_text(encoding="utf-8")
-        )
-        assert record["request_fields"]["isoc_lagelow"] == "9.0"
-        manifest = json.loads(
-            (product / "MANIFEST.json").read_text(encoding="utf-8")
-        )
-        assert manifest["source_class"] == "official_computed"
-        assert manifest["release"] == self.RELEASE
-        assert manifest["sha256"] == sha256_bytes(self.GRID_TABLE)
-        assert len(db.products) == 1
-
-    def test_verified_products_are_never_resubmitted(self, tmp_path, monkeypatch):
-        calls = self._stub_client(monkeypatch)
-        cat = self._form_catalog()
-        monkeypatch.setattr("stellariso.database.catalog", lambda family: cat)
-        monkeypatch.setattr(
-            "stellariso.database.backend_names", lambda: ("parsec",)
-        )
-        build_database(tmp_path / "db", form_pause=0.0)
+    def test_build_dispatches_to_the_blueprint_builder(self, tmp_path, monkeypatch):
+        calls = self._form_env(monkeypatch)
         build_database(tmp_path / "db", form_pause=0.0)
         assert len(calls) == 1
+        assert calls[0]["database"] == tmp_path / "db"
+        assert calls[0]["pause"] == 0.0
+        # the catalog's flat product registry is not iterated as jobs
+        assert not (tmp_path / "db" / "parsec" / "v1.2S_COLIBRI_web").exists()
 
-    def test_tampered_table_is_reacquired(self, tmp_path, monkeypatch):
-        calls = self._stub_client(monkeypatch)
-        cat = self._form_catalog()
-        monkeypatch.setattr("stellariso.database.catalog", lambda family: cat)
-        monkeypatch.setattr(
-            "stellariso.database.backend_names", lambda: ("parsec",)
-        )
-        build_database(tmp_path / "db", form_pause=0.0)
-        product = tmp_path / "db" / "parsec" / "v1.2S_COLIBRI_S37_S35_PR16" / "demo_grid"
-        (product / "output.dat").write_bytes(b"tampered")
-        build_database(tmp_path / "db", form_pause=0.0)
-        assert len(calls) == 2
-        assert (product / "output.dat").read_bytes() == self.GRID_TABLE
-
-    def test_header_echo_mismatch_fails_loudly(self, tmp_path, monkeypatch):
-        cat = self._form_catalog()
-        cat["releases"][0]["products"][0]["verify_header"] = "PARSEC release v9.9"
-        self._stub_client(monkeypatch)
-        monkeypatch.setattr("stellariso.database.catalog", lambda family: cat)
-        monkeypatch.setattr(
-            "stellariso.database.backend_names", lambda: ("parsec",)
-        )
-        with pytest.raises(SourceUnavailableError, match="does not contain"):
-            build_database(tmp_path / "db", form_pause=0.0)
-
-    def test_dry_run_reports_form_jobs_without_submitting(self, tmp_path, monkeypatch, capsys):
-        calls = self._stub_client(monkeypatch)
-        cat = self._form_catalog()
-        monkeypatch.setattr("stellariso.database.catalog", lambda family: cat)
-        monkeypatch.setattr(
-            "stellariso.database.backend_names", lambda: ("parsec",)
-        )
+    def test_dry_run_reports_the_fetch_plan_without_submitting(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        calls = self._form_env(monkeypatch)
         build_database(tmp_path / "db", dry_run=True, form_pause=0.0)
         assert calls == []
         out = capsys.readouterr().out
-        assert "demo_grid" in out
-        assert "computed by the official form" in out
-
-    def test_built_product_opens_as_a_grid(self, tmp_path, monkeypatch):
-        self._build(tmp_path, monkeypatch)
-        db = open_database(tmp_path / "db")
-        grid = db.grid(self.RELEASE and f"parsec/{self.RELEASE}", label="demo_grid")
-        assert isinstance(grid, IsochroneGrid)
-        assert len(grid) == 3
-        assert grid.axes["initial_z"] == (0.0001, 0.0152)
+        assert "471 fetch-stage cells" in out
+        assert "942 form submissions" in out

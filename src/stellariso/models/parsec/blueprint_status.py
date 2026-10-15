@@ -39,7 +39,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from stellariso.models.parsec import blueprint as bp
-from stellariso.models.parsec.cmd_form import DEFAULT_FIELDS, CmdFieldSet
+from stellariso.models.parsec.cmd_form import DEFAULT_FIELDS
 
 __all__ = [
     "PartScan",
@@ -53,31 +53,6 @@ __all__ = [
 #: an unchecked ``output_gzip`` is legitimately absent on the wire).
 _REQUIRED_FIELDS = frozenset(DEFAULT_FIELDS)
 _OPTIONAL_FIELDS = frozenset({"output_gzip"})
-
-_AGE_FIELDS = frozenset(
-    (
-        "isoc_isagelog",
-        "isoc_agelow",
-        "isoc_ageupp",
-        "isoc_dage",
-        "isoc_lagelow",
-        "isoc_lageupp",
-        "isoc_dlage",
-        "isoc_ismetlog",
-        "isoc_metlow",
-        "isoc_metupp",
-        "isoc_dmet",
-    )
-)
-
-_AXIS_FIELDS = frozenset(
-    (
-        "eta_reimers",
-        "dust_sourceM",
-        "dust_sourceC",
-        "kind_LPV",
-    )
-)
 
 
 def _now_iso() -> str:
@@ -104,30 +79,7 @@ def count_blocks(path: Path) -> int | None:
 
 
 def _expected_payload(cell: bp.Cell, which: str) -> dict[str, str]:
-    fields = cell.log_fields() if which == "log" else cell.linear_fields()
-    return CmdFieldSet.from_overrides(**fields).as_dict()
-
-
-def _same_value(name: str, actual: str, expected: str) -> bool:
-    if name in _AGE_FIELDS:
-        try:
-            return abs(float(actual) - float(expected)) < 1e-9
-        except ValueError:
-            return False
-    return actual == expected
-
-
-def _payload_diff(actual: dict[str, str], expected: dict[str, str]) -> list[str]:
-    """Field-level differences of an archived payload against the design."""
-    diff: list[str] = []
-    for name in sorted(set(expected) - set(actual)):
-        diff.append(f"missing field {name}")
-    for name in sorted(set(actual) - set(expected) - _OPTIONAL_FIELDS):
-        diff.append(f"unexpected field {name}")
-    for name in sorted(set(actual) & set(expected)):
-        if not _same_value(name, actual[name], expected[name]):
-            diff.append(f"{name}: archived {actual[name]!r} != designed {expected[name]!r}")
-    return diff
+    return bp.expected_payload(cell, which)
 
 
 @dataclass
@@ -155,7 +107,7 @@ class PartScan:
             else:
                 self.payload = record.get("request_fields", {})
                 self.reasons.extend(
-                    _payload_diff(self.payload, _expected_payload(cell, self.which))
+                    bp.payload_diff(self.payload, _expected_payload(cell, self.which))
                 )
         self.blocks = count_blocks(self.directory / table)
         expected_blocks = (

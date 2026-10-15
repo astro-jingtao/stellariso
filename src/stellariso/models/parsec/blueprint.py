@@ -42,7 +42,7 @@ import math
 from dataclasses import dataclass
 from typing import Iterator
 
-from stellariso.models.parsec.cmd_form import DEFAULT_FIELDS
+from stellariso.models.parsec.cmd_form import DEFAULT_FIELDS, CmdFieldSet
 
 __all__ = [
     "MH_STEP",
@@ -68,6 +68,8 @@ __all__ = [
     "mh_label",
     "expected_log_ages",
     "expected_linear_ages",
+    "expected_payload",
+    "payload_diff",
     "cells",
     "all_cells",
     "fetch_cells",
@@ -206,10 +208,16 @@ class TrackSet:
     layout with no period columns at all, where dust and LPV have nothing
     to act on (their header echo lines are boilerplate the server prints
     for every set).
+
+    ``release`` is the release identity the database and model specs use
+    (the string after ``parsec/`` in ``construct``; the catalog's release
+    strings, carried over verbatim) — distinct from ``verify_header``,
+    the substring the server's output header must echo.
     """
 
     key: str
     tier: str
+    release: str
     track_parsec: str
     track_colibri: str
     photsys_version: str
@@ -293,6 +301,7 @@ TRACK_SETS: dict[str, TrackSet] = {
         TrackSet(
             key="v1.2S_COLIBRI_web",
             tier="primary",
+            release="v1.2S +  COLIBRI S_37 + S_35 + PR16",
             track_parsec=_TRACK_FIELDS["v1.2S"],
             track_colibri="parsec_CAF09_v1.2S_S_LMC_08_web",
             photsys_version=_YBC["photsys_version"],
@@ -305,6 +314,7 @@ TRACK_SETS: dict[str, TrackSet] = {
         TrackSet(
             key="v2.0",
             tier="primary",
+            release="v2.0",
             track_parsec=_TRACK_FIELDS["v2.0"],
             track_colibri="no",
             photsys_version=_YBC["photsys_version"],
@@ -319,6 +329,7 @@ TRACK_SETS: dict[str, TrackSet] = {
         TrackSet(
             key="v1.2S_COLIBRI_S35",
             tier="secondary",
+            release="v1.2S +  COLIBRI S_35",
             track_parsec=_TRACK_FIELDS["v1.2S"],
             track_colibri="parsec_CAF09_v1.2S_S35",
             photsys_version=_OBC["photsys_version"],
@@ -334,6 +345,7 @@ TRACK_SETS: dict[str, TrackSet] = {
         TrackSet(
             key="v1.2S_COLIBRI_S07",
             tier="secondary",
+            release="v1.2S +  COLIBRI S_07",
             track_parsec=_TRACK_FIELDS["v1.2S"],
             track_colibri="parsec_CAF09_v1.2S_S07",
             photsys_version=_OBC["photsys_version"],
@@ -349,6 +361,7 @@ TRACK_SETS: dict[str, TrackSet] = {
         TrackSet(
             key="v1.2S_COLIBRI_PR16",
             tier="secondary",
+            release="v1.2S + COLIBRI release PR16, as in Marigo et al. 2017",
             track_parsec=_TRACK_FIELDS["v1.2S"],
             track_colibri="parsec_CAF09_v1.2S_NOV13",
             photsys_version=_OBC["photsys_version"],
@@ -364,6 +377,7 @@ TRACK_SETS: dict[str, TrackSet] = {
         TrackSet(
             key="v1.2S_no_colibri",
             tier="secondary",
+            release="v1.2S",
             track_parsec=_TRACK_FIELDS["v1.2S"],
             track_colibri="no",
             photsys_version=_OBC["photsys_version"],
@@ -378,6 +392,7 @@ TRACK_SETS: dict[str, TrackSet] = {
         TrackSet(
             key="v1.1",
             tier="secondary",
+            release="unknown",
             track_parsec=_TRACK_FIELDS["v1.1"],
             track_colibri="no",
             photsys_version=_OBC["photsys_version"],
@@ -393,6 +408,7 @@ TRACK_SETS: dict[str, TrackSet] = {
         TrackSet(
             key="v1.0",
             tier="secondary",
+            release="unknown",
             track_parsec=_TRACK_FIELDS["v1.0"],
             track_colibri="no",
             photsys_version=_OBC["photsys_version"],
@@ -407,6 +423,58 @@ TRACK_SETS: dict[str, TrackSet] = {
         ),
     )
 }
+
+
+#: Age/metallicity range fields compare numerically (the CGI echoes
+#: equivalent number spellings); every other field compares as sent.
+_AGE_FIELDS = frozenset(
+    (
+        "isoc_isagelog",
+        "isoc_agelow",
+        "isoc_ageupp",
+        "isoc_dage",
+        "isoc_lagelow",
+        "isoc_lageupp",
+        "isoc_dlage",
+        "isoc_ismetlog",
+        "isoc_metlow",
+        "isoc_metupp",
+        "isoc_dmet",
+    )
+)
+
+
+def expected_payload(cell: Cell, which: str) -> dict[str, str]:
+    """The complete payload a cell's submission must carry.
+
+    The cell's own overrides merged and validated over the canonical
+    baseline — the exact dictionary an archived ``request_fields``
+    record must reproduce for the submission to be the designed one.
+    """
+    fields = cell.log_fields() if which == "log" else cell.linear_fields()
+    return CmdFieldSet.from_overrides(**fields).as_dict()
+
+
+def _same_value(name: str, actual: str, expected: str) -> bool:
+    if name in _AGE_FIELDS:
+        try:
+            return abs(float(actual) - float(expected)) < 1e-9
+        except ValueError:
+            return False
+    return actual == expected
+
+
+def payload_diff(actual: dict[str, str], expected: dict[str, str]) -> list[str]:
+    """Field-level differences of a payload against the designed one."""
+    diff: list[str] = []
+    for name in sorted(set(expected) - set(actual)):
+        diff.append(f"missing field {name}")
+    for name in sorted(set(actual) - set(expected) - {"output_gzip"}):
+        diff.append(f"unexpected field {name}")
+    for name in sorted(set(actual) & set(expected)):
+        if not _same_value(name, actual[name], expected[name]):
+            diff.append(f"{name}: archived {actual[name]!r} != designed {expected[name]!r}")
+    return diff
 
 
 def expected_log_ages() -> int:
