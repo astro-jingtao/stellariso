@@ -174,7 +174,7 @@ class ParsecIso(UnifiedIso):
         PARSEC publishes no isochrone packages: isochrones are computed by
         the official CMD web form on request. Fetch tables with the form
         client (``stellariso.models.parsec.cmd_form``, CLI
-        ``tools/fetch_parsec_isochrones.py``) or submit the form in a
+        ``tools/parsec/fetch_parsec_isochrones.py``) or submit the form in a
         browser, then pass the downloaded ``output*.dat`` here; hand-
         obtained tables can be registered into a database with
         ``register_local_product``.
@@ -184,7 +184,7 @@ class ParsecIso(UnifiedIso):
                 "construct('parsec/<release>') requires paths= to locally "
                 "held CMD tables; PARSEC publishes no isochrone packages — "
                 "fetch them from the official CMD web form "
-                "(tools/fetch_parsec_isochrones.py or the browser form; "
+                "(tools/parsec/fetch_parsec_isochrones.py or the browser form; "
                 "see docs/data-sources.md)"
             )
         grid = IsochroneGrid.from_paths("parsec", _as_path_list(paths))

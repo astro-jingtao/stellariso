@@ -5,7 +5,7 @@ a stellariso database: every product cell that will exist when the
 PARSEC build is finished, at which parameter values, and with which
 fixed settings. The machine-readable carrier is
 `stellariso.models.parsec.blueprint` (tests:
-`tests/parsec/test_blueprint.py`); `tools/blueprint_status.py` measures
+`tests/parsec/test_blueprint.py`); `tools/parsec/blueprint_status.py` measures
 any database against it and reports what is complete, what is pending,
 and what must be re-fetched. The wire protocol the submissions speak is
 documented in [cmd-form.md](cmd-form.md); this page fixes what is sent
@@ -158,7 +158,7 @@ designed cells; the design never changes.
 
 ## Measuring progress
 
-`tools/blueprint_status.py DATABASE` compares a database against this
+`tools/parsec/blueprint_status.py DATABASE` compares a database against this
 blueprint and writes the completion report (per set: parameter, range,
 step, and counts; per cell: complete, log-only, pending, or re-fetch).
 A cell is **complete** when both age grids are archived with conforming

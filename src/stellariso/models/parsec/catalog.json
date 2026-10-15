@@ -2,13 +2,13 @@
   "family": "parsec",
   "channel": "form",
   "ca_bundle": "ZeroSSLRSADVSSLCA2.crt",
-  "source_note": "PARSEC publishes no isochrone packages: the official CMD web form (https://stev.oapd.inaf.it/cgi-bin/cmd) computes isochrone tables server-side on request and is the isochrone acquisition channel (scriptable with a complete current field set, verified live 2026-10-14; complete wire documentation: docs/cmd-form.md). The host's TLS chain omits its intermediate CA (ZeroSSL RSA DV SSL CA 2); the bundled intermediate completes the chain so verification stays on.",
+  "source_note": "PARSEC publishes no isochrone packages: the official CMD web form (https://stev.oapd.inaf.it/cgi-bin/cmd) computes isochrone tables server-side on request and is the isochrone acquisition channel (scriptable with a complete current field set, verified live 2026-10-14; complete wire documentation: docs/parsec/cmd-form.md). The host's TLS chain omits its intermediate CA (ZeroSSL RSA DV SSL CA 2); the bundled intermediate completes the chain so verification stays on.",
   "scope_note": "Form-computed isochrone products (request-layer client: stellariso.models.parsec.cmd_form). Every track-set combination the form accepts, over its full [M/H] window, on a 0.1 dex composition grid and fine log-age grids; option variations that change only auxiliary columns are fetched once each at a representative composition. Historical pre-2006 tracks on pleiadi.oapd.inaf.it remain out of scope.",
   "matrix_notes": {
     "ages": "log10(age/yr) 6.6-10.13; 0.02 dex for the current physics sets, 0.05 dex for secondary sets, 0.1 dex for option variations; the server interpolates intermediate ages itself",
     "metallicities": "one product per [M/H] on a 0.1 dex grid (single-value jobs; range end points are unreliable server-side)",
     "photometry": "placeholder only: YBC UBVRIJHK for YBC-served sets, OBC/odfnew LSST for the older sets (the YBC library does not carry them)",
-    "extinction": "A_V = 0 everywhere; extinction changes magnitudes only (verified 2026-10-15, docs/cmd-form.md)",
+    "extinction": "A_V = 0 everywhere; extinction changes magnitudes only (verified 2026-10-15, docs/parsec/cmd-form.md)",
     "skipped_options": "dust compositions and bolometric-correction versions affect magnitudes only; kind_postagb has a single accepted value; v1.1/v1.0 outputs carry no release echo (identity release 'unknown')"
   },
   "releases": [

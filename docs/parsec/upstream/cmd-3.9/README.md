@@ -2,9 +2,9 @@
 
 These are unmodified byte-for-byte copies of the Padova CMD web form
 and its documentation pages, taken as the permanent fact source for
-[docs/cmd-form.md](../../cmd-form.md) (field inventory, option
+[cmd-form.md](../cmd-form.md) (field inventory, option
 semantics, protocol pitfalls) and for the acquisition design in
-[docs/parsec-blueprint.md](../../parsec-blueprint.md). The live pages
+[blueprint.md](../blueprint.md). The live pages
 remain the authoritative current version; each capture pins what the
 form said at the stated moment. The sha256 column is computed over the
 file as captured; tag-stripped text renderings can be regenerated from

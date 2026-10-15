@@ -21,7 +21,7 @@ payloads that map nowhere) are ``superseded``. Every classification
 carries its reasons, so the generated report is the review artifact for
 re-fetch and deletion decisions, which stay human.
 
-``tools/blueprint_status.py`` is the CLI face of this module.
+``tools/parsec/blueprint_status.py`` is the CLI face of this module.
 """
 
 from __future__ import annotations
@@ -377,7 +377,7 @@ def render_markdown(report: DatabaseReport) -> str:
     designed_total = sum(len(c) for c in report.cells.values())
     lines.append(
         f"Blueprint: {designed_total} designed cells, 2 age-grid submissions each "
-        f"(full design; see docs/parsec-blueprint.md)"
+        f"(full design; see docs/parsec/blueprint.md)"
     )
     lines.append("")
     for key, ts in bp.TRACK_SETS.items():

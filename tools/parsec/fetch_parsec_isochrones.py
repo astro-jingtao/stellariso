@@ -12,7 +12,7 @@ Flags map one-to-one onto the form's own field names (the wire vocabulary);
 values default to the verified browser baseline (PARSEC v1.2S +
 COLIBRI S_LMC_08_web, UBVRIJHK YBC Vega magnitudes, isochrone tables):
 
-    python tools/fetch_parsec_isochrones.py \
+    python tools/parsec/fetch_parsec_isochrones.py \
         --isoc_isagelog 1 --isoc_lagelow 9.0 --isoc_lageupp 10.0 --isoc_dlage 0.5 \
         --isoc_ismetlog 1 --isoc_metlow -1 --isoc_metupp 0 --isoc_dmet 1 \
         [--out my_isos.dat]

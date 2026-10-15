@@ -155,7 +155,7 @@ _REQUIRED_FIELDS = frozenset(DEFAULT_FIELDS)
 _SUPPORTED_FIELDS = _REQUIRED_FIELDS | frozenset({"output_gzip"})
 
 #: Closed value sets the live form declares for its radio/select controls
-#: and fixed hidden switches (captured 2026-10-15; docs/cmd-form.md).
+#: and fixed hidden switches (captured 2026-10-15; docs/parsec/cmd-form.md).
 RADIO_VALUES: dict[str, frozenset[str]] = {
     "cmd_version": frozenset({"3.9"}),
     "track_parsec": frozenset(

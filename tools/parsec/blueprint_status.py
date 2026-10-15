@@ -2,14 +2,14 @@
 
 Compares the form-computed products a database actually holds against
 the declared acquisition blueprint
-(stellariso.models.parsec.blueprint; docs/parsec-blueprint.md) and
+(stellariso.models.parsec.blueprint; docs/parsec/blueprint.md) and
 writes the completion checklist: per set the full grid declaration
 (parameter, range, step, count), per cell whether it is complete,
 log-only, re-fetch-marked, or pending, plus the superseded directories
 and any payload-completeness gaps. The report is the review artifact —
 marked data is never deleted or refetched by this tool.
 
-    python tools/blueprint_status.py C:/Users/me/stellariso-database
+    python tools/parsec/blueprint_status.py C:/Users/me/stellariso-database
 
 Writes ``blueprint_status.md`` and ``blueprint_status.json`` next to the
 database's inventory and prints the console digest; ``--stdout`` prints

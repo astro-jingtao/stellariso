@@ -96,7 +96,7 @@ parsec_iso.get_logg(mass=0.8, log_age=9.0)
 The CLI form of fetching, for use outside Python:
 
 ```bash
-python tools/fetch_parsec_isochrones.py \
+python tools/parsec/fetch_parsec_isochrones.py \
     --isoc_isagelog 1 --isoc_lagelow 9.0 --isoc_lageupp 10.0 --isoc_dlage 0.5 \
     [--out my_isos.dat]
 ```
@@ -146,13 +146,13 @@ What the sources publish (verified live 2026-10-11/10-15; all sizes exact):
 - PARSEC: no isochrone packages exist. The official CMD web form computes
   isochrone tables server-side on request and is scriptable when given
   the complete current field set (verified 2026-10-14); the declared
-  acquisition design is the [blueprint](docs/parsec-blueprint.md) — 471
+  acquisition design is the [blueprint](docs/parsec/blueprint.md) — 471
   cells over every (track set, [M/H], rotation) combination the form
   accepts, each carrying a fine log-age grid and a linear young-age
   grid, fetched primary sets at full extent and secondary sets sparsely
   first. Every archived table keeps its exact complete payload and the
   server's own header echo, so the identical request can be replayed;
-  `tools/blueprint_status.py` measures any database against the
+  `tools/parsec/blueprint_status.py` measures any database against the
   blueprint and marks what is complete, pending, or to be re-fetched.
 
 See [docs/data-sources.md](docs/data-sources.md) for the full source
@@ -173,10 +173,10 @@ registry, verification dates, and known caveats.
   registry, the database, parameters, provenance, backends.
 - [Data sources](docs/data-sources.md) — verified upstream sources and
   their caveats.
-- [The CMD 3.9 web form](docs/cmd-form.md) — the complete wire-level
+- [The CMD 3.9 web form](docs/parsec/cmd-form.md) — the complete wire-level
   documentation of the PARSEC isochrone form: every field, the output
   formats, and the protocol pitfalls.
-- [The PARSEC acquisition blueprint](docs/parsec-blueprint.md) — the
+- [The PARSEC acquisition blueprint](docs/parsec/blueprint.md) — the
   declared full design of the form-computed database: cells, grids,
   fixed parameters, fetch tiers, and the completion-report tool.
 - [Unified parameters](docs/unified-parameters.md) — the unified

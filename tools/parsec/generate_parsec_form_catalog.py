@@ -1,7 +1,7 @@
 """Generate the PARSEC form-product section of models/parsec/catalog.json.
 
 The declared design of the full acquisition now lives in
-stellariso.models.parsec.blueprint (docs/parsec-blueprint.md): uniform
+stellariso.models.parsec.blueprint (docs/parsec/blueprint.md): uniform
 fine grids, two age grids per cell, rotation for v2.0. This generator
 remains the record of the catalog state the 2026-10-15/16 fetch
 produced (single log-age submission per product, coarse ages for
@@ -11,7 +11,7 @@ is future work.
 
 The matrix exhausts every option combination that changes the computed
 isochrones, at the widest, finest age-metallicity coverage the form
-supports (see docs/cmd-form.md for the wire protocol and the option
+supports (see docs/parsec/cmd-form.md for the wire protocol and the option
 semantics):
 
 - Track sets: every (track_parsec, track_colibri) pair the form accepts,
@@ -34,11 +34,11 @@ semantics):
   representative composition and age grid instead of multiplying the
   whole matrix.
 - Interstellar extinction is fixed at A_V = 0: verified not to change
-  any physical column (docs/cmd-form.md). Circumstellar dust and the
+  any physical column (docs/parsec/cmd-form.md). Circumstellar dust and the
   bolometric-correction version affect magnitudes only and stay at the
   baseline.
 
-Run:  python tools/generate_parsec_form_catalog.py   (rewrites the file)
+Run:  python tools/parsec/generate_parsec_form_catalog.py   (rewrites the file)
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-CATALOG = Path(__file__).parent.parent / "src" / "stellariso" / "models" / "parsec" / "catalog.json"
+CATALOG = Path(__file__).parent.parent.parent / "src" / "stellariso" / "models" / "parsec" / "catalog.json"
 
 AGE_FINE = ("6.6", "10.13", "0.02")
 AGE_COARSE = ("6.6", "10.13", "0.05")

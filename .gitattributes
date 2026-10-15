@@ -6,4 +6,4 @@
 *.h5 binary
 
 # verbatim upstream captures: no line-ending or text processing
-docs/upstream/** -text
+docs/parsec/upstream/** -text

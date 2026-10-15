@@ -9,7 +9,7 @@ order*: primary sets are fetched at full design extent, secondary sets
 are fetched sparsely first (a subset of the same designed cells) and can
 be completed later without redesign.
 
-Design summary (docs/parsec-blueprint.md carries the full rationale,
+Design summary (docs/parsec/blueprint.md carries the full rationale,
 including the fixed values of every non-varied field):
 
 - Cells: one per (track set, [M/H], omega_i) combination the form
@@ -32,7 +32,7 @@ including the fixed values of every non-varied field):
 
 The blueprint declares the target state; what the database actually
 holds is decided by comparing it against this module
-(tools/blueprint_status.py).
+(tools/parsec/blueprint_status.py).
 """
 
 from __future__ import annotations
@@ -82,7 +82,7 @@ SPARSE_ANCHOR_MH: tuple[float, ...] = (-1.0, 0.0, 0.3)
 
 #: Solar reference and PARSEC enrichment law of the form itself, used to
 #: convert the Z windows the form states for some COLIBRI options into
-#: [M/H] window edges (docs/cmd-form.md, "Metallicity convention").
+#: [M/H] window edges (docs/parsec/cmd-form.md, "Metallicity convention").
 _ZX_SUN = 0.0207
 _ENRICHMENT = (0.2485, 1.78)
 
