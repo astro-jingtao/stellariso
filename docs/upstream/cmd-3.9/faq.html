@@ -1,0 +1,77 @@
+<html>
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html><head>
+<!-- base href="http://trilegal.ster.kuleuven.be" -->
+<meta name="robots" content="noarchive">
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>CMD FAQs</title>
+
+<link rel="icon" href="smallicon.png" type="image/x-icon">
+<link rel="shortcut icon" href="smallicon.png" type="image/x-icon">
+<link rel="stylesheet" type="text/css" href="form.css">
+
+</head>
+
+<body>
+
+<center><h1>CMD Frequently Asked Questions </h1></center>
+
+<b>NEW! Revised for CMD v3.2 on Feb 2019!</b> 
+
+<fieldset class="small" title="Why [M/H]=0 does not give the solar Z?"> 
+<legend title="Why [M/H]=0 does not give the solar Z?">Why [M/H]=0 does not give the solar Z?</legend> 
+For PARSEC tracks, [M/H]=0 will result in isochrones with Z=0.014711, instead of the Z=0.01524 expected for the present Sun (see Table 3 in Bressan et al. 2012). This small offset is caused by the intrinsic difference between the helium content in the model for the present Sun, and the initial helium content for which the PARSEC evolutionary tracks are computed. That is:
+<ul> 
+<li>The model for the present Sun is forced to reproduce the observed ratio of <i>Z</i><sub>sun</sub>/<i>X</i><sub>sun</sub>=0.0207. This ratio defines the zero-point of the [M/H] scale, [M/H]=log(<i>Z/X</i>)-log(<i>Z</i><sub>sun</sub>/<i>X</i><sub>sun</sub>)</li>
+<li>The same solar model has an initial surface composition of <i>Z</i><sub>initial</sub>=0.01774, <i>Y</i><sub>initial</sub>=0.28 (see Table 3 in Bressan et al. 2012). Together with the primordial helium content of <i>Y</i><sub>p</sub>=0.2485, these numbers define the relation <i>Y</i>=<i>Y</i><sub>p</sub>+1.78Z, which was used to build the set of initial <i>(Z,Y)</i> values for which we compute the tracks.</li>
+<li>Therefore, the <i>Y(Z)</i> relation used to compute the grids, is respected by the initial Sun, but not by the present Sun (which is affected by diffusion). This creates a 0.015 dex offset between the <b>metallicity scale of the present Sun</b>, and the <b>initial metallicity scale of the computed grids of tracks</b>. See Table 4 in Bressan et al. (2012) for a more complete list of [M/H] values that follow from this approximation.</li>
+</ul>
+Therefore, this result is not a bug, but rather an intrinsic problem in the definition of [M/H] for our grids of tracks. Since this "[M/H] offset" is very small, compared to the typical spacing in metallicity of our grids, and to typical observational uncertainties, we prefer to just ignore it. There are certainly more critical approximations affecting grids of evolutionary tracks, than this one!
+</fieldset>
+
+<fieldset class="small" title="What is the meaning of the label (or stage) in the isochrones?"> 
+<legend title="What is the meaning of the label (or stage) in the isochrones?">What is the meaning of the label (or stage) in the isochrones?</legend> 
+The label was implemented with the PARSEC v1.2S tracks, to divide input tracks and output isochrones into rough "evolutionary sections". They <i>have <b>not</b> been carefully checked for all masses and metallicities</i>, and we know of the presence of some misclassified points in output. Nonetheless, many people (including ourselves) find these labels very useful. Use them with caution! Their approximate meaning is: 
+<ul>
+<li><b>0 = PMS</b>, pre main sequence</li>
+<li><b>1 = MS</b>, main sequence</li>
+<li><b>2 = SGB</b>, subgiant branch, or Hertzsprung gap for more intermediate+massive stars</li>
+<li><b>3 = RGB</b>, red giant branch, or the quick stage of red giant for intermediate+massive stars</li>
+<li><b>4 = CHEB</b>, core He-burning for low mass stars, or the very initial stage of CHeB for intermediate+massive stars</li>
+<li><b>5 = still CHEB</b>, the blueward part of the Cepheid loop of intermediate+massive stars</li>
+<li><b>6 = still CHEB</b>, the redward part of the Cepheid loop of intermediate+massive stars</li>
+<li><b>7 = EAGB</b>, the early asymptotic giant branch, or a quick stage of red giant for massive stars</li>
+<li><b>8 = TPAGB</b>, the thermally pulsing asymptotic giant branch</li>
+<li><b>9 = post-AGB</b> (in preparation!)</li>
+</ul>
+</fieldset>
+
+<fieldset class="small" title="Is there a bug in the isochrones of log(age)=9.15?"> <legend title="Is there a bug in the isochrones of log(age)=9.15">Is there a bug in the isochrones of log(age)=9.15?</legend> <b>No.</b> For this particular age, there is a pronounced peak in the production rate of AGB stars, that causes a transient red phase in the integrated SSP colours. The reason is explained in detail in <a href=http://adsabs.harvard.edu/abs/2013ApJ...777..142G>Girardi et al. (2013)</a>, and in section 3.2.1 of <a href="http://adsabs.harvard.edu/abs/1998MNRAS.300..533G"> Girardi & Bertelli (1998)</a>. It derives from a real physical effect, namely the sudden change in helium-burning lifetimes as stars of low mass develop electron-degenerate cores. Therefore, <b>it is not a bug</b>. The effect is well dealt by our algorithms, and appears either as a very populated single AGB sequence, or as multiple AGB sequences in the same isochrone, over a somewhat limited range of ages. However, this feature has caused problems to many users, especially when the isochrones are fed to population synthesis codes that do not deal properly with the (occasional) gaps in the mass distribution of AGB stars. In order to alleviate this specific problem:
+<p> <b>In PARSEC-based isochrones:</b> At the termination of the TP-AGB tracks we have inserted points with label=9 (which means post-AGB, see item above) and logL=-9.999. For most isochrones, this point represents a clear, single termination point, that can be safely ignored. However, for the isochrones with multiple TP-AGB sections, a couple of label=9 points will conveniently appear at the limits of the gap in initial mass between two TP-AGB sections. Therefore, these two label=9 points, with their neglegible luminosity, will prevent people from populating the gap with spurious, bright TP-AGB stars. The AGB-boosting effect will still be there, of course, but with its correct amplitude. 
+<p> <b>In pre-PARSEC versions of the isochrones:</b> The problem was more evident at metallicities Z=0.008, and was mitigated by supressing the Z=0.008, 1.85 M_sun evolutionary track from the isochrone interpolation, then spreading the "overproduction" of AGB stars at log(age)=9.15 over a wider range of ages, and avoiding gaps in the mass distribution of AGB stars. 
+</fieldset>
+
+<fieldset class="small" title="How do I refer to these isochrones?">
+<legend title="How do I refer to these isochrones?">How do I refer to
+these isochrones?</legend> Use the references provided in the output
+header. These references however may not be complete and we strongly
+encourage you to look at the papers for the details! <p> In case you
+want to add a reference to this URL, use
+"http://stev.oapd.inaf.it/cmd". References to official papers are
+however to be preferred.
+</fieldset>
+
+<fieldset class="small" title="Why are overtone mode periods all equal to 0 for the brightest points of the TP-AGB phase?">
+<legend title="Why are overtone mode periods all equal to 0 for the brightest points of the TP-AGB phase?"> Why are overtone mode periods all equal to 0 for the brightest points of the TP-AGB phase?</legend> Highly-evolved TP-AGB stars most likely pulsate only in the fundamental mode. Moreover, overtone mode periods are currently available from linear calculations, who are not suitable for the final stages of the TP-AGB. Therefore the overtone mode periods are by default set to 0 for such highly-evolved stars, that are identified with the ones with radius larger than the "bending radius" Rb from Trabucchi+2021.
+</fieldset>
+
+<hr width="100%">
+<center><font size=-1><dl>
+This service is mantained by <a href='http://web.oapd.inaf.it/lgirardi/'>L&eacute;o Girardi</a> at the <a href='http://www.oapd.inaf.it/'>Osservatorio Astronomico di Padova</a>. <br> Questions, comments and special requests should be directed to leo.girardi&#64;oapd&#183;inaf&#183;it . <br>Last modified: Oct 29, 2021
+</dl>
+
+</font></center>
+
+</body>
+
+</html>

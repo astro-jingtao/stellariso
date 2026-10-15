@@ -15,6 +15,8 @@ tables is version-anchored (see [architecture.md](architecture.md)).
 - Archived documentation per version: `https://stev.oapd.inaf.it/cmd_3.9/help.html`,
   `.../faq.html` (older versions stay reachable as `cmd_N.N`; the current
   form page was last modified upstream on 2025-11-25)
+- Verbatim captures of the three pages (pinned by sha256):
+  [upstream/cmd-3.9/](upstream/cmd-3.9/)
 - Service maintained by L. Girardi (Osservatorio Astronomico di Padova)
 
 ## Wire protocol

@@ -1,0 +1,101 @@
+      <html>
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html><head>
+<!-- base href="http://trilegal.ster.kuleuven.be" -->
+<meta name="robots" content="noarchive">
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>CMD help</title>
+
+<link rel="icon" href="smallicon.png" type="image/x-icon">
+<link rel="shortcut icon" href="smallicon.png" type="image/x-icon">
+<link rel="stylesheet" type="text/css" href="form.css">
+
+</head>
+
+<body>
+
+<link rel=home title="CMD home page" href="../cgi_bin/cmd">
+
+<center><h1>CMD help </h1></center>
+
+<fieldset class="small" title="What's this">
+<legend title="What's this">What's this</legend>
+
+<b>CMD</b> is a set of routines that provide interpolated isochronesin a grid, together with derivatives such as luminosity functions, simulated star clusters, etc. The photometry can be produced for many different broad- and intermediate-band systems, including non-standard ones. The effect of circumstellar dust has been added in version 2.0, star-to-star interstellar extinction in version 2.1. Versions from 3.0 onwards were mainly dedicated to PARSEC and COLIBRI evolutionary models.
+
+<p> The basic references are included in the web form and on the header of the output file.
+
+<p>
+CMD is being extended/updated every few months. The latest version is always linked in <a href="http://stev.oapd.inaf.it/cmd">http://stev.oapd.inaf.it/cmd</a>. Older versions are stored in pages named http://stev.oapd.inaf.it/cmd_N.N, where N.N is the version number. The oldest versions are outdated, and may not work.
+</fieldset>
+
+<fieldset class="small" title="Isochrones">
+  <legend title="Isochrones">Isochrones</legend> The output format of isochrones is basically the same one described in the "TABLES OF ISOCHRONES" section of this <a href="http://pleiadi.oapd.inaf.it/isoc_photsys.02/readme.txt">readme.txt</a> file, but for a few updates:
+  <ul>
+    <li> FLUM has been replaced by <b>int_IMF</b>, which is the integral of the IMF under consideration (as selected in the form, in number of stars, and normalised to a total mass of 1 M&#9737;) from 0 up to the current M_ini. <i>Differences between 2 values of </i>int_IMF<i> give the absolute number of stars occupying that isochrone section per unit mass of stellar population initially born</i>, as expected for the selected IMF.
+    <li> The new colums <b>C/O, M_hec, logMdot</b> were added. They refer mainly to the TP-AGB evolution: <b>C/O</b> is the photospheric C/O ratio (the ZAMS value is printed before the TP-AGB), <b>M_hec</b> is the H-exhausted core mass on the TP-AGB (and is set to 0 before the TP-AGB), and <b>logMdot</b> is the log10 of the mass loss rate in Msun/year. These quantities are accurate only for the TP-AGB phase (when M_hec>0). <b>LPV periods</b> were also inserted, and are commented below.
+    <li> <b>Evolutionary stages</b> are printed as <b>label</b>. The labels are: 0=PMS (pre-main sequence), 1=MS (main sequence), 2=SGB (subgiant branch), 3=RGB (red giant branch), (4,5,6)=different stages of CHEB (core-helium burning), 7=EAGB (early asymptotic giant branch), 8=TP-AGB (thermally pulsing AGB), 9=post-AGB. Note that the SGB and RGB stages actually do not occur at young ages, but a somewhat similar, very short evolutionary stage as been labelled as such. Don't take these labels too seriously!
+    <li> <b>Isochrones derived from rotating stars (PARSEC v2.0)</b> have a very different layout. We advice a detailed reading of the papers mentioned below for a full description of the quantities and methods. For most users, it will suffice to know the following:
+      <ul>
+	<li> <b>logL</b> refers to the bolometric luminosity
+	<li> <b>logTeff</b> refers to the average Teff, as described in <a href="https://ui.adsabs.harvard.edu/abs/2022A%26A...665A.126N/abstract">Nguyen et al. (2022)</a>
+	<li> <b>Teff0</b> is another surface-averaged effective temperature, corresponding to the quantity <i>T<sub>eff,0</sub></i> in <a href="https://ui.adsabs.harvard.edu/abs/2019MNRAS.488..696G/abstract">Girardi et al. (2019)</a>
+	<li> <b>omega</b> is the instantaneous (not initial) rotational velocity compared to the break-up one, as in <a href="https://ui.adsabs.harvard.edu/abs/2022A%26A...665A.126N/abstract">Nguyen et al. (2022)</a>
+	<li> <b>angvel</b> is the angular velocity in radian/s
+	<li> <b>vtaneq</b> is the equatorial velocity in km/s
+	<li> <b>angmon</b> is the total angular momentum in Msun*Rsun<sup>2</sup>/s
+	<li> <b>Rpol</b> is the radius at the pole, in Rsun
+ 	<li> <b>Req</b> is the radius at the equator, in Rsun
+	<li> <i>filtername</i><b>_fSBmag</b> are not useful quantities (they will be discarded in the future)
+	<li> <i>filtername</i><b>_fSB</b> is the absolute magnitude in the filter <i>filtername</i>, derived from the flux averaged over the stellar surface (see the gray lines in <a href="https://ui.adsabs.harvard.edu/abs/2019MNRAS.488..696G/abstract">Girardi et al. (2019)</a>)
+	<li> <i>filtername</i><b>_f0</b> is the absolute magnitude in the filter <i>filtername</i>, derived from the flux averaged over all inclinations in an isotropic distribution of inclinations. It should coincide with <i>filtername</i><b>_fSB</b>, but actually it differs by a few milimags because computed with a smaller accuracy (and just for a consistent check).
+	<li> <i>filtername</i><b>_fk</b> is the absolute magnitude in the filter <i>filtername</i>, derived from a similar non-rotating Kurucz spectrum, just for comparison.
+	<li> <i>filtername</i><b>_i</b><i>XX</i>, where <i>XX</i> goes from 00 to 90, is the absolute magnitude in the filter <i>filtername</i> for a star observed with an inclination of <i>XX</i> degrees.
+     </ul>
+  </ul>
+</fieldset>
+
+<fieldset class="small" title="Long-Period Variability">
+  <legend title="Long-Period Variability">Long-Period Variability</legend> 
+We provide three options to simulate long-period variability during the AGB phase. All three provide the periods for a set of pulsation modes as well as the quantity <b>pmode</b>, whose integer value indicates the radial order of the dominant pulsation mode: 0 is the fundamental mode (FM), 1 the first overtone mode (1OM), and so on. The value -1 indicates that no mode is expected to be excited, or that the stellar parameters are outside the range of validity for computing variability properties.
+  <li> 1. Periods from Trabucchi+2017. FM and 1OM periods from preliminary best-fit relations. These are provided for backwards compatibility and are superseded by option 2 below.
+  <li> 2. Periods from Trabucchi+2019. Periods for the FM, 1OM, 2OM, 3OM, and 4OM. They are derived from best-fit relations based on linear pulsation models, so this is the most appropriate option for who is interested in studying overtone mode pulsation, but is not appropriate for the FM.
+  <li> 3. Periods from Trabucchi+2021. Same as option 2 except that the FM period and the regime in which it is dominant (i.e. when pmode=0) are determined from non-linear pulsation models. This option is the most appropriate for studying the FM.
+<p><b>Cautionary remarks:</b>
+When options 2 or 3 are used, most stars with small luminosity/mass ratio are assigned a value pmode=4. This does not necessarily mean that the 4th overtone is really dominant. Indeed, there seems to be no clear observational detection of the 4th overtone mode in AGB stars, suggesting that it either is stable or has very small amplitude (see Trabucchi+2017). Therefore it is reasonable to interpret the occurrences of pmode=4 as an indication that the star displays only small-amplitude oscillations, if any. The origin of this patter is the following. The prescription from Trabucchi+2019 used to assign the value of pmode exploits the fact that the dominant mode shifts towards pulsation modes of increasingly smaller radial order as the stellar luminosity increase. This is achieved by comparing the actual luminosity of a simulated star with the value of luminosity corresponding to the transition between two pulsation modes. Since the pulsation models of Trabucchi+2019 do not include properties of pulsation modes higher than the 4th overtone, there is no prediction for the lower luminosity boundary of the regime in which it is dominant.
+</fieldset>
+
+<fieldset class="small" title="Luminosity functions">
+<legend title="Luminosity functions">Luminosity functions</legend> In
+CMD, the <i>Luminosity function (LF) gives the absolute number of
+stars occupying each magnitude bin per unit mass of the stellar
+population initially born, for a given IMF</i>. For the selected
+photometric system and IMF, the form allows you to choose the range of
+absolute magnitudes (from faintest to brightest) and the width of
+magnitude bins. The output files will then simultaneously provide LFs
+for <i>all</i> filters in the selected photometric system, together
+with the LF in bolometric magnitudes.
+</fieldset>
+
+
+<fieldset class="small" title="SSP integrated magnitudes">
+<legend title="SSP integrated magnitudes">SSP integrated
+magnitudes</legend> In CMD, the <i> integrated magnitudes of
+single-burst stellar population (SSP) are computed for a unit mass of
+the stellar population initially born, for the given IMF</i>. They are
+computed for <i>all</i> filters in the selected photometric
+system. SSP integrated magnitudes are derived assuming stars populate
+continuously the entire isochrone, and hence do not include the
+stochastic variations in the integrated magnitudes (and colours) that
+are typical of real SSPs (star clusters).
+</fieldset>
+
+<hr width="100%">
+<center><font size=-1><dl>
+This service is mantained by <a href='http://web.oapd.inaf.it/lgirardi/'>L&eacute;o Girardi</a> at the <a href='http://www.oapd.inaf.it/'>Osservatorio Astronomico di Padova</a>. <br> Questions, comments and special requests should be directed to leo.girardi&#64;oapd&#183;inaf&#183;it . <br>Last modified: Oct 1, 2024
+</dl>
+</font></center>
+
+</body>
+
+</html>
