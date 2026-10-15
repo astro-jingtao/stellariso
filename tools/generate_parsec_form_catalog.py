@@ -1,5 +1,14 @@
 """Generate the PARSEC form-product section of models/parsec/catalog.json.
 
+The declared design of the full acquisition now lives in
+stellariso.models.parsec.blueprint (docs/parsec-blueprint.md): uniform
+fine grids, two age grids per cell, rotation for v2.0. This generator
+remains the record of the catalog state the 2026-10-15/16 fetch
+produced (single log-age submission per product, coarse ages for
+secondary sets, option-variation products) and the mechanism that can
+rewrite that file; wiring the builder to the blueprint's two-file cells
+is future work.
+
 The matrix exhausts every option combination that changes the computed
 isochrones, at the widest, finest age-metallicity coverage the form
 supports (see docs/cmd-form.md for the wire protocol and the option
