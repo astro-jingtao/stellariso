@@ -140,6 +140,43 @@ class TestClassification:
         assert len(report.superseded) == 1
         assert report.superseded[0]["reason"].startswith("option-variation")
 
+    def test_non_canonical_eta_cell_classified(self, db: Path):
+        # eta = 0.0 is a fetch-stage axis value: a conforming product
+        # lands in its own designed cell (label suffix _e0.0).
+        cell = bp.Cell(set=WEB, mh=0.0, omega=0.0, eta=0.0)
+        assert cell.label == "mh_p0.0_e0.0"
+        _write_product(db, WEB.key, cell.label, _expected(cell))
+        report = scan_database(db)
+        assert report.cells[WEB.key][cell.label].status == "log_only"
+
+    def test_non_fetch_axis_value_outside_target_counts(self, db: Path):
+        # A canonical-axis cell with a non-canonical dust combination is
+        # designed but outside the fetch-stage target: it never appears
+        # in the set's target status counts.
+        cell = bp.Cell(set=WEB, mh=0.0, omega=0.0, dust_m="nodustM", dust_c="nodustC")
+        _write_product(db, WEB.key, cell.label, _expected(cell))
+        report = scan_database(db)
+        assert report.cells[WEB.key][cell.label].status == "log_only"
+        counts = report.counts(WEB.key)
+        assert counts["log_only"] == 0 and counts["pending"] == 84
+
+    def test_eta_variant_on_v20_maps_to_no_cell(self, db: Path):
+        # v2.0 eta is inert: the design pins it at the canonical value,
+        # so an archived eta-variant payload maps to no designed cell.
+        cell = bp.Cell(set=V20, mh=0.0, omega=0.0)
+        payload = dict(_expected(cell), eta_reimers="0.4")
+        _write_product(db, V20.key, "mh_p0.0_e0.4", payload)
+        report = scan_database(db)
+        assert report.superseded[0]["reason"] == "maps to no designed cell"
+
+    def test_directory_label_parses_axis_suffixes(self, db: Path):
+        cell = bp.Cell(set=WEB, mh=-1.0, omega=0.0, eta=0.4,
+                       dust_m="AlOx", dust_c="gra", lpv="2")
+        # no record: the directory name alone must reconstruct the cell
+        _write_product(db, WEB.key, cell.label, {}, with_record=False)
+        report = scan_database(db)
+        assert report.cells[WEB.key][cell.label].status == "refetch"
+
     def test_omega_cells_pending_until_fetched(self, db: Path):
         cell = bp.Cell(set=V20, mh=0.0, omega=0.4)
         _write_product(db, V20.key, cell.label, _expected(cell), blocks=177)
@@ -183,25 +220,26 @@ class TestAggregates:
             dict(_expected(coarse_cell), isoc_dlage="0.05"), blocks=71,
         )
         report = scan_database(db)
-        assert report.counts(WEB.key) == {"complete": 0, "log_only": 1, "refetch": 0, "pending": 27}
-        # S35 sparse target = 5 cells: one refetch (the coarse product),
-        # two anchors + the two boundary supplements pending.
-        assert report.counts(S35.key) == {"complete": 0, "log_only": 0, "refetch": 1, "pending": 4}
+        # web fetch target = 28 [M/H] x 3 fetch-stage eta values = 84
+        assert report.counts(WEB.key) == {"complete": 0, "log_only": 1, "refetch": 0, "pending": 83}
+        # S35 sparse target = 5 [M/H] x 3 eta = 15 cells: one refetch (the
+        # coarse product at canonical eta), the other 14 pending.
+        assert report.counts(S35.key) == {"complete": 0, "log_only": 0, "refetch": 1, "pending": 14}
         jobs = report.jobs_to_target()
-        # primary: web = 1 log-only cell (1 linear job) + 27 pending (2 jobs
-        # each); v2.0 = 297 pending (2 jobs each).
-        assert jobs["primary"] == 1 + 27 * 2 + 297 * 2
-        # secondary: S35 = 1 refetch + 4 pending target cells; the five
-        # other sets' sparse targets (5 cells each) are fully pending.
-        assert jobs["secondary"] == (1 * 2 + 4 * 2) + 5 * 5 * 2
+        # primary: web = 1 log-only (1 linear job) + 83 pending (2 jobs
+        # each); v2.0 = 297 pending (eta inert, no multiplication).
+        assert jobs["primary"] == 1 + 83 * 2 + 297 * 2
+        # secondary: S35 = 1 refetch + 14 pending target cells; the five
+        # other sets' sparse targets (15 cells each) fully pending.
+        assert jobs["secondary"] == (1 * 2 + 14 * 2) + 5 * 15 * 2
 
     def test_totals_shape(self, db: Path):
         report = scan_database(db)
         totals = report.tier_totals()
-        assert totals["primary"]["designed"] == 28 + 297
-        assert totals["secondary"]["designed"] == 30
-        assert totals["primary"]["pending"] == 325
-        assert totals["secondary"]["pending"] == 30
+        assert totals["primary"]["target"] == 84 + 297
+        assert totals["secondary"]["target"] == 6 * 15
+        assert totals["primary"]["pending"] == 84 + 297
+        assert totals["secondary"]["pending"] == 90
 
 
 class TestRendering:
@@ -213,8 +251,19 @@ class TestRendering:
         assert "6.6 to 10.13 dex, step 0.02 dex -> 177 isochrones" in text
         assert "0.0 to 4.0e6 yr" in text and "41 isochrones" in text
         assert "v2.0" in text and "0.99" in text
+        assert "Reimers eta: 0.0 to 0.5, step 0.1 -> 6 values" in text
+        assert "5 O-rich x 4 C-rich = 20 combinations" in text
+        assert "LPV prescription: 1, 2, 3, 4 -> 4 values" in text
+        assert "70308 designed cells" in text
         assert "Log grid only" in text and cell.label in text
         assert "Marked data is never deleted" in text
+
+    def test_markdown_lists_only_target_pending(self, db: Path):
+        # Beyond-target designed cells are summarized, never listed
+        # (the full design has tens of thousands of pending cells).
+        text = render_markdown(scan_database(db))
+        assert "Pending within the fetch-stage target — 84" in text
+        assert "Beyond the fetch-stage target:" in text
 
     def test_summary_digest(self, db: Path):
         cell = bp.Cell(set=WEB, mh=0.0, omega=0.0)

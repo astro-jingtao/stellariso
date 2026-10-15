@@ -63,10 +63,19 @@ def main(argv: list[str] | None = None) -> int:
                     "tier": ts.tier,
                     "mh_values": list(ts.mh_values),
                     "omega_values": list(ts.omega_values),
-                    "counts_over_tier_target": report.counts(key),
-                    "cells": {
+                    "eta_values": list(ts.eta_values),
+                    "fetch_eta_values": list(ts.fetch_eta_values),
+                    "dust_m_values": list(ts.dust_m_values),
+                    "dust_c_values": list(ts.dust_c_values),
+                    "lpv_values": list(ts.lpv_values),
+                    "designed_cells": len(report.cells[key]),
+                    "counts_over_fetch_target": report.counts(key),
+                    # archived (non-pending) cells only: the full design
+                    # spans tens of thousands of still-pending cells
+                    "archived_cells": {
                         label: {"status": scan.status, "reasons": scan.reasons}
                         for label, scan in sorted(report.cells[key].items())
+                        if scan.status != "pending"
                     },
                 }
                 for key, ts in blueprint.TRACK_SETS.items()

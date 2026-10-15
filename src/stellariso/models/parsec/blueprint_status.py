@@ -11,15 +11,19 @@ classifies every designed cell:
 - ``log_only`` — the log-age half conforms, the linear-age refinement
   is still to be fetched into the same directory;
 - ``refetch`` — an archived table does not match the design (age
-  sampling, fixed-field values, or a record whose complete form can no
-  longer be reconstructed); the data stays on disk, marked, and the
-  whole cell is fetched anew — never patched with a complementary grid;
+  sampling, axis or fixed-field values, or a record whose complete form
+  can no longer be reconstructed); the data stays on disk, marked, and
+  the whole cell is fetched anew — never patched with a complementary grid;
 - ``pending`` — nothing archived for the cell yet.
 
-Products outside the design (historical option-variation tables, or
-payloads that map nowhere) are ``superseded``. Every classification
-carries its reasons, so the generated report is the review artifact for
-re-fetch and deletion decisions, which stay human.
+The full design spans every effective axis combination (tens of
+thousands of cells); the report's status counts and listings cover the
+current fetch stage's committed target, and beyond-target designed
+cells appear as summary counts only. Products outside the design
+(historical option-variation tables, or payloads that map nowhere) are
+``superseded``. Every classification carries its reasons, so the
+generated report is the review artifact for re-fetch and deletion
+decisions, which stay human.
 
 ``tools/parsec/blueprint_status.py`` is the CLI face of this module.
 """
@@ -31,6 +35,7 @@ import io
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 
 from stellariso.models.parsec import blueprint as bp
@@ -42,11 +47,6 @@ __all__ = [
     "DatabaseReport",
     "scan_database",
 ]
-
-#: (track_parsec, track_colibri) of a payload -> blueprint set key.
-_SET_BY_TRACKS = {
-    (ts.track_parsec, ts.track_colibri): key for key, ts in bp.TRACK_SETS.items()
-}
 
 #: Fields every archived payload must carry for the request to be
 #: replayable as-is (DEFAULT_FIELDS already includes the submit button;
@@ -67,6 +67,15 @@ _AGE_FIELDS = frozenset(
         "isoc_metlow",
         "isoc_metupp",
         "isoc_dmet",
+    )
+)
+
+_AXIS_FIELDS = frozenset(
+    (
+        "eta_reimers",
+        "dust_sourceM",
+        "dust_sourceC",
+        "kind_LPV",
     )
 )
 
@@ -188,27 +197,53 @@ class CellScan:
 
 
 def _target_cells(ts: bp.TrackSet) -> tuple[bp.Cell, ...]:
-    """The cells a set's tier commits to fetching."""
-    return bp.cells(ts) if ts.tier == "primary" else bp.cells(ts, sparse=True)
+    """The cells the current fetch stage commits to fetching."""
+    return bp.fetch_cells(ts)
 
 
-def _find_cell(ts: bp.TrackSet, mh: float, omega: float) -> bp.Cell | None:
-    for cell in bp.cells(ts):
-        if abs(cell.mh - mh) < 1e-6 and abs(cell.omega - omega) < 1e-6:
-            return cell
-    return None
+@lru_cache(maxsize=None)
+def _designed_cells(set_key: str) -> tuple[bp.Cell, ...]:
+    """The full designed cell list of one set (deterministic, cached)."""
+    return bp.cells(bp.TRACK_SETS[set_key])
+
+
+@lru_cache(maxsize=None)
+def _cell_index(set_key: str) -> dict[tuple, bp.Cell]:
+    """Axis tuple -> designed cell, for one set (built once per set)."""
+    return {
+        (c.mh, c.omega, c.eta, c.dust_m, c.dust_c, c.lpv): c
+        for c in _designed_cells(set_key)
+    }
+
+
+def _find_cell(
+    ts: bp.TrackSet,
+    mh: float,
+    omega: float,
+    eta: float,
+    dust_m: str,
+    dust_c: str,
+    lpv: str,
+) -> bp.Cell | None:
+    return _cell_index(ts.key).get((mh, omega, eta, dust_m, dust_c, lpv))
 
 
 def _cell_of_payload(payload: dict[str, str]) -> bp.Cell | None:
-    key = _SET_BY_TRACKS.get((payload.get("track_parsec"), payload.get("track_colibri")))
+    tracks = (payload.get("track_parsec"), payload.get("track_colibri"))
+    key = next((k for k, ts in bp.TRACK_SETS.items()
+                if (ts.track_parsec, ts.track_colibri) == tracks), None)
     if key is None:
         return None
     try:
         mh = float(payload["isoc_metlow"])
         omega = float(payload["track_omegai"])
+        eta = float(payload["eta_reimers"])
+        dust_m = payload["dust_sourceM"]
+        dust_c = payload["dust_sourceC"]
+        lpv = payload["kind_LPV"]
     except (KeyError, ValueError):
         return None
-    return _find_cell(bp.TRACK_SETS[key], mh, omega)
+    return _find_cell(bp.TRACK_SETS[key], mh, omega, eta, dust_m, dust_c, lpv)
 
 
 def _cell_of_label(set_key: str, label: str) -> bp.Cell | None:
@@ -219,20 +254,51 @@ def _cell_of_label(set_key: str, label: str) -> bp.Cell | None:
         if not text.startswith(ts.label_prefix):
             return None
         text = text[len(ts.label_prefix) :]
-    omega = 0.0
-    if "_w" in text:
-        text, _, omega_text = text.rpartition("_w")
-        try:
-            omega = float(omega_text)
-        except ValueError:
-            return None
+
+    # strip the optional axis suffixes (fixed emitted order, but parsed
+    # tolerantly from the end); dust names carry no underscores.
+    eta: float | None = None
+    omega: float | None = None
+    dust_m: str | None = None
+    dust_c: str | None = None
+    lpv: str | None = None
+    while True:
+        if lpv is None and text.endswith(tuple(f"_lpv{v}" for v in bp.LPV_VALUES)):
+            lpv = text.rsplit("_lpv", 1)[1]
+            text = text.rsplit("_lpv", 1)[0]
+        elif dust_c is None and text.endswith(tuple(f"_dC{v}" for v in bp.DUST_C_VALUES)):
+            dust_c = text.rsplit("_dC", 1)[1]
+            text = text.rsplit("_dC", 1)[0]
+        elif dust_m is None and text.endswith(tuple(f"_dM{v}" for v in bp.DUST_M_VALUES)):
+            dust_m = text.rsplit("_dM", 1)[1]
+            text = text.rsplit("_dM", 1)[0]
+        elif eta is None and (sep := text.rfind("_e")) != -1 and "." in text[sep + 2 :]:
+            try:
+                eta = float(text[sep + 2 :])
+            except ValueError:
+                break
+            text = text[:sep]
+        elif omega is None and (sep := text.rfind("_w")) != -1 and "." in text[sep + 2 :]:
+            try:
+                omega = float(text[sep + 2 :])
+            except ValueError:
+                break
+            text = text[:sep]
+        else:
+            break
+
     if not text.startswith("mh_") or len(text) < 5 or text[3] not in "mp":
         return None
     try:
         mh = (1.0 if text[3] == "p" else -1.0) * float(text[4:])
     except ValueError:
         return None
-    return _find_cell(ts, mh, omega)
+    eta = bp.CANONICAL_ETA if eta is None else eta
+    omega = 0.0 if omega is None else omega
+    dust_m = bp.CANONICAL_DUST_M if dust_m is None else dust_m
+    dust_c = bp.CANONICAL_DUST_C if dust_c is None else dust_c
+    lpv = bp.CANONICAL_LPV if lpv is None else lpv
+    return _find_cell(ts, mh, omega, eta, dust_m, dust_c, lpv)
 
 
 def _load_any_payload(directory: Path) -> dict[str, str]:
@@ -258,11 +324,11 @@ class DatabaseReport:
     payload_gaps: list[str] = field(default_factory=list)
 
     def counts(self, set_key: str) -> dict[str, int]:
-        """Status counts over the cells the set's tier commits to."""
+        """Status counts over the cells the fetch stage commits to."""
         out = {"complete": 0, "log_only": 0, "refetch": 0, "pending": 0}
-        target = {(c.mh, c.omega) for c in _target_cells(bp.TRACK_SETS[set_key])}
+        target = {c.label for c in _target_cells(bp.TRACK_SETS[set_key])}
         for scan in self.cells[set_key].values():
-            if (scan.cell.mh, scan.cell.omega) in target:
+            if scan.cell.label in target:
                 out[scan.status] += 1
         return out
 
@@ -271,20 +337,20 @@ class DatabaseReport:
         for key, ts in bp.TRACK_SETS.items():
             bucket = totals.setdefault(
                 ts.tier,
-                {"designed": 0, "complete": 0, "log_only": 0, "refetch": 0, "pending": 0},
+                {"target": 0, "complete": 0, "log_only": 0, "refetch": 0, "pending": 0},
             )
-            bucket["designed"] += len(_target_cells(ts))
+            bucket["target"] += len(_target_cells(ts))
             for status, n in self.counts(key).items():
                 bucket[status] += n
         return totals
 
     def jobs_to_target(self) -> dict[str, int]:
-        """Submissions still needed to reach each tier's fetch target."""
+        """Submissions still needed to reach the fetch-stage target."""
         jobs = {"primary": 0, "secondary": 0}
         for key, ts in bp.TRACK_SETS.items():
-            target = {(c.mh, c.omega) for c in _target_cells(ts)}
+            target = {c.label for c in _target_cells(ts)}
             for scan in self.cells[key].values():
-                if (scan.cell.mh, scan.cell.omega) not in target:
+                if scan.cell.label not in target:
                     continue
                 if scan.status == "log_only":
                     jobs[ts.tier] += 1
@@ -298,8 +364,8 @@ def scan_database(database: Path | str) -> DatabaseReport:
     database = Path(database)
     report = DatabaseReport(database=database, generated_at=_now_iso())
     report.cells = {
-        key: {cell.label: CellScan(cell=cell) for cell in bp.cells(ts)}
-        for key, ts in bp.TRACK_SETS.items()
+        key: {cell.label: CellScan(cell=cell) for cell in _designed_cells(key)}
+        for key in bp.TRACK_SETS
     }
 
     parsec_root = database / "parsec"
@@ -367,6 +433,45 @@ def _omega_line(ts: bp.TrackSet) -> str:
     )
 
 
+def _eta_line(ts: bp.TrackSet) -> str:
+    if not ts.eta_applies:
+        return (
+            f"Reimers eta: fixed {bp.CANONICAL_ETA:g} (v2.0 integrates no Reimers "
+            "RGB mass loss; its header echo carries no eta line)"
+        )
+    return (
+        f"Reimers eta: 0.0 to 0.5, step 0.1 -> {len(bp.ETA_VALUES)} values "
+        f"(current fetch stage: {', '.join(f'{v:g}' for v in bp.FETCH_ETA_VALUES)})"
+    )
+
+
+def _dust_line(ts: bp.TrackSet) -> str:
+    if not ts.dust_applies:
+        return (
+            f"Circumstellar dust: canonical {bp.CANONICAL_DUST_M}/{bp.CANONICAL_DUST_C} "
+            "only (no TP-AGB section in this set's 17-column output; the header "
+            "echo lines are boilerplate)"
+        )
+    return (
+        f"Circumstellar dust: {len(bp.DUST_M_VALUES)} O-rich x {len(bp.DUST_C_VALUES)} "
+        f"C-rich = {len(bp.DUST_M_VALUES) * len(bp.DUST_C_VALUES)} combinations "
+        f"(canonical {bp.CANONICAL_DUST_M}/{bp.CANONICAL_DUST_C} at the fetch stage)"
+    )
+
+
+def _lpv_line(ts: bp.TrackSet) -> str:
+    if not ts.lpv_applies:
+        return (
+            f"LPV prescription: canonical {bp.CANONICAL_LPV} only "
+            "(no period columns in this set's output)"
+        )
+    return (
+        f"LPV prescription: {', '.join(bp.LPV_VALUES)} -> {len(bp.LPV_VALUES)} values "
+        f"(canonical {bp.CANONICAL_LPV} at the fetch stage; option 1 changes "
+        "the column set itself)"
+    )
+
+
 def render_markdown(report: DatabaseReport) -> str:
     """The full review artifact: declarations, statuses, reasons, lists."""
     lines: list[str] = []
@@ -375,9 +480,11 @@ def render_markdown(report: DatabaseReport) -> str:
     lines.append(f"Database: `{report.database}`")
     lines.append(f"Generated: {report.generated_at} (UTC)")
     designed_total = sum(len(c) for c in report.cells.values())
+    target_total = sum(len(_target_cells(ts)) for ts in bp.TRACK_SETS.values())
     lines.append(
-        f"Blueprint: {designed_total} designed cells, 2 age-grid submissions each "
-        f"(full design; see docs/parsec/blueprint.md)"
+        f"Blueprint: {designed_total} designed cells (full axis coverage), "
+        f"{target_total} in the current fetch stage's target, "
+        "2 age-grid submissions per cell (see docs/parsec/blueprint.md)"
     )
     lines.append("")
     for key, ts in bp.TRACK_SETS.items():
@@ -399,49 +506,64 @@ def render_markdown(report: DatabaseReport) -> str:
             f"-> {len(ts.mh_values)} values{supp_text}"
         )
         lines.append(_omega_line(ts))
+        lines.append(_eta_line(ts))
+        lines.append(_dust_line(ts))
+        lines.append(_lpv_line(ts))
         lines.append(
             "Ages per cell: log10(age/yr) 6.6 to 10.13 dex, step 0.02 dex -> "
             f"{bp.expected_log_ages()} isochrones (output.dat); linear 0.0 to 4.0e6 yr, "
             f"step 1.0e5 yr -> {bp.expected_linear_ages()} isochrones (output_linear.dat)"
         )
-        if ts.tier == "primary":
-            lines.append(f"Tier target: full extent, {len(target)} cells")
-        else:
-            lines.append(
-                f"Tier target: sparse slice, {len(target)} of {len(per_cell)} designed cells "
-                f"(anchors {', '.join(f'{v:+g}' for v in bp.SPARSE_ANCHOR_MH)} + window edges)"
+        eta_stage = ", ".join(f"{v:g}" for v in bp.FETCH_ETA_VALUES)
+        if ts.tier == "secondary":
+            target_note = (
+                " (sparse slice: anchors "
+                + ", ".join(f"{v:+g}" for v in bp.SPARSE_ANCHOR_MH)
+                + " + window edges; eta " + eta_stage + ", canonical dust/LPV)"
             )
+        else:
+            target_note = " (full [M/H] extent; eta " + eta_stage + ", canonical dust/LPV)"
         lines.append(
-            "Status over the tier target: "
+            f"Designed cells: {len(per_cell)}; fetch-stage target: {len(target)}{target_note}"
+        )
+        lines.append(
+            "Status over the fetch-stage target: "
             + ", ".join(f"{status} {counts[status]}" for status in ("complete", "log_only", "refetch", "pending"))
         )
         lines.append("")
         by_status: dict[str, list[CellScan]] = {"complete": [], "log_only": [], "refetch": [], "pending": []}
+        target_keys = {c.label for c in target}
+        beyond_pending = 0
         for scan in per_cell.values():
+            if scan.cell.label not in target_keys:
+                if scan.status == "pending":
+                    beyond_pending += 1
+                continue
             by_status[scan.status].append(scan)
         for status, label in (
             ("refetch", "Re-fetch (archived data kept on disk, marked)"),
             ("complete", "Complete"),
             ("log_only", "Log grid only (linear refinement pending)"),
-            ("pending", "Pending (nothing archived)"),
+            ("pending", "Pending within the fetch-stage target"),
         ):
             scans = sorted(by_status[status], key=lambda s: s.cell.label)
             if not scans:
                 continue
             lines.append(f"### {label} — {len(scans)}")
-            target_keys = {(c.mh, c.omega) for c in target}
             for scan in scans:
-                beyond = (
-                    ts.tier == "secondary" and (scan.cell.mh, scan.cell.omega) not in target_keys
-                )
-                suffix = " (beyond tier target)" if beyond else ""
                 if status == "refetch":
                     lines.append(
-                        f"- {scan.cell.label}{suffix} — "
+                        f"- {scan.cell.label} — "
                         f"{'; '.join(scan.reasons) or 'unspecified non-conformance'}"
                     )
                 else:
-                    lines.append(f"- {scan.cell.label}{suffix}")
+                    lines.append(f"- {scan.cell.label}")
+            lines.append("")
+        if beyond_pending:
+            lines.append(
+                f"Beyond the fetch-stage target: {beyond_pending} designed cells of "
+                "this set are pending (later axis-value stages; same layout, no redesign)."
+            )
             lines.append("")
     lines.append("## Totals")
     lines.append("")
@@ -450,7 +572,7 @@ def render_markdown(report: DatabaseReport) -> str:
     for tier in ("primary", "secondary"):
         t = totals[tier]
         lines.append(
-            f"- {tier}: {t['designed']} tier-target cells — complete {t['complete']}, "
+            f"- {tier}: {t['target']} fetch-target cells — complete {t['complete']}, "
             f"log-only {t['log_only']}, re-fetch {t['refetch']}, pending {t['pending']}; "
             f"{jobs[tier]} submissions to target (log-only needs 1, the linear grid; "
             "re-fetch and pending need 2, both grids)"
@@ -460,8 +582,8 @@ def render_markdown(report: DatabaseReport) -> str:
         1 for per_set in report.cells.values() for s in per_set.values() if s.status == "refetch"
     )
     lines.append(
-        f"- full design: {designed_cells} cells; re-fetch-marked anywhere (in or out of "
-        f"tier target): {all_refetch}"
+        f"- full design: {designed_cells} cells ({designed_cells * 2} submissions); "
+        f"re-fetch-marked anywhere (in or out of fetch target): {all_refetch}"
     )
     lines.append("")
     lines.append(f"## Superseded directories — {len(report.superseded)}")
@@ -495,14 +617,14 @@ def render_summary(report: DatabaseReport) -> str:
         lines.append(
             f"{key} ({ts.tier}): "
             + ", ".join(f"{s} {counts[s]}" for s in ("complete", "log_only", "refetch", "pending"))
-            + f" over the tier target"
+            + f" over the fetch-stage target"
         )
     totals = report.tier_totals()
     jobs = report.jobs_to_target()
     for tier in ("primary", "secondary"):
         t = totals[tier]
         lines.append(
-            f"{tier} total: {t['designed']} target cells, {jobs[tier]} submissions to target"
+            f"{tier} total: {t['target']} fetch-target cells, {jobs[tier]} submissions to target"
         )
     lines.append(f"superseded: {len(report.superseded)}; payload gaps: {len(report.payload_gaps)}")
     return "\n".join(lines)
