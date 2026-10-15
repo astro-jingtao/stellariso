@@ -126,9 +126,13 @@ def mh_grid(low: float, high: float) -> tuple[float, ...]:
 
 
 def _format(value: float) -> str:
-    """A magnitude as its shortest exact decimal (0.34, -1.4921, 0.0)."""
+    """A magnitude as its shortest exact decimal (1.0, 0.34, -1.4921)."""
     text = f"{value:.4f}".rstrip("0").rstrip(".")
-    return "0.0" if text in ("", "0") else text
+    if text in ("", "0"):
+        return "0.0"
+    if "." not in text:
+        text += ".0"
+    return text
 
 
 def mh_label(mh: float) -> str:

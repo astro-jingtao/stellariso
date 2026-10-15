@@ -63,6 +63,8 @@ class TestCompositionGrid:
         assert mh_label(0.0) == "mh_p0.0"
         assert mh_label(-2.2) == "mh_m2.2"
         assert mh_label(0.5) == "mh_p0.5"
+        assert mh_label(-1.0) == "mh_m1.0"
+        assert mh_label(2.0) == "mh_p2.0"
 
     def test_labels_boundary_supplements(self):
         assert mh_label(-2.19) == "mh_m2.19"
