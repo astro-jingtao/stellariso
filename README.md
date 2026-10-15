@@ -173,6 +173,9 @@ registry, verification dates, and known caveats.
 - [The CMD 3.9 web form](docs/cmd-form.md) — the complete wire-level
   documentation of the PARSEC isochrone form: every field, the output
   formats, and the protocol pitfalls.
+- [The PARSEC acquisition blueprint](docs/parsec-blueprint.md) — the
+  declared full design of the form-computed database: cells, grids,
+  fixed parameters, fetch tiers, and the completion-report tool.
 - [Unified parameters](docs/unified-parameters.md) — the unified
   vocabulary and every source's mapping into it, generated from the
   registry data file.

@@ -5,7 +5,9 @@ web form of the Padova group — the official channel through which PARSEC
 isochrones are published — as verified live on 2026-10-14 and 2026-10-15.
 `stellariso.models.parsec.cmd_form` (CLI: `tools/fetch_parsec_isochrones.py`)
 implements exactly this protocol; [data-sources.md](data-sources.md) places
-the form in the acquisition policy, and the reader that consumes the
+the form in the acquisition policy, the declared full-acquisition design
+built on this protocol lives in [parsec-blueprint.md](parsec-blueprint.md),
+and the reader that consumes the
 tables is version-anchored (see [architecture.md](architecture.md)).
 
 - Form page: `https://stev.oapd.inaf.it/cgi-bin/cmd`
@@ -158,7 +160,7 @@ not (yet) on the PARSEC rotating models.
 
 | Field | Control | Values | Default | Meaning |
 |---|---|---|---|---|
-| `kind_LPV` | radio | `1`, `2`, `3`, `4` | `1` | period prescription (below) |
+| `kind_LPV` | radio | `1`, `2`, `3`, `4` | `4` | period prescription (below) |
 
 - `1` — Trabucchi et al. (2017) preliminary FM/1OM relations (backwards
   compatibility).
