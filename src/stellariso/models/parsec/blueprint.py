@@ -2,50 +2,60 @@
 
 The blueprint is the fixed, complete design of the form-computed database:
 which cells will exist when the build is finished, at which parameter
-values, with every field of every submission pinned. It deliberately makes
-no distinction between "fine" and "coarse" products — one uniform fine
-design covers every track set — and separates *design* from *fetch
-order*: primary sets are fetched at full design extent, secondary sets
-are fetched sparsely first (a subset of the same designed cells) and can
-be completed later without redesign.
+values, with every field of every submission pinned. Its coverage rule is
+maximal: **every form field that changes the computed isochrone table —
+any physical column, the TP-AGB extent, or even one phase label or the
+column set itself — is a designed axis, carried at every value the form
+offers, wherever the field is effective for that track set.** Fields are
+classified by evidence, not assumption:
 
-Design summary (docs/parsec/blueprint.md carries the full rationale,
-including the fixed values of every non-varied field):
+- applied-and-effective axes: track set, [M/H], initial rotation (v2.0),
+  the Reimers eta (every set whose tables integrate RGB mass loss — all
+  but v2.0, whose header carries no Reimers echo and whose tracks bring
+  their own prescription), the circumstellar dust mixture (both the
+  O-rich and the C-rich source; TP-AGB-bearing sets), and the LPV
+  period prescription (sets whose tables carry period columns; option 1
+  even changes the column set itself);
+- inert axes: fields whose effect stellariso can reproduce offline from
+  archived columns (the IMF scales only ``int_IMF``; foreground
+  extinction is a star-by-star magnitude shift) and output-shape
+  switches (``output_kind`` etc.) stay at the canonical baseline
+  (:data:`DEFAULT_FIELDS` of the request layer);
+- numerical resolution (``n_inTPC``) is not physics: it resamples the
+  same TP-AGB tracks at different pulse-cycle phases (only ~10% of
+  table points coincide between n=10 and n=20), so it stays fixed at
+  the form default and a convergence check remains an offline study.
 
-- Cells: one per (track set, [M/H], omega_i) combination the form
-  accepts. ``omega_i`` is a dimension only where the form offers it
-  (PARSEC v2.0); every other set is fixed at omega_i = 0.
-- [M/H]: 0.1 dex steps over each set's full valid window, plus the exact
-  window edges whenever they do not fall on the 0.1 dex grid.
-- Ages: two grids per cell, archived together in the cell's directory —
-  the log10 grid 6.6 to 10.13 dex step 0.02 (the current range and
-  spacing, uniform for all sets), and a linear grid 0 to 4.0e6 yr step
-  1.0e5 yr refining the youngest ages below 10^6.6 yr ~ 3.98 Myr.
-- Everything else — IMF, photometric system, circumstellar dust,
-  extinction, LPV prescription, Reimers eta, TP-cycle resolution, output
-  kind — is fixed at the canonical baseline (:data:`DEFAULT_FIELDS` of
-  the request layer), because none of it changes the isochrone tables
-  this library consumes (the reasons are documented per field in the
-  blueprint document). Every submission therefore remains the complete
-  field set, and each archived acquisition record pins a payload that
-  can replay the identical request.
-
-The blueprint declares the target state; what the database actually
-holds is decided by comparing it against this module
-(tools/parsec/blueprint_status.py).
+Design is separate from fetch order: the full design covers every
+effective axis combination, while the current fetch stage commits to a
+declared subset (:data:`FETCH_ETA_VALUES` on the eta axis, canonical
+dust and LPV) — completing the rest later needs no redesign. The
+machine-readable summary lives here; docs/parsec/blueprint.md carries
+the full rationale, the per-set applicability evidence, and the fixed
+values of every non-varied field. What the database actually holds is
+measured against this module (tools/parsec/blueprint_status.py).
 """
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Iterator, Mapping
+from typing import Iterator
 
 from stellariso.models.parsec.cmd_form import DEFAULT_FIELDS
 
 __all__ = [
     "MH_STEP",
     "OMEGA_VALUES",
+    "ETA_VALUES",
+    "FETCH_ETA_VALUES",
+    "DUST_M_VALUES",
+    "DUST_C_VALUES",
+    "LPV_VALUES",
+    "CANONICAL_ETA",
+    "CANONICAL_DUST_M",
+    "CANONICAL_DUST_C",
+    "CANONICAL_LPV",
     "LOG_AGE_GRID",
     "LINEAR_AGE_GRID",
     "SPARSE_ANCHOR_MH",
@@ -60,6 +70,7 @@ __all__ = [
     "expected_linear_ages",
     "cells",
     "all_cells",
+    "fetch_cells",
 ]
 
 #: Composition grid step (dex) and the initial-rotation grid (omega/omega_crit;
@@ -67,6 +78,35 @@ __all__ = [
 #: is not itself a 0.1-grid point).
 MH_STEP = 0.1
 OMEGA_VALUES: tuple[float, ...] = (0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.99)
+
+#: The RGB Reimers mass-loss efficiency eta: designed 0.0 to 0.5 by 0.1
+#: (six values; the upstream-stated well-tested regime is eta < 0.5, and
+#: 0.5 itself is included as the declared boundary). The current fetch
+#: stage commits to three of them; the rest are fetched later without
+#: redesign.
+ETA_VALUES: tuple[float, ...] = (0.0, 0.1, 0.2, 0.3, 0.4, 0.5)
+FETCH_ETA_VALUES: tuple[float, ...] = (0.0, 0.2, 0.4)
+
+#: Circumstellar dust mixtures, verbatim from the form: the O-rich source
+#: (M stars) and the C-rich source (C stars) are independent axes of one
+#: isochrone (an AGB passes through both regimes), so the design crosses
+#: them — 5 x 4 combinations.
+DUST_M_VALUES: tuple[str, ...] = ("nodustM", "sil", "AlOx", "dpmod60alox40", "dpmod")
+DUST_C_VALUES: tuple[str, ...] = ("nodustC", "gra", "AMC", "AMCSIC15")
+
+#: LPV period prescriptions (Trabucchi et al. 2017/2019/2021; see
+#: docs/parsec/cmd-form.md). All four are designed: 2/3/4 change the
+#: period/pmode content, and 1 changes the column set itself.
+LPV_VALUES: tuple[str, ...] = ("1", "2", "3", "4")
+
+#: The canonical value of each new axis — the request layer's own baseline,
+#: i.e. the value every run-4 archive already carries. Canonical cells keep
+#: their run-4 labels (no axis suffix); non-canonical values append
+#: ``_e``/``_dM``/``_dC``/``_lpv`` segments.
+CANONICAL_ETA = float(DEFAULT_FIELDS["eta_reimers"])
+CANONICAL_DUST_M = DEFAULT_FIELDS["dust_sourceM"]
+CANONICAL_DUST_C = DEFAULT_FIELDS["dust_sourceC"]
+CANONICAL_LPV = DEFAULT_FIELDS["kind_LPV"]
 
 #: The two age grids every cell carries. Log: the form's own current range
 #: and the fine spacing, uniform across sets. Linear: the young-age
@@ -158,6 +198,14 @@ class TrackSet:
     stated [M/H] range for the PARSEC set, narrowed by a COLIBRI option's
     Z range only when its enrichment-law conversion falls strictly inside
     that stated range (``mh_window`` records which).
+
+    The three ``*_applies`` flags state, per axis, whether the field can
+    change this set's computed table (evidence in docs/parsec/blueprint.md):
+    v2.0 integrates no Reimers RGB mass loss (no header echo, form note),
+    and the sets without a COLIBRI TP-AGB section emit a reduced 17-column
+    layout with no period columns at all, where dust and LPV have nothing
+    to act on (their header echo lines are boilerplate the server prints
+    for every set).
     """
 
     key: str
@@ -172,6 +220,9 @@ class TrackSet:
     verify_header: str | None
     label_prefix: str = ""
     rotates: bool = False
+    eta_applies: bool = True
+    dust_applies: bool = True
+    lpv_applies: bool = True
 
     @property
     def mh_values(self) -> tuple[float, ...]:
@@ -186,6 +237,28 @@ class TrackSet:
     @property
     def omega_values(self) -> tuple[float, ...]:
         return OMEGA_VALUES if self.rotates else (0.0,)
+
+    @property
+    def eta_values(self) -> tuple[float, ...]:
+        """Designed eta axis (collapsed to canonical where inert)."""
+        return ETA_VALUES if self.eta_applies else (CANONICAL_ETA,)
+
+    @property
+    def fetch_eta_values(self) -> tuple[float, ...]:
+        """The eta values the current fetch stage commits to."""
+        return FETCH_ETA_VALUES if self.eta_applies else (CANONICAL_ETA,)
+
+    @property
+    def dust_m_values(self) -> tuple[str, ...]:
+        return DUST_M_VALUES if self.dust_applies else (CANONICAL_DUST_M,)
+
+    @property
+    def dust_c_values(self) -> tuple[str, ...]:
+        return DUST_C_VALUES if self.dust_applies else (CANONICAL_DUST_C,)
+
+    @property
+    def lpv_values(self) -> tuple[str, ...]:
+        return LPV_VALUES if self.lpv_applies else (CANONICAL_LPV,)
 
 
 _TRACK_FIELDS = {
@@ -241,6 +314,7 @@ TRACK_SETS: dict[str, TrackSet] = {
             mh_window="stated for v2.0: -2.19 to +0.34",
             verify_header="PARSEC release v2.0",
             rotates=True,
+            eta_applies=False,
         ),
         TrackSet(
             key="v1.2S_COLIBRI_S35",
@@ -298,6 +372,8 @@ TRACK_SETS: dict[str, TrackSet] = {
             mh_high=0.5,
             mh_window="stated for v1.2S: -2.2 to +0.5 (no COLIBRI: no Z limit)",
             verify_header="PARSEC release v1.2S",
+            dust_applies=False,
+            lpv_applies=False,
         ),
         TrackSet(
             key="v1.1",
@@ -311,6 +387,8 @@ TRACK_SETS: dict[str, TrackSet] = {
             mh_window="stated for v1.1: -2.2 to +0.5",
             verify_header=None,
             label_prefix="v1.1_",
+            dust_applies=False,
+            lpv_applies=False,
         ),
         TrackSet(
             key="v1.0",
@@ -324,6 +402,8 @@ TRACK_SETS: dict[str, TrackSet] = {
             mh_window="stated for v1.0: -1.5 to +0.6",
             verify_header=None,
             label_prefix="v1.0_",
+            dust_applies=False,
+            lpv_applies=False,
         ),
     )
 }
@@ -345,21 +425,49 @@ def expected_linear_ages() -> int:
 class Cell:
     """One blueprint cell: a directory the finished database will hold.
 
-    A cell is one (track set, [M/H], omega_i) point carrying BOTH age
-    grids as separate archived submissions in the same directory: the
+    A cell is one point of the designed space — (track set, [M/H],
+    omega_i, Reimers eta, dust mixture, LPV prescription) — carrying BOTH
+    age grids as separate archived submissions in the same directory: the
     log-age table as ``output.dat`` (the name the existing products
     already use) and the linear-age refinement as ``output_linear.dat``,
-    each with its own acquisition record.
+    each with its own acquisition record. Axes that are inert for the set
+    sit at their canonical value and render no label suffix, so every
+    run-4 product directory is already a canonical cell.
     """
 
     set: TrackSet
     mh: float
     omega: float
+    eta: float = CANONICAL_ETA
+    dust_m: str = CANONICAL_DUST_M
+    dust_c: str = CANONICAL_DUST_C
+    lpv: str = CANONICAL_LPV
+
+    def __post_init__(self) -> None:
+        # An inert axis always sits at its canonical value, so every Cell
+        # — enumerated or hand-built — is a point of its set's design.
+        if not self.set.eta_applies and self.eta != CANONICAL_ETA:
+            object.__setattr__(self, "eta", CANONICAL_ETA)
+        if not self.set.dust_applies:
+            if self.dust_m != CANONICAL_DUST_M:
+                object.__setattr__(self, "dust_m", CANONICAL_DUST_M)
+            if self.dust_c != CANONICAL_DUST_C:
+                object.__setattr__(self, "dust_c", CANONICAL_DUST_C)
+        if not self.set.lpv_applies and self.lpv != CANONICAL_LPV:
+            object.__setattr__(self, "lpv", CANONICAL_LPV)
 
     @property
     def label(self) -> str:
         base = mh_label(self.mh)
         suffix = "" if self.omega == 0.0 else f"_w{self.omega:.2f}"
+        if self.eta != CANONICAL_ETA:
+            suffix += f"_e{_format(self.eta)}"
+        if self.dust_m != CANONICAL_DUST_M:
+            suffix += f"_dM{self.dust_m}"
+        if self.dust_c != CANONICAL_DUST_C:
+            suffix += f"_dC{self.dust_c}"
+        if self.lpv != CANONICAL_LPV:
+            suffix += f"_lpv{self.lpv}"
         return f"{self.set.label_prefix}{base}{suffix}"
 
     @property
@@ -371,6 +479,10 @@ class Cell:
             "track_parsec": self.set.track_parsec,
             "track_colibri": self.set.track_colibri,
             "track_omegai": f"{self.omega:.2f}",
+            "eta_reimers": _format(self.eta),
+            "dust_sourceM": self.dust_m,
+            "dust_sourceC": self.dust_c,
+            "kind_LPV": self.lpv,
             "photsys_version": self.set.photsys_version,
             "photsys_file": self.set.photsys_file,
             "isoc_ismetlog": "1",
@@ -401,8 +513,9 @@ class Cell:
 
 
 def cells(track_set: TrackSet | str, *, sparse: bool = False) -> tuple[Cell, ...]:
-    """The designed cells of one set; ``sparse`` selects the secondary
-    tier's initial slice instead of the full extent."""
+    """The designed cells of one set at full axis extent; ``sparse``
+    selects the secondary tier's initial [M/H] slice instead (every
+    other axis still at full extent)."""
     ts = TRACK_SETS[track_set] if isinstance(track_set, str) else track_set
     if sparse and ts.tier != "secondary":
         raise ValueError(
@@ -411,7 +524,13 @@ def cells(track_set: TrackSet | str, *, sparse: bool = False) -> tuple[Cell, ...
         )
     mh_values = ts.sparse_mh_values if sparse else ts.mh_values
     return tuple(
-        Cell(set=ts, mh=mh, omega=w) for mh in mh_values for w in ts.omega_values
+        Cell(set=ts, mh=mh, omega=w, eta=e, dust_m=dm, dust_c=dc, lpv=lpv)
+        for mh in mh_values
+        for w in ts.omega_values
+        for e in ts.eta_values
+        for dm in ts.dust_m_values
+        for dc in ts.dust_c_values
+        for lpv in ts.lpv_values
     )
 
 
@@ -419,3 +538,32 @@ def all_cells() -> Iterator[Cell]:
     """Every designed cell of the full blueprint, all sets, full extent."""
     for ts in TRACK_SETS.values():
         yield from cells(ts)
+
+
+def fetch_cells(track_set: TrackSet | str, *, sparse: bool | None = None) -> tuple[Cell, ...]:
+    """The cells the current fetch stage commits to acquiring.
+
+    A declared subset of the design, never a different design: the eta
+    axis is fetched at :data:`FETCH_ETA_VALUES` (canonical where inert)
+    and dust/LPV at their canonical values, over the tier's [M/H] extent
+    — full for primary sets, the sparse slice for secondary ones (the
+    default; pass ``sparse=False`` for a secondary set's completion
+    stage, which fetches the full designed extent). Every fetch-stage
+    cell is a designed cell, so completing the remaining axis values
+    later changes nothing about the layout.
+    """
+    ts = TRACK_SETS[track_set] if isinstance(track_set, str) else track_set
+    if sparse is None:
+        sparse = ts.tier == "secondary"
+    if sparse and ts.tier != "secondary":
+        raise ValueError(
+            f"set {ts.key!r} is {ts.tier!r}; sparse slices exist only for "
+            "secondary sets"
+        )
+    mh_values = ts.sparse_mh_values if sparse else ts.mh_values
+    return tuple(
+        Cell(set=ts, mh=mh, omega=w, eta=e)
+        for mh in mh_values
+        for w in ts.omega_values
+        for e in ts.fetch_eta_values
+    )
