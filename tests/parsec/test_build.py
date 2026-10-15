@@ -119,6 +119,7 @@ class TestFreshCell:
             "mh": -1.0,
             "omega": 0.0,
             "eta_reimers": 0.4,
+            "n_inTPC": bp.CANONICAL_N_INTPC,
             "dust_sourceM": bp.CANONICAL_DUST_M,
             "dust_sourceC": bp.CANONICAL_DUST_C,
             "kind_LPV": bp.CANONICAL_LPV,

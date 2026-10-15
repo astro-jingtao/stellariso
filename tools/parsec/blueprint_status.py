@@ -65,6 +65,7 @@ def main(argv: list[str] | None = None) -> int:
                     "omega_values": list(ts.omega_values),
                     "eta_values": list(ts.eta_values),
                     "fetch_eta_values": list(ts.fetch_eta_values),
+                    "n_intpc_values": list(ts.n_intpc_values),
                     "dust_m_values": list(ts.dust_m_values),
                     "dust_c_values": list(ts.dust_c_values),
                     "lpv_values": list(ts.lpv_values),

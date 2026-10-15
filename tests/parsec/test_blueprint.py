@@ -18,6 +18,7 @@ from stellariso.models.parsec.blueprint import (
     CANONICAL_DUST_M,
     CANONICAL_ETA,
     CANONICAL_LPV,
+    CANONICAL_N_INTPC,
     DUST_C_VALUES,
     DUST_M_VALUES,
     ETA_VALUES,
@@ -25,6 +26,7 @@ from stellariso.models.parsec.blueprint import (
     LINEAR_AGE_GRID,
     LOG_AGE_GRID,
     LPV_VALUES,
+    N_INTPC_VALUES,
     TRACK_SETS,
     Cell,
     all_cells,
@@ -104,9 +106,11 @@ class TestGridDeclarations:
         assert DUST_M_VALUES == ("nodustM", "sil", "AlOx", "dpmod60alox40", "dpmod")
         assert DUST_C_VALUES == ("nodustC", "gra", "AMC", "AMCSIC15")
         assert LPV_VALUES == ("1", "2", "3", "4")
+        assert N_INTPC_VALUES == (5, 10, 20)
 
     def test_canonical_axes_are_the_request_baseline(self):
         assert CANONICAL_ETA == float(DEFAULT_FIELDS["eta_reimers"])
+        assert CANONICAL_N_INTPC == int(DEFAULT_FIELDS["n_inTPC"])
         assert CANONICAL_DUST_M == DEFAULT_FIELDS["dust_sourceM"]
         assert CANONICAL_DUST_C == DEFAULT_FIELDS["dust_sourceC"]
         assert CANONICAL_LPV == DEFAULT_FIELDS["kind_LPV"]
@@ -128,18 +132,18 @@ class TestAxisApplicability:
         assert ts.lpv_values == LPV_VALUES
 
     @pytest.mark.parametrize(
-        "key", ["v1.2S_no_colibri", "v1.1", "v1.0"],
+        "key", ["v1.2S_no_colibri", "v1.1", "v1.0", "v2.0"],
     )
     def test_no_tp_agb_sets_collapse_dust_and_lpv(self, key):
-        # 17-column outputs without period or TP-AGB columns: dust and
-        # LPV have nothing to act on, wherever eta does act.
+        # 17-column outputs without period or TP-AGB columns (and v2.0,
+        # whose TP-AGB is not COLIBRI): dust/LPV/n_inTPC have nothing to
+        # act on, wherever eta does act.
         ts = TRACK_SETS[key]
-        assert ts.eta_applies is True
-        assert ts.dust_applies is False
-        assert ts.lpv_applies is False
-        assert ts.dust_m_values == (CANONICAL_DUST_M,)
-        assert ts.dust_c_values == (CANONICAL_DUST_C,)
-        assert ts.lpv_values == (CANONICAL_LPV,)
+        assert ts.eta_applies is (key != "v2.0")
+        assert ts.nintpc_applies is False
+        assert ts.dust_applies is (key == "v2.0")
+        assert ts.lpv_applies is (key == "v2.0")
+        assert ts.n_intpc_values == (CANONICAL_N_INTPC,)
 
     @pytest.mark.parametrize(
         "key", ["v1.2S_COLIBRI_web", "v1.2S_COLIBRI_S35", "v1.2S_COLIBRI_S07",
@@ -147,19 +151,21 @@ class TestAxisApplicability:
     )
     def test_colibri_sets_carry_every_axis(self, key):
         ts = TRACK_SETS[key]
-        assert ts.eta_applies and ts.dust_applies and ts.lpv_applies
+        assert ts.eta_applies and ts.nintpc_applies
+        assert ts.dust_applies and ts.lpv_applies
+        assert ts.n_intpc_values == N_INTPC_VALUES
 
 
 class TestCellEnumeration:
     @pytest.mark.parametrize(
         ("key", "n"),
         [
-            ("v1.2S_COLIBRI_web", 13440),  # 28 [M/H] x 6 eta x 20 dust x 4 lpv
-            ("v2.0", 23760),  # 27 [M/H] x 11 omega x 20 dust x 4 lpv (eta inert)
-            ("v1.2S_COLIBRI_S35", 9600),  # 20 x 6 x 20 x 4
-            ("v1.2S_COLIBRI_S07", 9600),
-            ("v1.2S_COLIBRI_PR16", 13440),
-            ("v1.2S_no_colibri", 168),  # 28 x 6 eta (dust/lpv inert)
+            ("v1.2S_COLIBRI_web", 40320),  # 28 [M/H] x 6 eta x 3 ntpc x 20 dust x 4 lpv
+            ("v2.0", 23760),  # 27 x 11 omega x 20 dust x 4 lpv (eta/ntpc inert)
+            ("v1.2S_COLIBRI_S35", 28800),  # 20 x 6 x 3 x 20 x 4
+            ("v1.2S_COLIBRI_S07", 28800),
+            ("v1.2S_COLIBRI_PR16", 40320),
+            ("v1.2S_no_colibri", 168),  # 28 x 6 eta (dust/lpv/ntpc inert)
             ("v1.1", 168),
             ("v1.0", 132),  # 22 x 6 eta
         ],
@@ -168,7 +174,7 @@ class TestCellEnumeration:
         assert len(cells(key)) == n
 
     def test_full_blueprint_total(self):
-        assert sum(1 for _ in all_cells()) == 70308
+        assert sum(1 for _ in all_cells()) == 162468
 
     def test_cell_labels_canonical_are_run4_labels(self):
         ts = TRACK_SETS["v1.2S_COLIBRI_web"]
@@ -186,11 +192,16 @@ class TestCellEnumeration:
         ts = TRACK_SETS["v1.2S_COLIBRI_web"]
         assert Cell(set=ts, mh=0.0, omega=0.0, eta=0.0).label == "mh_p0.0_e0.0"
         assert Cell(set=ts, mh=0.0, omega=0.0, eta=0.5).label == "mh_p0.0_e0.5"
+        assert Cell(set=ts, mh=0.0, omega=0.0, n_intpc=20).label == "mh_p0.0_n20"
         assert (
             Cell(set=ts, mh=-1.0, omega=0.0, dust_m="nodustM", dust_c="nodustC").label
             == "mh_m1.0_dMnodustM_dCnodustC"
         )
         assert Cell(set=ts, mh=0.0, omega=0.0, lpv="1").label == "mh_p0.0_lpv1"
+        assert (
+            Cell(set=ts, mh=0.0, omega=0.0, eta=0.4, n_intpc=5, lpv="2").label
+            == "mh_p0.0_e0.4_n5_lpv2"
+        )
         v2 = TRACK_SETS["v2.0"]
         assert (
             Cell(set=v2, mh=0.3, omega=0.4, dust_m="sil", lpv="2").label
@@ -198,6 +209,7 @@ class TestCellEnumeration:
         )
         # inert axes never render, canonical or not
         assert Cell(set=v2, mh=0.3, omega=0.0, eta=0.4).label == "mh_p0.3"
+        assert Cell(set=v2, mh=0.3, omega=0.0, n_intpc=20).label == "mh_p0.3"
 
     def test_labels_unique_within_each_set(self):
         # Labels identify a cell inside its set's directory; across sets
@@ -255,6 +267,7 @@ class TestFetchStage:
     def test_fetch_stage_axes(self):
         web = fetch_cells("v1.2S_COLIBRI_web")
         assert sorted({c.eta for c in web}) == [0.0, 0.2, 0.4]
+        assert {c.n_intpc for c in web} == {CANONICAL_N_INTPC}
         assert {c.dust_m for c in web} == {CANONICAL_DUST_M}
         assert {c.lpv for c in web} == {CANONICAL_LPV}
 
@@ -280,6 +293,7 @@ class TestPayloads:
             "track_colibri": "no",
             "track_omegai": "0.00",
             "eta_reimers": "0.2",
+            "n_inTPC": "10",
             "dust_sourceM": "dpmod60alox40",
             "dust_sourceC": "AMCSIC15",
             "kind_LPV": "4",
@@ -306,10 +320,11 @@ class TestPayloads:
 
     def test_axis_values_reach_the_payload(self):
         ts = TRACK_SETS["v1.2S_COLIBRI_web"]
-        cell = Cell(set=ts, mh=0.0, omega=0.0, eta=0.5,
+        cell = Cell(set=ts, mh=0.0, omega=0.0, eta=0.5, n_intpc=20,
                     dust_m="AlOx", dust_c="gra", lpv="1")
         fields = cell.log_fields()
         assert fields["eta_reimers"] == "0.5"
+        assert fields["n_inTPC"] == "20"
         assert fields["dust_sourceM"] == "AlOx"
         assert fields["dust_sourceC"] == "gra"
         assert fields["kind_LPV"] == "1"
@@ -326,15 +341,17 @@ class TestPayloads:
             for ts in TRACK_SETS.values():
                 mh = ts.sparse_mh_values[0]
                 for eta in ts.eta_values:
-                    for dust_m in (ts.dust_m_values[0], ts.dust_m_values[-1]):
-                        for dust_c in (ts.dust_c_values[0], ts.dust_c_values[-1]):
-                            for lpv in ts.lpv_values:
-                                cell = Cell(set=ts, mh=mh, omega=0.0, eta=eta,
-                                            dust_m=dust_m, dust_c=dust_c, lpv=lpv)
-                                CmdFieldSet.from_overrides(
-                                    **(cell.log_fields() if which == "log"
-                                       else cell.linear_fields())
-                                )
+                    for n_intpc in ts.n_intpc_values:
+                        for dust_m in (ts.dust_m_values[0], ts.dust_m_values[-1]):
+                            for dust_c in (ts.dust_c_values[0], ts.dust_c_values[-1]):
+                                for lpv in ts.lpv_values:
+                                    cell = Cell(set=ts, mh=mh, omega=0.0, eta=eta,
+                                                n_intpc=n_intpc, dust_m=dust_m,
+                                                dust_c=dust_c, lpv=lpv)
+                                    CmdFieldSet.from_overrides(
+                                        **(cell.log_fields() if which == "log"
+                                           else cell.linear_fields())
+                                    )
 
     def test_omega_warning_stays_silent_for_designed_cells(self):
         with warnings.catch_warnings():

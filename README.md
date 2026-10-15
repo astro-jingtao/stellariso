@@ -148,8 +148,9 @@ What the sources publish (verified live 2026-10-11/10-15; all sizes exact):
   the complete current field set (verified 2026-10-14); the declared
   acquisition design is the [blueprint](docs/parsec/blueprint.md) — one
   cell per combination of every form field that changes the isochrone
-  (track set, [M/H], rotation, Reimers eta, circumstellar dust, LPV
-  prescription) wherever that field is effective: 70,308 designed cells,
+  (track set, [M/H], rotation, Reimers eta, TP-cycle resolution,
+  circumstellar dust, LPV prescription) wherever that field is
+  effective: 162,468 designed cells,
   each carrying a fine log-age grid and a linear young-age grid in one
   directory. The current fetch stage commits to a subset (eta 0.0/0.2/
   0.4, canonical dust and LPV; primary sets at full [M/H] extent,

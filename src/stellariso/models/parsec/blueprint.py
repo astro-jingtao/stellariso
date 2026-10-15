@@ -13,18 +13,18 @@ classified by evidence, not assumption:
   the Reimers eta (every set whose tables integrate RGB mass loss — all
   but v2.0, whose header carries no Reimers echo and whose tracks bring
   their own prescription), the circumstellar dust mixture (both the
-  O-rich and the C-rich source; TP-AGB-bearing sets), and the LPV
-  period prescription (sets whose tables carry period columns; option 1
-  even changes the column set itself);
+  O-rich and the C-rich source; TP-AGB-bearing sets), the LPV period
+  prescription (sets whose tables carry period columns; option 1 even
+  changes the column set itself), and the COLIBRI TP-cycle resolution
+  (``n_inTPC``: designed {5, 10, 20} — it changes the archived table
+  itself through pulse-cycle phase sampling, with only ~10% of table
+  points coinciding between n=10 and n=20, even though every physical
+  quantity traces the same tracks; COLIBRI-bearing sets only);
 - inert axes: fields whose effect stellariso can reproduce offline from
   archived columns (the IMF scales only ``int_IMF``; foreground
   extinction is a star-by-star magnitude shift) and output-shape
   switches (``output_kind`` etc.) stay at the canonical baseline
-  (:data:`DEFAULT_FIELDS` of the request layer);
-- numerical resolution (``n_inTPC``) is not physics: it resamples the
-  same TP-AGB tracks at different pulse-cycle phases (only ~10% of
-  table points coincide between n=10 and n=20), so it stays fixed at
-  the form default and a convergence check remains an offline study.
+  (:data:`DEFAULT_FIELDS` of the request layer).
 
 Design is separate from fetch order: the full design covers every
 effective axis combination, while the current fetch stage commits to a
@@ -52,7 +52,9 @@ __all__ = [
     "DUST_M_VALUES",
     "DUST_C_VALUES",
     "LPV_VALUES",
+    "N_INTPC_VALUES",
     "CANONICAL_ETA",
+    "CANONICAL_N_INTPC",
     "CANONICAL_DUST_M",
     "CANONICAL_DUST_C",
     "CANONICAL_LPV",
@@ -101,11 +103,23 @@ DUST_C_VALUES: tuple[str, ...] = ("nodustC", "gra", "AMC", "AMCSIC15")
 #: period/pmode content, and 1 changes the column set itself.
 LPV_VALUES: tuple[str, ...] = ("1", "2", "3", "4")
 
+#: COLIBRI TP-cycle resolution: steps per thermal-pulse cycle. The
+#: designed set halves and doubles the form default — the resolutions
+#: whose variant tables are archived — and is a designed axis because it
+#: changes the archived table itself (different pulse-cycle phase
+#: sampling; only ~10% of table points coincide between n=10 and n=20),
+#: even though every physical quantity traces the same tracks. Applies
+#: to the COLIBRI-bearing sets only: v2.0 and the no-TP-AGB sets have no
+#: COLIBRI section (their headers carry no "Thermal pulse cycles"
+#: included line).
+N_INTPC_VALUES: tuple[int, ...] = (5, 10, 20)
+
 #: The canonical value of each new axis — the request layer's own baseline,
 #: i.e. the value every run-4 archive already carries. Canonical cells keep
 #: their run-4 labels (no axis suffix); non-canonical values append
-#: ``_e``/``_dM``/``_dC``/``_lpv`` segments.
+#: ``_e``/``_n``/``_dM``/``_dC``/``_lpv`` segments.
 CANONICAL_ETA = float(DEFAULT_FIELDS["eta_reimers"])
+CANONICAL_N_INTPC = int(DEFAULT_FIELDS["n_inTPC"])
 CANONICAL_DUST_M = DEFAULT_FIELDS["dust_sourceM"]
 CANONICAL_DUST_C = DEFAULT_FIELDS["dust_sourceC"]
 CANONICAL_LPV = DEFAULT_FIELDS["kind_LPV"]
@@ -229,6 +243,7 @@ class TrackSet:
     label_prefix: str = ""
     rotates: bool = False
     eta_applies: bool = True
+    nintpc_applies: bool = False
     dust_applies: bool = True
     lpv_applies: bool = True
 
@@ -255,6 +270,11 @@ class TrackSet:
     def fetch_eta_values(self) -> tuple[float, ...]:
         """The eta values the current fetch stage commits to."""
         return FETCH_ETA_VALUES if self.eta_applies else (CANONICAL_ETA,)
+
+    @property
+    def n_intpc_values(self) -> tuple[int, ...]:
+        """Designed TP-cycle resolution (COLIBRI sets only)."""
+        return N_INTPC_VALUES if self.nintpc_applies else (CANONICAL_N_INTPC,)
 
     @property
     def dust_m_values(self) -> tuple[str, ...]:
@@ -310,6 +330,7 @@ TRACK_SETS: dict[str, TrackSet] = {
             mh_high=0.5,
             mh_window="stated for v1.2S: -2.2 to +0.5",
             verify_header="PARSEC release v1.2S +  COLIBRI S_37 + S_35 + PR16",
+            nintpc_applies=True,
         ),
         TrackSet(
             key="v2.0",
@@ -341,6 +362,7 @@ TRACK_SETS: dict[str, TrackSet] = {
                 "enrichment law (narrower than the stated v1.2S window)"
             ),
             verify_header="PARSEC release v1.2S +  COLIBRI S_35",
+            nintpc_applies=True,
         ),
         TrackSet(
             key="v1.2S_COLIBRI_S07",
@@ -357,6 +379,7 @@ TRACK_SETS: dict[str, TrackSet] = {
                 "enrichment law (narrower than the stated v1.2S window)"
             ),
             verify_header="PARSEC release v1.2S +  COLIBRI S_07",
+            nintpc_applies=True,
         ),
         TrackSet(
             key="v1.2S_COLIBRI_PR16",
@@ -373,6 +396,7 @@ TRACK_SETS: dict[str, TrackSet] = {
                 "0.0001-0.06 does not narrow it)"
             ),
             verify_header="PARSEC release v1.2S + COLIBRI release PR16",
+            nintpc_applies=True,
         ),
         TrackSet(
             key="v1.2S_no_colibri",
@@ -507,6 +531,7 @@ class Cell:
     mh: float
     omega: float
     eta: float = CANONICAL_ETA
+    n_intpc: int = CANONICAL_N_INTPC
     dust_m: str = CANONICAL_DUST_M
     dust_c: str = CANONICAL_DUST_C
     lpv: str = CANONICAL_LPV
@@ -516,6 +541,8 @@ class Cell:
         # — enumerated or hand-built — is a point of its set's design.
         if not self.set.eta_applies and self.eta != CANONICAL_ETA:
             object.__setattr__(self, "eta", CANONICAL_ETA)
+        if not self.set.nintpc_applies and self.n_intpc != CANONICAL_N_INTPC:
+            object.__setattr__(self, "n_intpc", CANONICAL_N_INTPC)
         if not self.set.dust_applies:
             if self.dust_m != CANONICAL_DUST_M:
                 object.__setattr__(self, "dust_m", CANONICAL_DUST_M)
@@ -530,6 +557,8 @@ class Cell:
         suffix = "" if self.omega == 0.0 else f"_w{self.omega:.2f}"
         if self.eta != CANONICAL_ETA:
             suffix += f"_e{_format(self.eta)}"
+        if self.n_intpc != CANONICAL_N_INTPC:
+            suffix += f"_n{self.n_intpc}"
         if self.dust_m != CANONICAL_DUST_M:
             suffix += f"_dM{self.dust_m}"
         if self.dust_c != CANONICAL_DUST_C:
@@ -548,6 +577,7 @@ class Cell:
             "track_colibri": self.set.track_colibri,
             "track_omegai": f"{self.omega:.2f}",
             "eta_reimers": _format(self.eta),
+            "n_inTPC": str(self.n_intpc),
             "dust_sourceM": self.dust_m,
             "dust_sourceC": self.dust_c,
             "kind_LPV": self.lpv,
@@ -592,10 +622,11 @@ def cells(track_set: TrackSet | str, *, sparse: bool = False) -> tuple[Cell, ...
         )
     mh_values = ts.sparse_mh_values if sparse else ts.mh_values
     return tuple(
-        Cell(set=ts, mh=mh, omega=w, eta=e, dust_m=dm, dust_c=dc, lpv=lpv)
+        Cell(set=ts, mh=mh, omega=w, eta=e, n_intpc=n, dust_m=dm, dust_c=dc, lpv=lpv)
         for mh in mh_values
         for w in ts.omega_values
         for e in ts.eta_values
+        for n in ts.n_intpc_values
         for dm in ts.dust_m_values
         for dc in ts.dust_c_values
         for lpv in ts.lpv_values

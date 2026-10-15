@@ -150,6 +150,7 @@ def _write_manifest(directory: Path, cell: bp.Cell, manifest: dict) -> None:
             "mh": cell.mh,
             "omega": cell.omega,
             "eta_reimers": cell.eta,
+            "n_inTPC": cell.n_intpc,
             "dust_sourceM": cell.dust_m,
             "dust_sourceC": cell.dust_c,
             "kind_LPV": cell.lpv,

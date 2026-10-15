@@ -170,7 +170,7 @@ class TestClassification:
         assert report.superseded[0]["reason"] == "maps to no designed cell"
 
     def test_directory_label_parses_axis_suffixes(self, db: Path):
-        cell = bp.Cell(set=WEB, mh=-1.0, omega=0.0, eta=0.4,
+        cell = bp.Cell(set=WEB, mh=-1.0, omega=0.0, eta=0.4, n_intpc=5,
                        dust_m="AlOx", dust_c="gra", lpv="2")
         # no record: the directory name alone must reconstruct the cell
         _write_product(db, WEB.key, cell.label, {}, with_record=False)
@@ -252,9 +252,10 @@ class TestRendering:
         assert "0.0 to 4.0e6 yr" in text and "41 isochrones" in text
         assert "v2.0" in text and "0.99" in text
         assert "Reimers eta: 0.0 to 0.5, step 0.1 -> 6 values" in text
+        assert "TP-cycle resolution n_inTPC: 5, 10, 20 -> 3 values" in text
         assert "5 O-rich x 4 C-rich = 20 combinations" in text
         assert "LPV prescription: 1, 2, 3, 4 -> 4 values" in text
-        assert "70308 designed cells" in text
+        assert "162468 designed cells" in text
         assert "Log grid only" in text and cell.label in text
         assert "Marked data is never deleted" in text
 

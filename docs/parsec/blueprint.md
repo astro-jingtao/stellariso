@@ -6,39 +6,38 @@ This document declares the complete design of the form-computed half of a stella
 
 Every form field falls into exactly one of three classes, and the class decides its treatment:
 
-- **An axis** — a field that changes the computed isochrone table is a designed dimension of the cell space, carried at every value the form offers, wherever it is effective for that track set. "Changes the isochrone table" means any physical column, the TP-AGB extent, a phase label, or the column set itself moves when the field moves. The axes are: the track set, [M/H], initial rotation, the RGB Reimers mass-loss efficiency, the circumstellar dust mixture, and the LPV period prescription.
+- **An axis** — a field that changes the computed isochrone table is a designed dimension of the cell space, carried at every value the form offers, wherever it is effective for that track set. "Changes the isochrone table" means any physical column, the TP-AGB extent, a phase label, the column set itself, or the table's own sampling moves when the field moves. The axes are: the track set, [M/H], initial rotation, the RGB Reimers mass-loss efficiency, the COLIBRI TP-cycle resolution (`n_inTPC`), the circumstellar dust mixture, and the LPV period prescription.
 - **Fixed, offline-reproducible or output-shaping** — fields whose effect stellariso can reconstruct from archived columns without the server: the IMF (scales only `int_IMF`), foreground interstellar extinction (a star-by-star magnitude shift; verified by paired submissions — every physical column identical, filter magnitudes shifted, `mbolmag` unchanged), and the output switches (`output_kind` etc.). They stay at the canonical baseline below, recorded in full in every archived payload.
-- **Fixed, numerical resolution** — `n_inTPC` resamples the same COLIBRI TP-AGB tracks at different pulse-cycle phases: archived tables at n=5/10/20 share only ~10% of their table points, but every physical quantity traces the same track. It stays at the form default; a convergence check is an offline study against those archived resolutions.
 
-The classification line between axes and fixed fields is reproducibility, not column type: dust changes magnitudes only, yet it is an axis — the reddening is computed server-side from COLIBRI intermediate quantities the output does not carry, so no client can recompute it; extinction's shift, by contrast, is a documented Cardelli transform of archived magnitudes. Photometric systems would also be server-computed, but they change only which bolometric-correction table is joined; the design pins the working baseline per set (below) and leaves per-system photometry to on-demand submissions.
+The classification line between axes and fixed fields is reproducibility, not column type: dust changes magnitudes only, yet it is an axis — the reddening is computed server-side from COLIBRI intermediate quantities the output does not carry, so no client can recompute it; extinction's shift, by contrast, is a documented Cardelli transform of archived magnitudes. Photometric systems would also be server-computed, but they change only which bolometric-correction table is joined; the design pins the working baseline per set (below) and leaves per-system photometry to on-demand submissions. `n_inTPC` is an axis of a different kind, admitted for coverage rather than physics: it resamples the same tracks (no physical quantity moves), but the archived table itself changes — different pulse-cycle phase points, only ~10% of table points shared between n=10 and n=20 — and the coverage rule reaches any change to the delivered table.
 
 ## The cell space
 
-A **cell** is one point of the designed space: (track set, [M/H], ω_i, Reimers η, dust mixture, LPV prescription). Each cell is one directory in the database holding two archived submissions: the log-age table `output.dat` and the linear-age refinement `output_linear.dat`, each with its own acquisition record. An axis that is inert for a set collapses to its canonical value (the request-layer baseline), so the archived products — which carry exactly those canonical values — are already canonical cells of this design.
+A **cell** is one point of the designed space: (track set, [M/H], ω_i, Reimers η, n_inTPC, dust mixture, LPV prescription). Each cell is one directory in the database holding two archived submissions: the log-age table `output.dat` and the linear-age refinement `output_linear.dat`, each with its own acquisition record. An axis that is inert for a set collapses to its canonical value (the request-layer baseline), so the archived products — which carry exactly those canonical values — are already canonical cells of this design.
 
 Per-set axis applicability, with the evidence for each:
 
-| Set | η (Reimers) | Dust | LPV | Basis |
-|---|---|---|---|---|
-| `v1.2S_COLIBRI_web` | yes | yes | yes | COLIBRI TP-AGB section; header echoes all three switches |
-| `v2.0` | **no** | yes | yes | v2.0 headers carry the dust and LPV echo lines and period0–4/pmode columns, but no Reimers line (the form states eta is not applied for v2.0 tracks) |
-| `v1.2S_COLIBRI_S35` / `S07` / `PR16` | yes | yes | yes | COLIBRI TP-AGB section; Reimers echo present |
-| `v1.2S_no_colibri`, `v1.1`, `v1.0` | yes | **no** | **no** | Reimers echo present; the output is the reduced 17-column layout with no TP-AGB section and no period columns, so dust and LPV have nothing to act on (their header echo lines appear for every set — boilerplate) |
+| Set | η (Reimers) | n_inTPC | Dust | LPV | Basis |
+|---|---|---|---|---|---|
+| `v1.2S_COLIBRI_web` | yes | yes | yes | yes | COLIBRI TP-AGB section; header echoes all the switches |
+| `v2.0` | **no** | **no** | yes | yes | v2.0 headers carry the dust and LPV echo lines and period0–4/pmode columns, but no Reimers line (the form states eta is not applied for v2.0 tracks) and no "Thermal pulse cycles included" line (n_inTPC governs the COLIBRI section, which v2.0 does not use) |
+| `v1.2S_COLIBRI_S35` / `S07` / `PR16` | yes | yes | yes | yes | COLIBRI TP-AGB section; Reimers and thermal-pulse echoes present |
+| `v1.2S_no_colibri`, `v1.1`, `v1.0` | yes | **no** | **no** | **no** | Reimers echo present; the output is the reduced 17-column layout with no TP-AGB section and no period columns, so dust and LPV have nothing to act on (their header echo lines appear for every set — boilerplate) |
 
 Full-design cell counts:
 
-| Set (directory) | Tier | Tracks | [M/H] values | ω_i | η | Dust | LPV | Cells |
-|---|---|---|---|---|---|---|---|---|
-| `v1.2S_COLIBRI_web` | primary | v1.2S + COLIBRI web chain (`S_LMC_08_web`) | 28 | 0 fixed | 6 | 20 | 4 | 13,440 |
-| `v2.0` | primary | v2.0 (no COLIBRI option exists for it) | 27 | 11 | 1 (inert) | 20 | 4 | 23,760 |
-| `v1.2S_COLIBRI_S35` | secondary | v1.2S + COLIBRI S_35 | 20 | 0 fixed | 6 | 20 | 4 | 9,600 |
-| `v1.2S_COLIBRI_S07` | secondary | v1.2S + COLIBRI S_07 | 20 | 0 fixed | 6 | 20 | 4 | 9,600 |
-| `v1.2S_COLIBRI_PR16` | secondary | v1.2S + COLIBRI PR16 (`NOV13`) | 28 | 0 fixed | 6 | 20 | 4 | 13,440 |
-| `v1.2S_no_colibri` | secondary | v1.2S, no TP-AGB extension | 28 | 0 fixed | 6 | 1 | 1 | 168 |
-| `v1.1` | secondary | v1.1 (no COLIBRI) | 28 | 0 fixed | 6 | 1 | 1 | 168 |
-| `v1.0` | secondary | v1.0 (no COLIBRI) | 22 | 0 fixed | 6 | 1 | 1 | 132 |
+| Set (directory) | Tier | Tracks | [M/H] values | ω_i | η | n_inTPC | Dust | LPV | Cells |
+|---|---|---|---|---|---|---|---|---|---|
+| `v1.2S_COLIBRI_web` | primary | v1.2S + COLIBRI web chain (`S_LMC_08_web`) | 28 | 0 fixed | 6 | 3 | 20 | 4 | 40,320 |
+| `v2.0` | primary | v2.0 (no COLIBRI option exists for it) | 27 | 11 | 1 (inert) | 1 (inert) | 20 | 4 | 23,760 |
+| `v1.2S_COLIBRI_S35` | secondary | v1.2S + COLIBRI S_35 | 20 | 0 fixed | 6 | 3 | 20 | 4 | 28,800 |
+| `v1.2S_COLIBRI_S07` | secondary | v1.2S + COLIBRI S_07 | 20 | 0 fixed | 6 | 3 | 20 | 4 | 28,800 |
+| `v1.2S_COLIBRI_PR16` | secondary | v1.2S + COLIBRI PR16 (`NOV13`) | 28 | 0 fixed | 6 | 3 | 20 | 4 | 40,320 |
+| `v1.2S_no_colibri` | secondary | v1.2S, no TP-AGB extension | 28 | 0 fixed | 6 | 1 | 1 | 1 | 168 |
+| `v1.1` | secondary | v1.1 (no COLIBRI) | 28 | 0 fixed | 6 | 1 | 1 | 1 | 168 |
+| `v1.0` | secondary | v1.0 (no COLIBRI) | 22 | 0 fixed | 6 | 1 | 1 | 1 | 132 |
 
-Full design: **70,308 cells** and **140,616 submissions** (two age grids per cell). Which COLIBRI chain each option is: the web chain applies S_37 (Pastorelli 2020) for 0.008≤Z≤0.02, S_35 (Pastorelli 2019) for 0.0005≤Z≤0.006, and PR16 (Marigo 2013 + Rosenfield 2016) outside those ranges, which is what the output header echoes as "v1.2S + COLIBRI S_37 + S_35 + PR16"; PARSEC v2.0 is submitted with `track_colibri=no` — COLIBRI is a v1.2S-only option, and the v2.0 echo names only "PARSEC release v2.0" (Costa et al. 2019a,b code; Nguyen et al. 2022, 2025 tracks).
+Full design: **162,468 cells** and **324,936 submissions** (two age grids per cell). Which COLIBRI chain each option is: the web chain applies S_37 (Pastorelli 2020) for 0.008≤Z≤0.02, S_35 (Pastorelli 2019) for 0.0005≤Z≤0.006, and PR16 (Marigo 2013 + Rosenfield 2016) outside those ranges, which is what the output header echoes as "v1.2S + COLIBRI S_37 + S_35 + PR16"; PARSEC v2.0 is submitted with `track_colibri=no` — COLIBRI is a v1.2S-only option, and the v2.0 echo names only "PARSEC release v2.0" (Costa et al. 2019a,b code; Nguyen et al. 2022, 2025 tracks).
 
 ## The grids
 
@@ -50,6 +49,8 @@ What each axis option means scientifically (which dust mixture is which, which L
 
 **Reimers mass-loss efficiency (η).** 0.0 to 0.5 in steps of 0.1 — six values, covering the regime upstream calls well-tested ("mass loss works fine as long as eta < 0.5; check the results for higher values") including its stated boundary. η sets how much envelope a star loses on the RGB in the Reimers (1975) law Ṁ = 4×10⁻¹³ η·L·R/M, and with it the mass and core mass entering the TP-AGB (AGB brightness, lifetime, WD masses; `Mass`/`logg` shift from the RGB on). Archived web-chain tables at η = 0.0/0.2/0.4 (same [M/H], same age grid) differ in total rows 14,565/14,452/14,349 and TP-AGB rows 4,588/4,477/4,388 — the effect is real and monotone. Not applied at all for v2.0 (its tracks carry their own prescription); the axis collapses to the canonical 0.2 there.
 
+**COLIBRI TP-cycle resolution (`n_inTPC`).** Designed {5, 10, 20} — the form default 10 plus its half and double, the resolutions whose variant tables are archived. It sets the time steps per thermal-pulse cycle in the COLIBRI integration (Marigo et al. 2017): no stellar physics changes, but the delivered table does — the sampling lands at different pulse-cycle phases, and archived n=5/10/20 tables share only ~10% of their points (TP-AGB row counts 2452/4477/8527), so any downstream use that treats the table as the TP-AGB record is affected. Applies to the four COLIBRI chains only: v2.0 and the no-TP-AGB sets have no COLIBRI section (their headers carry no "Thermal pulse cycles included" line). Extending the value set later is a documented design amendment, not a redesign.
+
 **Circumstellar dust.** The O-rich source (`dust_sourceM`: `nodustM`, `sil`, `AlOx`, `dpmod60alox40`, `dpmod`) and the C-rich source (`dust_sourceC`: `nodustC`, `gra`, `AMC`, `AMCSIC15`) are independent axes of one isochrone — an AGB passes through both regimes — so the design crosses them: 5 × 4 = 20 combinations, including the dust-free pair that is the form's own default. The dust enters the TP-AGB magnitudes of mass-losing stars through the server's scaling relations (Marigo et al. 2008, Pastorelli et al. 2019) over COLIBRI quantities the output table does not carry; whether any physical column responds to the mixture is an open verification point (see Probes). Applied where a TP-AGB section exists: the four COLIBRI chains and v2.0; the reduced 17-column sets have no section to redden.
 
 **LPV period prescription (`kind_LPV`).** All four values: 1 (Trabucchi et al. 2017 preliminary FM/1OM relations), 2 (2019, linear pulsation models), 3 (2021, FM period and dominance from non-linear models), 4 (2021, periods and dominant regime from non-linear models — the form's checked default). Archived comparisons against option 4: option 2 changes `period0`–`period4` and `pmode`; option 3 changes `pmode` only; **option 1 changes the column set itself** (period2–4 are absent from its output). Designed wherever the output carries period columns: the four COLIBRI chains and v2.0.
@@ -60,7 +61,7 @@ What each axis option means scientifically (which dust mixture is which, which L
 
 ## Directory layout and cell manifests
 
-`parsec/<set-key>/<label>/` with `label = [prefix]mh_<value>[_w<omega>][_e<eta>][_dM<dustM>][_dC<dustC>][_lpv<lpv>]`: compositions render as the archived directories do (`mh_p0.0`, `mh_m2.2`), boundary supplements keep their precision (`mh_m2.19`, `mh_m1.4921`), v2.0 rotation gets a suffix (`mh_p0.3_w0.40`), and v1.1/v1.0 keep their `v1.1_`/`v1.0_` prefixes (their outputs carry no release echo, so the label carries the identity). An axis at its canonical value renders no segment — every archived product directory (canonical on all new axes) is already a valid cell label; non-canonical values append their segments, e.g. `mh_p0.0_e0.0`, `mh_m1.0_dMnodustM_dCnodustC_lpv2`, `mh_p0.3_w0.40_e0.4`.
+`parsec/<set-key>/<label>/` with `label = [prefix]mh_<value>[_w<omega>][_e<eta>][_n<n_inTPC>][_dM<dustM>][_dC<dustC>][_lpv<lpv>]`: compositions render as the archived directories do (`mh_p0.0`, `mh_m2.2`), boundary supplements keep their precision (`mh_m2.19`, `mh_m1.4921`), v2.0 rotation gets a suffix (`mh_p0.3_w0.40`), and v1.1/v1.0 keep their `v1.1_`/`v1.0_` prefixes (their outputs carry no release echo, so the label carries the identity). An axis at its canonical value renders no segment — every archived product directory (canonical on all new axes) is already a valid cell label; non-canonical values append their segments, e.g. `mh_p0.0_e0.0`, `mh_p0.0_n20`, `mh_m1.0_dMnodustM_dCnodustC_lpv2`, `mh_p0.0_e0.4_n5_lpv2`.
 
 The two age grids of one cell live in this one directory as `output.dat` (log) and `output_linear.dat` (linear), each with its `.record.json`. One `MANIFEST.json` describes the cell: the legacy product keys (family, release, label, url, sha256, size, rows, citations, …) keep describing the log-age table — inventories and older tooling read a cell exactly as they read any product — while a `blueprint` section pins the cell's identity in the design: the axis values, the two designed age grids, and per-part archive facts (file, sha256, size, rows, retrieval time, record name). A product predating the blueprint section (a flat top-level sha256) migrates into the parts map on its next build touch.
 
@@ -70,7 +71,6 @@ Every field outside the cell dimensions stays at the canonical baseline — the 
 
 | Field | Fixed value | Why it is not varied |
 |---|---|---|
-| `n_inTPC` | `10` | Numerical resolution of the COLIBRI TP-AGB integration — time steps per thermal-pulse cycle (Marigo et al. 2017). Higher values sample the same tracks at different pulse-cycle phases (archived n=5/10/20 tables share ~10% of points); no stellar physics changes. The form default; 20 doubles the resolution for an offline convergence check. |
 | `imf_file` | `tab_imf/imf_kroupa_orig.dat` | Scales only the `int_IMF` column (number of stars up to each initial mass, per 1 M☉ born); isochrones are IMF-free, and the integral is recomputable client-side for any IMF. |
 | `photsys_version` / `photsys_file` | `YBCnewVega` + `tab_mag_ubvrijhk` (YBC-served sets); `odfnew` + `tab_mag_lsst` (older sets) | Magnitude columns only, and only which bolometric-correction table is joined. Working placeholders the libraries actually serve (older sets have no YBC tables); per-system photometry stays an on-demand submission. |
 | `extinction_av` | `0.0` | A foreground screen: shifts filter magnitudes by star-by-star Cardelli coefficients, leaves every physical column and `mbolmag` untouched (verified by paired submissions). Also not implemented upstream on rotating models. Recomputable client-side. |
@@ -84,7 +84,7 @@ Every field outside the cell dimensions stays at the canonical baseline — the 
 Design and fetch order are separate. The full design fixes what the finished database contains; a fetch stage declares which designed cells are acquired now, as a pure subset — completing the rest later changes nothing about the layout. The current stage:
 
 - **η**: 0.0, 0.2, 0.4 (three of the six designed values; canonical 0.2 where inert).
-- **Dust and LPV**: canonical values only (`dpmod60alox40`/`AMCSIC15`, LPV 4).
+- **n_inTPC, dust and LPV**: canonical values only (10, `dpmod60alox40`/`AMCSIC15`, LPV 4).
 - **[M/H] extent**: primary sets at full extent; secondary sets first at the sparse slice — anchor compositions [M/H] = −1.0, 0.0, +0.3 plus both window edges (5 compositions per set) — which pins each set's valid range and gives metal-poor/solar/metal-rich comparison points against the primary chains. Completing a secondary set later means `fetch_cells(set, sparse=False)`: the remaining designed compositions at the same axis values.
 
 Stage totals: primary 381 cells (web 28×3, v2.0 297), secondary 90 (6 sets × 5×3) — **471 cells, 942 submissions**.

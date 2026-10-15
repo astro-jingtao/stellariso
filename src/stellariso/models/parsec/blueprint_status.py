@@ -163,7 +163,7 @@ def _designed_cells(set_key: str) -> tuple[bp.Cell, ...]:
 def _cell_index(set_key: str) -> dict[tuple, bp.Cell]:
     """Axis tuple -> designed cell, for one set (built once per set)."""
     return {
-        (c.mh, c.omega, c.eta, c.dust_m, c.dust_c, c.lpv): c
+        (c.mh, c.omega, c.eta, c.n_intpc, c.dust_m, c.dust_c, c.lpv): c
         for c in _designed_cells(set_key)
     }
 
@@ -173,11 +173,12 @@ def _find_cell(
     mh: float,
     omega: float,
     eta: float,
+    n_intpc: int,
     dust_m: str,
     dust_c: str,
     lpv: str,
 ) -> bp.Cell | None:
-    return _cell_index(ts.key).get((mh, omega, eta, dust_m, dust_c, lpv))
+    return _cell_index(ts.key).get((mh, omega, eta, n_intpc, dust_m, dust_c, lpv))
 
 
 def _cell_of_payload(payload: dict[str, str]) -> bp.Cell | None:
@@ -190,12 +191,13 @@ def _cell_of_payload(payload: dict[str, str]) -> bp.Cell | None:
         mh = float(payload["isoc_metlow"])
         omega = float(payload["track_omegai"])
         eta = float(payload["eta_reimers"])
+        n_intpc = int(payload["n_inTPC"])
         dust_m = payload["dust_sourceM"]
         dust_c = payload["dust_sourceC"]
         lpv = payload["kind_LPV"]
     except (KeyError, ValueError):
         return None
-    return _find_cell(bp.TRACK_SETS[key], mh, omega, eta, dust_m, dust_c, lpv)
+    return _find_cell(bp.TRACK_SETS[key], mh, omega, eta, n_intpc, dust_m, dust_c, lpv)
 
 
 def _cell_of_label(set_key: str, label: str) -> bp.Cell | None:
@@ -211,6 +213,7 @@ def _cell_of_label(set_key: str, label: str) -> bp.Cell | None:
     # tolerantly from the end); dust names carry no underscores.
     eta: float | None = None
     omega: float | None = None
+    n_intpc: int | None = None
     dust_m: str | None = None
     dust_c: str | None = None
     lpv: str | None = None
@@ -224,6 +227,9 @@ def _cell_of_label(set_key: str, label: str) -> bp.Cell | None:
         elif dust_m is None and text.endswith(tuple(f"_dM{v}" for v in bp.DUST_M_VALUES)):
             dust_m = text.rsplit("_dM", 1)[1]
             text = text.rsplit("_dM", 1)[0]
+        elif n_intpc is None and text.endswith(tuple(f"_n{v}" for v in bp.N_INTPC_VALUES)):
+            n_intpc = int(text.rsplit("_n", 1)[1])
+            text = text.rsplit("_n", 1)[0]
         elif eta is None and (sep := text.rfind("_e")) != -1 and "." in text[sep + 2 :]:
             try:
                 eta = float(text[sep + 2 :])
@@ -247,10 +253,11 @@ def _cell_of_label(set_key: str, label: str) -> bp.Cell | None:
         return None
     eta = bp.CANONICAL_ETA if eta is None else eta
     omega = 0.0 if omega is None else omega
+    n_intpc = bp.CANONICAL_N_INTPC if n_intpc is None else n_intpc
     dust_m = bp.CANONICAL_DUST_M if dust_m is None else dust_m
     dust_c = bp.CANONICAL_DUST_C if dust_c is None else dust_c
     lpv = bp.CANONICAL_LPV if lpv is None else lpv
-    return _find_cell(ts, mh, omega, eta, dust_m, dust_c, lpv)
+    return _find_cell(ts, mh, omega, eta, n_intpc, dust_m, dust_c, lpv)
 
 
 def _load_any_payload(directory: Path) -> dict[str, str]:
@@ -397,6 +404,20 @@ def _eta_line(ts: bp.TrackSet) -> str:
     )
 
 
+def _nintpc_line(ts: bp.TrackSet) -> str:
+    if not ts.nintpc_applies:
+        return (
+            f"TP-cycle resolution n_inTPC: fixed {bp.CANONICAL_N_INTPC} "
+            "(no COLIBRI section in this set's output)"
+        )
+    values = ", ".join(str(v) for v in bp.N_INTPC_VALUES)
+    return (
+        f"TP-cycle resolution n_inTPC: {values} -> {len(bp.N_INTPC_VALUES)} values "
+        f"(canonical {bp.CANONICAL_N_INTPC} at the fetch stage; same tracks, "
+        "different pulse-cycle phase sampling)"
+    )
+
+
 def _dust_line(ts: bp.TrackSet) -> str:
     if not ts.dust_applies:
         return (
@@ -459,6 +480,7 @@ def render_markdown(report: DatabaseReport) -> str:
         )
         lines.append(_omega_line(ts))
         lines.append(_eta_line(ts))
+        lines.append(_nintpc_line(ts))
         lines.append(_dust_line(ts))
         lines.append(_lpv_line(ts))
         lines.append(
