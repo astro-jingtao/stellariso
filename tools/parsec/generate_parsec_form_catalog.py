@@ -1,39 +1,28 @@
-"""Generate the PARSEC form-product section of models/parsec/catalog.json.
+"""Generate the PARSEC form-product registry of models/parsec/catalog.json.
 
-The catalog's parsec section is the registry of the form-computed products
-the reference database still archives. The 2026-10-15/16 fetch archived 206
-products (every track-set combination over its full [M/H] window, plus
-one-shot option-variation tables); the 2026-10-16 blueprint redesign
-disowned the coarse-age secondary grids and the option variations, the
-local database pruned them, and this registry keeps only what is on disk:
-the two primary track sets at their full [M/H] extent on the fine log-age
-step — each product being the log-age half of a fetch-stage blueprint
-cell. The exact payloads of the pruned products remain recoverable from
-this file's git history.
+The catalog's parsec section registers the form-computed products of the
+current fetch stage: one product per blueprint cell, carrying the cell's
+exact log-age submission fields, so every registered request is replayable
+as-is (``CmdFieldSet.from_overrides(**fields)``). The registry is derived
+mechanically from the declared acquisition blueprint
+(``stellariso.models.parsec.blueprint``, docs/parsec/blueprint.md), so it
+cannot drift from the design it registers. The builder consumes the
+blueprint, not this registry: this file is the form channel's family-catalog
+face — channel, CA bundle, source notes, and the product registry — the way
+the package families' catalogs are the face of theirs.
 
-The ACQUISITION DESIGN is declared elsewhere —
-stellariso.models.parsec.blueprint (docs/parsec/blueprint.md) fixes the
-full cell space (secondary sets, rotation, eta/dust/LPV/n_inTPC axes, and
-the linear young-age halves), and stellariso.models.parsec.build builds
-it — so this file is not the build driver; it stays the archived-product
-registry, and this generator is the mechanism that rewrites it
-consistently.
+What it registers (wire protocol and option semantics:
+docs/parsec/cmd-form.md):
 
-Shape of what remains (see docs/parsec/cmd-form.md for the wire protocol
-and the option semantics):
-
-- The two primary sets: the v1.2S web COLIBRI chain and v2.0 (at omega_i
-  = 0), each over its full [M/H] window on a 0.1 dex grid, one product
-  per composition (single value per job — the server's range arithmetic
-  drops end points through floating point, so ranges are never used for
-  metallicity). Ages log10 6.6 to 10.13 at the fine step 0.02 dex (~177
-  ages per composition).
-- Photometry is a placeholder only (stellariso consumes the physical
-  columns): the verified YBC UBVRIJHK baseline both sets are served by.
-- Interstellar extinction is A_V = 0 throughout: verified not to change
-  any physical column (docs/parsec/cmd-form.md). Circumstellar dust, the
-  LPV prescription, Reimers eta, and the TP-cycle resolution sit at their
-  canonical values; the blueprint declares them as designed cell axes.
+- every designed track set at the stage's [M/H] extent: primary sets at
+  full extent, secondary sets at their sparse initial slice (anchor
+  compositions plus window edges);
+- the stage's axis values: Reimers eta at 0.0/0.2/0.4 where the axis
+  applies (canonical where inert), initial rotation at every designed
+  omega_i for v2.0 and 0 elsewhere, n_inTPC/dust/LPV at canonical values;
+- one fine-step log-age table per cell (~177 isochrones); the linear
+  young-age half of each cell is a blueprint-builder acquisition archived
+  beside the log table.
 
 Run:  python tools/parsec/generate_parsec_form_catalog.py   (rewrites the file)
 """
@@ -43,9 +32,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-CATALOG = Path(__file__).parent.parent.parent / "src" / "stellariso" / "models" / "parsec" / "catalog.json"
+from stellariso.models.parsec import blueprint as bp
 
-AGE_FINE = ("6.6", "10.13", "0.02")
+CATALOG = Path(__file__).parent.parent.parent / "src" / "stellariso" / "models" / "parsec" / "catalog.json"
 
 STATIC = {
     "family": "parsec",
@@ -62,110 +51,46 @@ STATIC = {
         "stays on."
     ),
     "scope_note": (
-        "Registry of the form-computed products still archived in the "
-        "reference database (request-layer client: "
-        "stellariso.models.parsec.cmd_form): the two primary track sets at "
-        "their full [M/H] extent on a 0.1 dex grid, one fine-step log-age "
-        "table per composition - each product is the log-age half of a "
-        "blueprint cell. The coarse-grid secondary products and one-shot "
-        "option-variation tables of the 2026-10-15/16 fetch were pruned on "
-        "2026-10-16, when the blueprint redesign disowned them; their exact "
-        "payloads remain in this file's git history. The declared "
+        "Registry of the form-computed products of the current fetch stage "
+        "(request-layer client: stellariso.models.parsec.cmd_form): every "
+        "product is the log-age half of one blueprint cell, carrying that "
+        "half's exact submission fields, and the linear young-age half is "
+        "archived beside it by the blueprint builder. The declared "
         "acquisition design - the full cell space the build completes "
-        "towards, secondary sets and all axes included - lives in "
+        "towards, fetch stages and all axes - lives in "
         "stellariso.models.parsec.blueprint (docs/parsec/blueprint.md). "
         "Historical pre-2006 tracks on pleiadi.oapd.inaf.it remain out of "
         "scope."
     ),
     "matrix_notes": {
-        "ages": "log10(age/yr) 6.6-10.13 at the fine step 0.02 dex (~177 ages per composition); the linear young-age half of each cell is a blueprint-builder acquisition archived beside the log table",
-        "metallicities": "one product per [M/H] on a 0.1 dex grid (single-value jobs; range end points are unreliable server-side)",
-        "photometry": "placeholder only: YBC UBVRIJHK for the YBC-served sets (the archived pairs both are)",
+        "ages": "log10(age/yr) 6.6-10.13 at the fine step 0.02 dex (177 isochrones per product); each cell's linear young-age half (1.0e5 to 4.0e6 yr by 1.0e5, 40 isochrones) is a blueprint-builder acquisition archived beside the log table",
+        "metallicities": "one product per [M/H] point of the set's designed grid (0.1 dex steps plus exact window edges; single-value jobs - the server's range arithmetic drops range end points); secondary sets are registered at their sparse initial slice (anchors -1.0, 0.0, +0.3 plus window edges) until their completion stage",
+        "photometry": "placeholder only: YBC UBVRIJHK for the two YBC-served sets, OBC odfnew+LSST for the six sets YBC serves no tables for (stellariso consumes the physical columns)",
         "extinction": "A_V = 0 everywhere; extinction changes magnitudes only (verified 2026-10-15, docs/parsec/cmd-form.md)",
-        "archived_options": "the archived products keep circumstellar dust, the LPV prescription, Reimers eta, and the TP-cycle resolution at their canonical values; the blueprint declares them as designed cell axes",
+        "stage_axes": "Reimers eta at 0.0/0.2/0.4 where the axis applies (canonical 0.2 where inert); initial rotation at every designed omega_i for v2.0 (11 values), 0 elsewhere; n_inTPC, circumstellar dust, and LPV prescription at their canonical values - designed axes whose remaining values are later stages",
     },
 }
 
-#: (release echo, release_dir, track fields, photometry fields,
-#:  [M/H] grid, age grid, label prefix)
-SETS = [
-    {
-        "release": "v1.2S +  COLIBRI S_37 + S_35 + PR16",
-        "release_dir": "v1.2S_COLIBRI_web",
-        "fields": {
-            "track_parsec": "parsec_CAF09_v1.2S",
-            "track_colibri": "parsec_CAF09_v1.2S_S_LMC_08_web",
-            "photsys_version": "YBCnewVega",
-            "photsys_file": "YBC_tab_mag_odfnew/tab_mag_ubvrijhk.dat",
-        },
-        "mh_values": [round(-2.2 + 0.1 * k, 1) for k in range(28)],
-        "age_grid": AGE_FINE,
-        "label_prefix": "",
-        "verify_header": "PARSEC release v1.2S +  COLIBRI S_37 + S_35 + PR16",
-    },
-    {
-        "release": "v2.0",
-        "release_dir": "v2.0",
-        "fields": {
-            "track_parsec": "parsec_CAF09_v2.0",
-            "track_colibri": "no",
-            "track_omegai": "0.00",
-            "photsys_version": "YBCnewVega",
-            "photsys_file": "YBC_tab_mag_odfnew/tab_mag_ubvrijhk.dat",
-        },
-        "mh_values": [round(-2.1 + 0.1 * k, 1) for k in range(25)],
-        "age_grid": AGE_FINE,
-        "label_prefix": "",
-        "verify_header": "PARSEC release v2.0",
-    },
-]
 
-
-def _mh_label(mh: float) -> str:
-    return f"mh_{'m' if mh < 0 else 'p'}{abs(mh):.1f}"
-
-
-def _product(label: str, fields: dict, verify: str | None) -> dict:
-    return {
-        "label": label,
-        "kind": "cmd_form_isochrones",
-        "fields": {k: str(v) for k, v in fields.items()},
-        "verify_header": verify,
-        "format": "cmd_table_3_9",
-    }
-
-
-def _age_fields(grid) -> dict:
-    low, upp, step = grid
-    return {
-        "isoc_isagelog": "1",
-        "isoc_lagelow": low,
-        "isoc_lageupp": upp,
-        "isoc_dlage": step,
-    }
-
-
-def _release_entry(spec: dict) -> dict:
+def _release_entry(ts: bp.TrackSet) -> dict:
     products = []
-    for mh in spec["mh_values"]:
-        fields = {
-            **spec["fields"],
-            **_age_fields(spec["age_grid"]),
-            "isoc_ismetlog": "1",
-            "isoc_metlow": f"{mh:.1f}",
-            "isoc_metupp": f"{mh:.1f}",
-            "isoc_dmet": "0",
+    for cell in bp.fetch_cells(ts):
+        entry = {
+            "label": cell.label,
+            "kind": "cmd_form_isochrones",
+            "fields": cell.log_fields(),
         }
-        products.append(
-            _product(spec["label_prefix"] + _mh_label(mh), fields, spec["verify_header"])
-        )
+        if ts.verify_header:
+            entry["verify_header"] = ts.verify_header
+        entry["format"] = "cmd_table_3_9"
+        products.append(entry)
     return {
-        "release": spec["release"],
-        "release_dir": spec["release_dir"],
+        "release": ts.release,
+        "release_dir": ts.key,
         "age_grid": {
-            "log_age_low": spec["age_grid"][0],
-            "log_age_upp": spec["age_grid"][1],
-            "log_age_step": spec["age_grid"][2],
+            "log_age_low": bp.LOG_AGE_GRID[0],
+            "log_age_upp": bp.LOG_AGE_GRID[1],
+            "log_age_step": bp.LOG_AGE_GRID[2],
         },
         "products": products,
     }
@@ -173,14 +98,14 @@ def _release_entry(spec: dict) -> dict:
 
 def main() -> None:
     catalog = dict(STATIC)
-    catalog["releases"] = [_release_entry(spec) for spec in SETS]
+    catalog["releases"] = [_release_entry(ts) for ts in bp.TRACK_SETS.values()]
     n = sum(len(r["products"]) for r in catalog["releases"])
     CATALOG.write_text(
         json.dumps(catalog, indent=2, ensure_ascii=True) + "\n",
         encoding="utf-8",
         newline="\n",
     )
-    print(f"wrote {CATALOG} with {n} products in {len(SETS)} releases")
+    print(f"wrote {CATALOG} with {n} products in {len(catalog['releases'])} releases")
 
 
 if __name__ == "__main__":
