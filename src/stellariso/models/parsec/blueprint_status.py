@@ -485,8 +485,10 @@ def render_markdown(report: DatabaseReport) -> str:
         lines.append(_lpv_line(ts))
         lines.append(
             "Ages per cell: log10(age/yr) 6.6 to 10.13 dex, step 0.02 dex -> "
-            f"{bp.expected_log_ages()} isochrones (output.dat); linear 0.0 to 4.0e6 yr, "
-            f"step 1.0e5 yr -> {bp.expected_linear_ages()} isochrones (output_linear.dat)"
+            f"{bp.expected_log_ages()} isochrones (output.dat); linear "
+            f"{bp.LINEAR_AGE_GRID[0]} to {bp.LINEAR_AGE_GRID[1]} yr, "
+            f"step {bp.LINEAR_AGE_GRID[2]} yr -> {bp.expected_linear_ages()} "
+            "isochrones (output_linear.dat)"
         )
         eta_stage = ", ".join(f"{v:g}" for v in bp.FETCH_ETA_VALUES)
         if ts.tier == "secondary":

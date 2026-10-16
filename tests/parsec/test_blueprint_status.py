@@ -88,7 +88,8 @@ class TestClassification:
         payload = _expected(cell)
         _write_product(db, WEB.key, cell.label, payload, blocks=177)
         _write_product(
-            db, WEB.key, cell.label, _expected(cell, "linear"), blocks=41,
+            db, WEB.key, cell.label, _expected(cell, "linear"),
+            blocks=bp.expected_linear_ages(),
             table="output_linear.dat",
         )
         report = scan_database(db)
@@ -249,7 +250,7 @@ class TestRendering:
         text = render_markdown(scan_database(db))
         assert "-2.2 to +0.5, step 0.1 dex -> 28 values" in text
         assert "6.6 to 10.13 dex, step 0.02 dex -> 177 isochrones" in text
-        assert "0.0 to 4.0e6 yr" in text and "41 isochrones" in text
+        assert "1.0e5 to 4.0e6 yr" in text and "40 isochrones" in text
         assert "v2.0" in text and "0.99" in text
         assert "Reimers eta: 0.0 to 0.5, step 0.1 -> 6 values" in text
         assert "TP-cycle resolution n_inTPC: 5, 10, 20 -> 3 values" in text

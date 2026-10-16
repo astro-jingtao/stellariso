@@ -88,9 +88,9 @@ class TestCompositionGrid:
 class TestGridDeclarations:
     def test_age_grids(self):
         assert LOG_AGE_GRID == ("6.6", "10.13", "0.02")
-        assert LINEAR_AGE_GRID == ("0.0", "4.0e6", "1.0e5")
+        assert LINEAR_AGE_GRID == ("1.0e5", "4.0e6", "1.0e5")
         assert expected_log_ages() == 177  # 6.6 .. 10.12; 10.13 off-grid
-        assert expected_linear_ages() == 41  # 0 .. 4.0 Myr by 0.1 Myr
+        assert expected_linear_ages() == 40  # 0.1 .. 4.0 Myr by 0.1 Myr (age 0 rejected)
 
     def test_omega_grid(self):
         v2 = cells("v2.0")
@@ -313,7 +313,7 @@ class TestPayloads:
         cell = Cell(set=TRACK_SETS["v1.2S_COLIBRI_web"], mh=-2.2, omega=0.0)
         fields = cell.linear_fields()
         assert fields["isoc_isagelog"] == "0"
-        assert fields["isoc_agelow"] == "0.0"
+        assert fields["isoc_agelow"] == "1.0e5"
         assert fields["isoc_ageupp"] == "4.0e6"
         assert fields["isoc_dage"] == "1.0e5"
         assert fields["isoc_metlow"] == "-2.2"

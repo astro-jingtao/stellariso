@@ -127,9 +127,12 @@ CANONICAL_LPV = DEFAULT_FIELDS["kind_LPV"]
 #: The two age grids every cell carries. Log: the form's own current range
 #: and the fine spacing, uniform across sets. Linear: the young-age
 #: refinement below 10^6.6 yr = 3.981 Myr, handed off at 4.0 Myr (values
-#: in years; 41 designed ages 0.0, 1e5, ..., 4.0e6).
+#: in years; 40 designed ages 1e5, 2e5, ..., 4.0e6 — age exactly 0 is
+#: rejected by the server, which re-serves the input form with no output
+#: link and no error text; the 4.0 Myr endpoint is retained exactly;
+#: both verified live 2026-10-17).
 LOG_AGE_GRID: tuple[str, str, str] = ("6.6", "10.13", "0.02")
-LINEAR_AGE_GRID: tuple[str, str, str] = ("0.0", "4.0e6", "1.0e5")
+LINEAR_AGE_GRID: tuple[str, str, str] = ("1.0e5", "4.0e6", "1.0e5")
 
 #: Secondary-tier initial slice: anchor compositions (metal-poor, solar,
 #: metal-rich) that every secondary set carries from the start; the window
@@ -508,7 +511,7 @@ def expected_log_ages() -> int:
 
 
 def expected_linear_ages() -> int:
-    """Isochrone count the linear grid designs (0 to 4.0e6 yr by 1e5)."""
+    """Isochrone count the linear grid designs (1e5 to 4.0e6 yr by 1e5)."""
     low, upp, step = (float(v) for v in LINEAR_AGE_GRID)
     return math.floor((upp - low) / step + 1e-9) + 1
 
