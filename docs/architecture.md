@@ -169,9 +169,11 @@ A backend (see `stellariso/models/`) contributes:
    into the registry's parameter templates,
 4. a release `catalog` (`models/<family>/catalog.json`) declaring every
    product the database builder acquires — official packages (URL,
-   filename, size) or form-computed products (the exact payload and the
-   header echo to verify); request layers that speak a service's wire
-   protocol (the CMD form client) sit beside the backend.
+   filename, size) or form-computed products (the exact payload of the
+   log-age half of each blueprint cell, the header echo to verify where
+   the output carries one; the linear young-age half is archived beside
+   the log table by the blueprint builder); request layers that speak a
+   service's wire protocol (the CMD form client) sit beside the backend.
 
 Core code dispatches through the registry (`stellariso.models.get_backend`);
 there are no model-name branches outside the backends. Adding a model family
