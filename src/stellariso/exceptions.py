@@ -24,6 +24,7 @@ __all__ = [
     "SourceUnavailableError",
     "LicenseUnavailableError",
     "CmdFormError",
+    "ManifestError",
 ]
 
 
@@ -93,3 +94,9 @@ class LicenseUnavailableError(StellarIsoError):
 class CmdFormError(StellarIsoError):
     """The Padova CMD web form rejected, drifted from, or failed a
     submission (including the accepted-but-empty failure mode)."""
+
+
+class ManifestError(StellarIsoError):
+    """A product MANIFEST cannot be read, or carries a schema stellariso
+    does not know (a newer manifest version written by a newer stellariso,
+    or an unrecognizable file)."""

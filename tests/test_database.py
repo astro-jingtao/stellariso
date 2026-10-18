@@ -11,12 +11,8 @@ from pathlib import Path
 import pytest
 
 import stellariso
-from stellariso.database import (
-    Database,
-    build_database,
-    open_database,
-    register_local_product,
-)
+from stellariso.database.build import build_database
+from stellariso.database.core import Database, open_database, register_local_product
 from stellariso.exceptions import (
     DataIntegrityError,
     SourceUnavailableError,
@@ -108,9 +104,9 @@ def fake_env(monkeypatch, tmp_path):
     }
     session = FakeStreamSession(mapping)
     monkeypatch.setattr(
-        "stellariso.database.catalog", lambda family: FAKE_CATALOG
+        "stellariso.database.build.catalog", lambda family: FAKE_CATALOG
     )
-    monkeypatch.setattr("stellariso.database.backend_names", lambda: ("mist",))
+    monkeypatch.setattr("stellariso.database.build.backend_names", lambda: ("mist",))
     return session, tmp_path / "db"
 
 
@@ -181,7 +177,7 @@ class TestBuildDatabase:
 
     def test_manual_family_fails_loudly(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
-            "stellariso.database.catalog",
+            "stellariso.database.build.catalog",
             lambda family: {
                 "family": family,
                 "channel": "manual",
@@ -308,7 +304,7 @@ class TestRegisterLocalProduct:
 
 class TestSafeExtract:
     def test_escaping_member_rejected(self, tmp_path):
-        import stellariso.database as dbmod
+        import stellariso.database.core as dbmod
 
         buf = BytesIO()
         with tarfile.open(fileobj=buf, mode="w") as tf:
@@ -353,8 +349,8 @@ class TestZipProductsAndCaBundle:
             ],
         }
         session = FakeStreamSession({zip_catalog["releases"][0]["products"][0]["url"]: buf.getvalue()})
-        monkeypatch.setattr("stellariso.database.catalog", lambda family: zip_catalog)
-        monkeypatch.setattr("stellariso.database.backend_names", lambda: ("parsec",))
+        monkeypatch.setattr("stellariso.database.build.catalog", lambda family: zip_catalog)
+        monkeypatch.setattr("stellariso.database.build.backend_names", lambda: ("parsec",))
         db = build_database(tmp_path / "db", session=session)
         assert len(db.products) == 1
         product_dir = tmp_path / "db" / "parsec" / "v1.2S" / "zipped_tables"
@@ -364,10 +360,10 @@ class TestZipProductsAndCaBundle:
         assert manifest["n_data_files"] == 1
 
     def test_default_session_gets_declared_ca_bundle(self, tmp_path, monkeypatch):
-        import stellariso.database as dbmod
+        import stellariso.database.build as dbmod
 
         monkeypatch.setattr(
-            "stellariso.database.catalog",
+            "stellariso.database.build.catalog",
             lambda family: {
                 "family": family,
                 "channel": "packages",
@@ -394,7 +390,7 @@ class TestZipProductsAndCaBundle:
         )
 
     def test_user_session_used_untouched(self, tmp_path):
-        import stellariso.database as dbmod
+        import stellariso.database.build as dbmod
 
         sentinel = object()
         sessions = dbmod._sessions(tmp_path, ["mist"], sentinel)
@@ -440,10 +436,10 @@ class TestFormProducts:
             "stellariso.models.parsec.build.build_blueprint", _fake_build_blueprint
         )
         monkeypatch.setattr(
-            "stellariso.database.catalog", lambda family: TestFormProducts._form_catalog()
+            "stellariso.database.build.catalog", lambda family: TestFormProducts._form_catalog()
         )
         monkeypatch.setattr(
-            "stellariso.database.backend_names", lambda: ("parsec",)
+            "stellariso.database.build.backend_names", lambda: ("parsec",)
         )
         return calls
 

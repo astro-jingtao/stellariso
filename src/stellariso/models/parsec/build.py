@@ -329,10 +329,12 @@ def fetch_plan(database: Path | str | None = None) -> dict:
     """What ``build_blueprint`` would acquire, without touching anything.
 
     With an existing database the plan is measured against it (via the
-    status scanner); without one every fetch-stage cell counts as
-    pending. Pure local I/O — the dry-run face of the builder.
+    two-state scanner — only missing parts of clean products count;
+    nonconforming cells contribute nothing automatic); without one every
+    fetch-stage cell counts as pending. Pure local I/O — the dry-run
+    face of the builder.
     """
-    from stellariso.models.parsec.blueprint_status import scan_database
+    from stellariso.database.scan import scan_database
 
     plan = {
         "sets": {
@@ -347,10 +349,12 @@ def fetch_plan(database: Path | str | None = None) -> dict:
     target_total = sum(v["target_cells"] for v in plan["sets"].values())
     plan["target_cells"] = target_total
     if database is not None and (Path(database) / "parsec").is_dir():
-        report = scan_database(database)
-        jobs = report.jobs_to_target()
-        plan["submissions_to_target"] = jobs["primary"] + jobs["secondary"]
-        plan["tier_jobs"] = jobs
+        report = scan_database(database, families=["parsec"])
+        tier_jobs = {"primary": 0, "secondary": 0}
+        for scan, _part in report.auto_fetches("parsec"):
+            tier_jobs[bp.TRACK_SETS[scan.design.collection].tier] += 1
+        plan["submissions_to_target"] = tier_jobs["primary"] + tier_jobs["secondary"]
+        plan["tier_jobs"] = tier_jobs
     else:
         plan["submissions_to_target"] = 2 * target_total
         plan["tier_jobs"] = {

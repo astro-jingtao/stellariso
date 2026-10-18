@@ -8,7 +8,8 @@ single-star evolution models.
 __version__ = "0.1.0"
 
 from stellariso.core import FieldSpec, ModelIdentity, ParameterRole, ParameterSpec
-from stellariso.database import Database, build_database, open_database
+from stellariso.database.build import build_database
+from stellariso.database.core import Database, open_database
 from stellariso.exceptions import StellarIsoError
 from stellariso.facade import MistIso, ParsecIso, UnifiedIso, construct
 from stellariso.grid import IsochroneGrid, open_grid

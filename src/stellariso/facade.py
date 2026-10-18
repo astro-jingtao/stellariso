@@ -12,7 +12,7 @@ from __future__ import annotations
 from abc import ABC
 from pathlib import Path
 
-from stellariso.database import Database
+from stellariso.database.core import Database
 from stellariso.exceptions import UnsupportedModelError
 from stellariso.grid import IsochroneGrid
 from stellariso.interp import InterpolationRecord
@@ -235,7 +235,7 @@ def construct(
     if database is not None:
         if paths is not None:
             raise ValueError("pass either paths= or database=, not both")
-        from stellariso.database import open_database
+        from stellariso.database.core import open_database
 
         db = database if isinstance(database, Database) else open_database(database)
         grid = db.grid(model, label=label)

@@ -227,7 +227,7 @@ class TestFetchPlan:
         assert plan["submissions_to_target"] == 940
 
     def test_built_cell_opens_as_a_grid(self, tmp_path: Path):
-        from stellariso.database import open_database
+        from stellariso.database.core import open_database
 
         # a log-only cell (run-4 shape: the real captured table) opens
         # through the database exactly as a run-4 product does

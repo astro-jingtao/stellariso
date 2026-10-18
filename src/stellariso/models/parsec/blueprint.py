@@ -33,7 +33,7 @@ dust and LPV) — completing the rest later needs no redesign. The
 machine-readable summary lives here; docs/parsec/blueprint.md carries
 the full rationale, the per-set applicability evidence, and the fixed
 values of every non-varied field. What the database actually holds is
-measured against this module (tools/parsec/blueprint_status.py).
+measured against this module (tools/db_status.py).
 """
 
 from __future__ import annotations
