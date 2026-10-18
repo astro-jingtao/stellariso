@@ -86,8 +86,12 @@ class ParsecAdapter(FamilyAdapter):
         )
 
     def designs(self) -> Iterator[ProductDesign]:
-        for cell in bp.all_cells():
-            yield self._design_of_cell(cell)
+        # 162k designs: enumerated once per adapter instance, then reused
+        cached = self.__dict__.get("_designs_cache")
+        if cached is None:
+            cached = [self._design_of_cell(cell) for cell in bp.all_cells()]
+            self.__dict__["_designs_cache"] = cached
+        return iter(cached)
 
     def committed(self) -> Iterator[ProductDesign]:
         for ts in bp.TRACK_SETS.values():

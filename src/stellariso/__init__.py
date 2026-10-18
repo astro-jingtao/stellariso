@@ -10,6 +10,8 @@ __version__ = "0.1.0"
 from stellariso.core import FieldSpec, ModelIdentity, ParameterRole, ParameterSpec
 from stellariso.database.build import build_database
 from stellariso.database.core import Database, open_database
+from stellariso.database.inventory import refresh_database
+from stellariso.database.transfer import merge_database
 from stellariso.exceptions import StellarIsoError
 from stellariso.facade import MistIso, ParsecIso, UnifiedIso, construct
 from stellariso.grid import IsochroneGrid, open_grid
@@ -53,6 +55,8 @@ __all__ = [
     "build_database",
     "open_database",
     "Database",
+    "merge_database",
+    "refresh_database",
     "UnifiedIso",
     "MistIso",
     "ParsecIso",
