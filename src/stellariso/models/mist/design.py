@@ -52,6 +52,7 @@ def download_file(url: str, target: Path, session) -> tuple[str, int]:
 
 class MistAdapter(FamilyAdapter):
     family = "mist"
+    extracts = True
 
     def _catalog(self) -> dict:
         return load_catalog("mist")
@@ -64,6 +65,7 @@ class MistAdapter(FamilyAdapter):
                 yield ProductDesign(
                     family="mist",
                     collection=release_entry["release"],
+                    release=release_entry["release"],
                     label=product["label"],
                     kind=product["kind"],
                     parts=(PartDesign(name="archive", filename=product["filename"]),),
@@ -93,7 +95,13 @@ class MistAdapter(FamilyAdapter):
     # -- classification -----------------------------------------------------
 
     def classify_part(
-        self, design: ProductDesign, part: PartDesign, directory: Path, manifest: dict
+        self,
+        design: ProductDesign,
+        part: PartDesign,
+        directory: Path,
+        manifest: dict,
+        *,
+        verify: bool = True,
     ) -> PartVerdict:
         path = directory / part.filename
         if not path.exists():
@@ -105,12 +113,13 @@ class MistAdapter(FamilyAdapter):
                 f"{part.filename}: no sha256 recorded in its MANIFEST; "
                 "integrity not verified"
             )
-        actual = sha256_file(path)
-        if actual != recorded:
-            return PartVerdict.nonconforming(
-                f"{part.filename}: sha256 mismatch — recorded {recorded}, "
-                f"file hashes {actual}"
-            )
+        if verify:
+            actual = sha256_file(path)
+            if actual != recorded:
+                return PartVerdict.nonconforming(
+                    f"{part.filename}: sha256 mismatch — recorded {recorded}, "
+                    f"file hashes {actual}"
+                )
         expected = design.facts.get("size_bytes")
         if expected is not None and path.stat().st_size != expected:
             return PartVerdict.ok(
@@ -161,7 +170,17 @@ class MistAdapter(FamilyAdapter):
             "url": url,
         }
 
-    # -- report ---------------------------------------------------------------
+    # -- manifest and report ---------------------------------------------------
+
+    def manifest_fields(self, design: ProductDesign) -> dict:
+        cat = self._catalog()
+        return {
+            "source_class": "official_origin",
+            "note": cat.get("source_note", "official published package"),
+            "format": design.facts.get("format"),
+            "physics": design.facts.get("physics"),
+            "references": [r.citation for r in references("mist")],
+        }
 
     def fetch_cost(self, design: ProductDesign, part: PartDesign) -> dict:
         return {"kind": "download", "size_bytes": design.facts.get("size_bytes")}

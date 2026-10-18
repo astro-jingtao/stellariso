@@ -104,9 +104,8 @@ def fake_env(monkeypatch, tmp_path):
     }
     session = FakeStreamSession(mapping)
     monkeypatch.setattr(
-        "stellariso.database.build.catalog", lambda family: FAKE_CATALOG
+        "stellariso.models.mist.design.load_catalog", lambda family: FAKE_CATALOG
     )
-    monkeypatch.setattr("stellariso.database.build.backend_names", lambda: ("mist",))
     return session, tmp_path / "db"
 
 
@@ -131,7 +130,7 @@ class TestIntegrityHelpers:
 class TestBuildDatabase:
     def test_build_downloads_extracts_and_records(self, fake_env):
         session, db_path = fake_env
-        db = build_database(db_path, session=session)
+        db = build_database(db_path, models=["mist"], session=session)
         assert len(session.calls) == 2
         for label in ("vvcrit0.4_full_isos", "vvcrit0.0_full_isos"):
             product_dir = db_path / "mist" / "1.2" / label
@@ -142,12 +141,17 @@ class TestBuildDatabase:
             manifest = json.loads(
                 (product_dir / "MANIFEST.json").read_text(encoding="utf-8")
             )
+            assert manifest["schema"] == "stellariso-manifest/2"
             assert manifest["family"] == "mist"
             assert manifest["release"] == "1.2"
-            assert manifest["sha256"] == sha256_file(archive)
+            assert manifest["parts"]["archive"]["sha256"] == sha256_file(archive)
+            assert manifest["parts"]["archive"]["file"] == archive.name
             assert manifest["source_class"] == "official_origin"
-            assert manifest["retrieved_at"]
+            assert manifest["parts"]["archive"]["retrieved_at"]
+            assert manifest["extracted"] is True
             assert any(p.suffix == ".iso" for p in product_dir.rglob("*.iso"))
+        # the archive itself always stays next to its extraction
+        assert (db_path / "mist" / "1.2" / "vvcrit0.4_full_isos" / "MIST_v1.2_vvcrit0.4_full_isos.txz").exists()
         # self-containment artifacts
         assert (db_path / "database.json").exists()
         assert (db_path / "README.md").exists()
@@ -159,9 +163,9 @@ class TestBuildDatabase:
 
     def test_rebuild_keeps_verified_products(self, fake_env):
         session, db_path = fake_env
-        build_database(db_path, session=session)
+        build_database(db_path, models=["mist"], session=session)
         n = len(session.calls)
-        build_database(db_path, session=session)
+        build_database(db_path, models=["mist"], session=session)
         assert len(session.calls) == n  # nothing re-downloaded
         db = open_database(db_path)
         assert len(db.products) == 2
@@ -174,25 +178,60 @@ class TestBuildDatabase:
         assert not db_path.exists()
         out = capsys.readouterr().out
         assert "vvcrit0.4_full_isos" in out
+        assert "archive missing" in out
 
-    def test_manual_family_fails_loudly(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            "stellariso.database.build.catalog",
-            lambda family: {
-                "family": family,
-                "channel": "manual",
-                "manual_note": "no packages",
-                "releases": [],
-            },
+    def test_manual_family_fails_loudly(self, tmp_path):
+        from stellariso.database.design import (
+            DirectoryMatch,
+            FamilyAdapter,
+            PartDesign,
+            PartVerdict,
+            ProductDesign,
+            register_adapter,
+            unregister_adapter,
         )
-        with pytest.raises(SourceUnavailableError, match="publishes no downloadable"):
-            build_database(tmp_path / "db", models=["parsec"])
+
+        class ManualAdapter(FamilyAdapter):
+            family = "manualsrc"
+
+            def designs(self):
+                return [
+                    ProductDesign(
+                        family="manualsrc",
+                        collection="r",
+                        release="r",
+                        label="only",
+                        kind="manual_files",
+                        parts=(PartDesign("files", "data.iso"),),
+                        facts={},
+                    )
+                ]
+
+            def product_of_directory(self, root, directory):
+                return DirectoryMatch()
+
+            def classify_part(self, design, part, directory, manifest, *, verify=True):
+                return PartVerdict.missing()
+
+            def fetch_part(self, design, part, directory, **kw):
+                raise SourceUnavailableError(
+                    "manualsrc publishes no downloadable packages: obtain the "
+                    "files by hand and register them with "
+                    "stellariso.register_local_product()"
+                )
+
+        register_adapter(ManualAdapter())
+        try:
+            with pytest.raises(SourceUnavailableError, match="publishes no downloadable"):
+                build_database(tmp_path / "db", models=["manualsrc"])
+        finally:
+            unregister_adapter("manualsrc")
 
 
 class TestOpenDatabase:
     def test_open_and_grid(self, fake_env):
         session, db_path = fake_env
-        build_database(db_path, session=session)
+        build_database(db_path, models=["mist"], session=session)
         db = open_database(db_path)
         assert len(db.products) == 2
         grid = db.grid("mist/1.2", label="vvcrit0.4_full_isos")
@@ -203,28 +242,28 @@ class TestOpenDatabase:
 
     def test_unqualified_model_rejected(self, fake_env):
         session, db_path = fake_env
-        build_database(db_path, session=session)
+        build_database(db_path, models=["mist"], session=session)
         db = open_database(db_path)
         with pytest.raises(ValueError, match="version-qualified"):
             db.grid("mist")
 
     def test_ambiguous_products_require_label(self, fake_env):
         session, db_path = fake_env
-        build_database(db_path, session=session)
+        build_database(db_path, models=["mist"], session=session)
         db = open_database(db_path)
         with pytest.raises(ValueError, match="pin one"):
             db.grid("mist/1.2")
 
     def test_missing_release_lists_present_products(self, fake_env):
         session, db_path = fake_env
-        build_database(db_path, session=session)
+        build_database(db_path, models=["mist"], session=session)
         db = open_database(db_path)
         with pytest.raises(SourceUnavailableError, match="holds no"):
             db.grid("mist/2.5", label="vvcrit0.4_full_isos")
 
     def test_partial_copy_is_portable(self, fake_env):
         session, db_path = fake_env
-        build_database(db_path, session=session)
+        build_database(db_path, models=["mist"], session=session)
         partial = db_path.parent / "partial_db"
         (partial / "mist" / "1.2").mkdir(parents=True)
         # copy ONE product directory only
@@ -244,7 +283,7 @@ class TestOpenDatabase:
 
     def test_construct_from_database(self, fake_env):
         session, db_path = fake_env
-        build_database(db_path, session=session)
+        build_database(db_path, models=["mist"], session=session)
         mist = construct("mist/1.2", database=db_path, label="vvcrit0.4_full_isos")
         assert isinstance(mist, MistIso)
         assert mist.identity.release == "1.2"
@@ -258,7 +297,7 @@ class TestOpenDatabase:
     def test_archives_only_build_and_lazy_extraction(self, fake_env):
         session, db_path = fake_env
         # archives-only: nothing extracted at build time
-        build_database(db_path, session=session, extract=False)
+        build_database(db_path, models=["mist"], session=session, extract=False)
         product_dir = db_path / "mist" / "1.2" / "vvcrit0.4_full_isos"
         manifest = json.loads(
             (product_dir / "MANIFEST.json").read_text(encoding="utf-8")
@@ -328,7 +367,7 @@ class TestZipProductsAndCaBundle:
             zf.writestr("output1.dat", dat_a)
             zf.writestr("readme.txt", "notes")
         zip_catalog = {
-            "family": "parsec",
+            "family": "mist",
             "channel": "packages",
             "source_note": "test",
             "releases": [
@@ -349,30 +388,22 @@ class TestZipProductsAndCaBundle:
             ],
         }
         session = FakeStreamSession({zip_catalog["releases"][0]["products"][0]["url"]: buf.getvalue()})
-        monkeypatch.setattr("stellariso.database.build.catalog", lambda family: zip_catalog)
-        monkeypatch.setattr("stellariso.database.build.backend_names", lambda: ("parsec",))
-        db = build_database(tmp_path / "db", session=session)
+        monkeypatch.setattr(
+            "stellariso.models.mist.design.load_catalog", lambda family: zip_catalog
+        )
+        db = build_database(tmp_path / "db", session=session, models=["mist"])
         assert len(db.products) == 1
-        product_dir = tmp_path / "db" / "parsec" / "v1.2S" / "zipped_tables"
+        product_dir = tmp_path / "db" / "mist" / "v1.2S" / "zipped_tables"
         assert (product_dir / "zipped_tables.zip").exists()
         assert (product_dir / "output1.dat").exists()
         manifest = json.loads((product_dir / "MANIFEST.json").read_text(encoding="utf-8"))
         assert manifest["n_data_files"] == 1
 
-    def test_default_session_gets_declared_ca_bundle(self, tmp_path, monkeypatch):
-        import stellariso.database.build as dbmod
+    def test_default_session_gets_declared_ca_bundle(self, tmp_path):
+        from stellariso.models.parsec.design import ParsecAdapter
 
-        monkeypatch.setattr(
-            "stellariso.database.build.catalog",
-            lambda family: {
-                "family": family,
-                "channel": "packages",
-                "ca_bundle": "ZeroSSLRSADVSSLCA2.crt",
-                "releases": [],
-            },
-        )
-        sessions = dbmod._sessions(tmp_path / "db", ["parsec"], None)
-        bundle = Path(sessions["parsec"].verify)
+        session = ParsecAdapter().default_session(tmp_path / "db")
+        bundle = Path(session.verify)
         assert bundle.exists()
         import certifi
 
@@ -389,75 +420,40 @@ class TestZipProductsAndCaBundle:
             + shipped.count(b"BEGIN CERTIFICATE")
         )
 
-    def test_user_session_used_untouched(self, tmp_path):
-        import stellariso.database.build as dbmod
-
-        sentinel = object()
-        sessions = dbmod._sessions(tmp_path, ["mist"], sentinel)
-        assert sessions["mist"] is sentinel
-
 
 class TestFormProducts:
-    """Form-channel families: the database builder dispatches to the
-    blueprint cell builder (tests/parsec/test_build.py covers the cell
-    behavior itself; these pin the dispatch and the dry-run plan)."""
+    """Form-channel families build through the same universal loop
+    (tests/parsec/test_build.py covers the cell behavior itself; these
+    pin the dispatch and the dry-run plan)."""
 
-    @staticmethod
-    def _form_catalog() -> dict:
-        return {
-            "family": "parsec",
-            "channel": "form",
-            "source_note": "test form catalog",
-            "releases": [
-                {
-                    "release": "v1.2S +  COLIBRI S_37 + S_35 + PR16",
-                    "release_dir": "v1.2S_COLIBRI_web",
-                    "products": [
-                        {
-                            "label": "legacy_registry_entry",
-                            "kind": "cmd_form_isochrones",
-                            "fields": {"isoc_isagelog": 1},
-                            "verify_header": "PARSEC release v1.2S",
-                        }
-                    ],
-                }
-            ],
-        }
+    def test_build_submits_through_the_adapter(self, tmp_path, monkeypatch):
+        from stellariso.models.parsec import blueprint as bp
+        from stellariso.models.parsec.design import ParsecAdapter
+        from tests.parsec.test_build import StubClient
 
-    @staticmethod
-    def _form_env(monkeypatch):
-        calls: list[dict] = []
-
-        def _fake_build_blueprint(database, *, client_factory=None, pause=5.0, log=print):
-            calls.append({"database": Path(database), "pause": pause})
-            return {"kept": 0, "fetched": 0, "mismatch": 0}
-
+        cell = bp.Cell(set=bp.TRACK_SETS["v1.2S_COLIBRI_web"], mh=0.0, omega=0.0)
+        adapter = ParsecAdapter()
+        client = StubClient()
         monkeypatch.setattr(
-            "stellariso.models.parsec.build.build_blueprint", _fake_build_blueprint
+            ParsecAdapter,
+            "committed",
+            lambda self: iter([adapter._design_of_cell(cell)]),
         )
         monkeypatch.setattr(
-            "stellariso.database.build.catalog", lambda family: TestFormProducts._form_catalog()
+            ParsecAdapter, "fetch_client", lambda self, session=None: client
         )
-        monkeypatch.setattr(
-            "stellariso.database.build.backend_names", lambda: ("parsec",)
-        )
-        return calls
-
-    def test_build_dispatches_to_the_blueprint_builder(self, tmp_path, monkeypatch):
-        calls = self._form_env(monkeypatch)
-        build_database(tmp_path / "db", form_pause=0.0)
-        assert len(calls) == 1
-        assert calls[0]["database"] == tmp_path / "db"
-        assert calls[0]["pause"] == 0.0
-        # the catalog's flat product registry is not iterated as jobs
-        assert not (tmp_path / "db" / "parsec" / "v1.2S_COLIBRI_web").exists()
+        db = build_database(tmp_path / "db", models=["parsec"], form_pause=0.0)
+        assert len(client.submissions) == 2  # both age grids, log first
+        assert client.submissions[0]["isoc_isagelog"] == "1"
+        assert len(db.products) == 1
+        directory = tmp_path / "db" / "parsec" / cell.set.key / cell.label
+        assert (directory / "output.dat").exists()
+        assert (directory / "output_linear.dat").exists()
 
     def test_dry_run_reports_the_fetch_plan_without_submitting(
-        self, tmp_path, monkeypatch, capsys
+        self, tmp_path, capsys
     ):
-        calls = self._form_env(monkeypatch)
-        build_database(tmp_path / "db", dry_run=True, form_pause=0.0)
-        assert calls == []
+        build_database(tmp_path / "db", dry_run=True)
         out = capsys.readouterr().out
         assert "471 fetch-stage cells" in out
         assert "942 form submissions" in out

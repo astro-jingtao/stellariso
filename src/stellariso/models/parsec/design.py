@@ -78,6 +78,7 @@ class ParsecAdapter(FamilyAdapter):
         return ProductDesign(
             family="parsec",
             collection=cell.set.key,
+            release=cell.set.release,
             label=cell.label,
             kind=_KIND,
             parts=_PARTS,
@@ -122,7 +123,13 @@ class ParsecAdapter(FamilyAdapter):
     # -- classification -----------------------------------------------------
 
     def classify_part(
-        self, design: ProductDesign, part: PartDesign, directory: Path, manifest: dict
+        self,
+        design: ProductDesign,
+        part: PartDesign,
+        directory: Path,
+        manifest: dict,
+        *,
+        verify: bool = True,
     ) -> PartVerdict:
         cell: bp.Cell = design.facts["cell"]
         reasons: list[str] = []
@@ -205,6 +212,56 @@ class ParsecAdapter(FamilyAdapter):
         }
 
     # -- manifest and report --------------------------------------------------
+
+    def default_session(self, database: Path):
+        """A session with the form host's missing TLS intermediate
+        appended to the standard trust store, so verification stays ON
+        (the combined bundle is written under ``<database>/.tls/``)."""
+        import requests
+
+        from stellariso.models import catalog as load_catalog
+
+        bundle_name = load_catalog("parsec").get("ca_bundle")
+        if not bundle_name:
+            return None
+        import certifi
+
+        model_dir = Path(__file__).parent
+        intermediate = model_dir / bundle_name
+        if not intermediate.exists():
+            raise SourceUnavailableError(
+                f"catalog of 'parsec' declares CA bundle {bundle_name!r}, "
+                f"which is missing from {model_dir}"
+            )
+        tls_dir = Path(database) / ".tls"
+        tls_dir.mkdir(parents=True, exist_ok=True)
+        combined = tls_dir / "parsec-ca-bundle.pem"
+        combined.write_bytes(
+            Path(certifi.where()).read_bytes() + b"\n" + intermediate.read_bytes()
+        )
+        session = requests.Session()
+        session.headers["User-Agent"] = "stellariso (isochrone database builder)"
+        session.verify = str(combined)
+        return session
+
+    def fetch_client(self, session=None):
+        from stellariso.models.parsec.cmd_form import CmdFormClient
+
+        return CmdFormClient(session=session)
+
+    def manifest_fields(self, design: ProductDesign) -> dict:
+        from stellariso.registry import references
+
+        return {
+            "source_class": "official_computed",
+            "note": (
+                "official CMD web form (https://stev.oapd.inaf.it/cgi-bin/cmd); "
+                "one blueprint cell: both age grids in this directory"
+            ),
+            "format": "cmd_table_3_9",
+            "physics": None,
+            "references": [r.citation for r in references("parsec")],
+        }
 
     def family_section(self, design) -> dict:
         cell: bp.Cell = design.facts["cell"]

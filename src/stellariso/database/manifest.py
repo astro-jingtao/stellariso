@@ -58,6 +58,7 @@ __all__ = [
     "normalize",
     "primary_part",
     "read_manifest",
+    "strip_legacy",
     "write_manifest",
     "utc_now_iso",
 ]
@@ -187,6 +188,16 @@ def write_manifest(path: Path, manifest: dict) -> None:
         json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8", newline="\n"
     )
     tmp.replace(path)
+
+
+def strip_legacy(view: dict) -> dict:
+    """Drop the legacy top-level keys v2 carries inside ``parts``.
+
+    Build-time manifest writes use this so an updated legacy product
+    lands as clean v2 (the parts map keeps every fact the dropped keys
+    carried).
+    """
+    return {key: value for key, value in view.items() if key not in _LEGACY_MOVED_KEYS}
 
 
 def primary_part(manifest: dict) -> str | None:

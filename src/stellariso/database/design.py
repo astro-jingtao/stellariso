@@ -33,6 +33,7 @@ __all__ = [
     "SelectionCriteria",
     "FamilyAdapter",
     "register_adapter",
+    "unregister_adapter",
     "adapter_for",
     "adapter_families",
 ]
@@ -52,13 +53,16 @@ class ProductDesign:
 
     ``collection`` is the directory second level — the release for
     package families (MIST ``1.2``), the set key for form families
-    (PARSEC ``v1.2S_COLIBRI_web``). ``facts`` carries whatever the
+    (PARSEC ``v1.2S_COLIBRI_web``). ``release`` is the manifest
+    identity release (for PARSEC, the release string the model specs
+    use, distinct from the set key). ``facts`` carries whatever the
     family's adapter needs to classify and fetch (MIST: catalog url and
     size; PARSEC: the blueprint cell); the core never interprets it.
     """
 
     family: str
     collection: str
+    release: str
     label: str
     kind: str
     parts: tuple[PartDesign, ...]
@@ -176,6 +180,8 @@ class FamilyAdapter:
     """
 
     family: str = ""
+    #: package products are archives the builder extracts on fetch
+    extracts: bool = False
 
     def designs(self) -> Iterable[ProductDesign]:
         """Every product the source declares for a finished database."""
@@ -190,9 +196,19 @@ class FamilyAdapter:
         raise NotImplementedError
 
     def classify_part(
-        self, design: ProductDesign, part: PartDesign, directory: Path, manifest: dict
+        self,
+        design: ProductDesign,
+        part: PartDesign,
+        directory: Path,
+        manifest: dict,
+        *,
+        verify: bool = True,
     ) -> PartVerdict:
-        """Judge one designed part of one on-disk product directory."""
+        """Judge one designed part of one on-disk product directory.
+
+        ``verify=False`` skips integrity hashing where the family does
+        any (the rebuild-trust knob); conformance checks still run.
+        """
         raise NotImplementedError
 
     def fetch_part(
@@ -208,6 +224,24 @@ class FamilyAdapter:
         """Acquire one part into its directory; return its parts entry
         (file / sha256 / size_bytes / retrieved_at / record / url)."""
         raise NotImplementedError
+
+    def default_session(self, database: Path):
+        """The family's own session (CA bundle honored), or None for a
+        plain one. Only used when the caller passes no session."""
+        return None
+
+    def fetch_client(self, session=None):
+        """The reusable fetch handle passed as ``client=`` to every
+        :meth:`fetch_part` of one build run (a form client, or None)."""
+        return None
+
+    def manifest_fields(self, design: ProductDesign) -> dict:
+        """The family's top-level MANIFEST fields (source_class, note,
+        format, physics); parts, identity, and schema are the loop's."""
+        family = design.family
+        from stellariso.registry import references
+
+        return {"references": [r.citation for r in references(family)]}
 
     def report_header(self, designs: list[ProductDesign]) -> list[str]:
         """The source's declaration lines for the status report."""
@@ -247,6 +281,11 @@ def register_adapter(adapter: FamilyAdapter) -> None:
     if not adapter.family:
         raise ValueError("adapter must declare its family name")
     _ADAPTERS[adapter.family] = adapter
+
+
+def unregister_adapter(family: str) -> None:
+    """Remove one family's adapter (tests and third-party teardown)."""
+    _ADAPTERS.pop(family, None)
 
 
 def _ensure_builtin() -> None:

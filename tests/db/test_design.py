@@ -27,6 +27,7 @@ class _FakeAdapter(FamilyAdapter):
             ProductDesign(
                 family="fake",
                 collection="c1",
+                release="r1",
                 label="l1",
                 kind="thing",
                 parts=(PartDesign("archive", "a.txz"),),
@@ -35,6 +36,7 @@ class _FakeAdapter(FamilyAdapter):
             ProductDesign(
                 family="fake",
                 collection="c2",
+                release="r2",
                 label="l2",
                 kind="thing",
                 parts=(PartDesign("log", "output.dat"), PartDesign("linear", "output_linear.dat")),

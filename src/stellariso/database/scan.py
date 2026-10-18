@@ -223,11 +223,15 @@ def _scan_product(
     adapter: FamilyAdapter,
     design: ProductDesign,
     directory: Path | None,
+    *,
+    verify: bool = True,
 ) -> ProductScan:
     if directory is not None:
         manifest, warning = _read_product_manifest(directory)
         parts = {
-            part.name: adapter.classify_part(design, part, directory, manifest)
+            part.name: adapter.classify_part(
+                design, part, directory, manifest, verify=verify
+            )
             for part in design.parts
         }
         return ProductScan(design, directory, parts, manifest_warning=warning)
@@ -244,9 +248,17 @@ def _scan_product(
 
 
 def scan_database(
-    database: str | Path, *, families: list[str] | None = None
+    database: str | Path,
+    *,
+    families: list[str] | None = None,
+    verify_checksums: bool = True,
 ) -> DatabaseReport:
-    """Scan a database root against every family's design (two-state)."""
+    """Scan a database root against every family's design (two-state).
+
+    ``verify_checksums=False`` classifies present files without
+    re-hashing them (the rebuild-trust knob); conformance checks still
+    run.
+    """
     root = Path(database)
     report = DatabaseReport(database=root, generated_at=utc_now_iso())
     for family in families if families is not None else adapter_families():
@@ -287,11 +299,17 @@ def scan_database(
         for design in committed:
             entry = located.get(design.key)
             products[design.key] = _scan_product(
-                root, adapter, entry[0] if entry else design, entry[1] if entry else None
+                root,
+                adapter,
+                entry[0] if entry else design,
+                entry[1] if entry else None,
+                verify=verify_checksums,
             )
         for key, (design, directory) in sorted(located.items()):
             if key not in products:
-                products[key] = _scan_product(root, adapter, design, directory)
+                products[key] = _scan_product(
+                    root, adapter, design, directory, verify=verify_checksums
+                )
 
         report.families[family] = FamilyScan(
             family=family,

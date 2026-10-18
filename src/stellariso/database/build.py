@@ -1,294 +1,228 @@
-"""The database build loop (transitional: verbatim behavior of the
-former stellariso/database.py build half).
+"""The universal acquisition loop: complete every committed design.
 
-Stage 2 of the unification replaces this module's loop with the
-universal adapter-driven builder; it lives here meanwhile so the
-package split of stage 1 changes no build behavior. The read side
-(core), the manifest handling (manifest), and the scanner (scan) are
-already the new modules.
+One loop serves every family. It scans first (the two-state scanner),
+then, product by product:
+
+- a product needing review (any nonconforming part, or a directory at
+  the designed path that maps elsewhere) is skipped with a NOTICE — a
+  checksum proves integrity, not design membership, and whether such
+  data is re-fetched is a human decision the status report carries;
+- every missing part of a clean product is fetched through the family
+  adapter (a package download, or one form submission with a polite
+  pause in between);
+- the product's MANIFEST is rewritten as clean v2 — kept parts carry
+  over untouched, fetched parts are added, and the family's own section
+  and identity fields come from the adapter;
+- package products are extracted when the builder is asked to (the
+  archive itself always stays; ``Database.grid`` also extracts on
+  demand, verifying the recorded sha256 first).
+
+Archived data is never overwritten and never deleted: the loop only
+adds what is missing — re-running ``build_database`` completes whatever
+is missing and keeps everything already verified.
 """
 
 from __future__ import annotations
 
-import hashlib
-import json
-import warnings
-from datetime import datetime, timezone
+import time
 from pathlib import Path
 from typing import Iterable
 
-import requests
-
 from stellariso.database.core import _count_data_files, _safe_extract, open_database
+from stellariso.database.design import (
+    FamilyAdapter,
+    ProductDesign,
+    adapter_for,
+    adapter_families,
+)
 from stellariso.database.inventory import write_inventory
-from stellariso.exceptions import SourceUnavailableError
-from stellariso.integrity import sha256_file
-from stellariso.models import catalog
-from stellariso.registry import backend_names, references
-from stellariso.warnings import CatalogSizeMismatchWarning
+from stellariso.database.manifest import read_manifest, strip_legacy, write_manifest
+from stellariso.database.scan import ProductScan, scan_database
 
 __all__ = ["build_database"]
 
-_CHUNK = 1 << 20
-_TIMEOUT_GET = 1800
+
+def _is_submit_family(adapter: FamilyAdapter) -> bool:
+    for design in adapter.committed():
+        for part in design.parts:
+            return adapter.fetch_cost(design, part)["kind"] == "submit"
+    return False
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+def _family_order(families: Iterable[str]) -> list[str]:
+    """Package families first, form families last (downloads up front,
+    the polite submission pacing afterwards)."""
+    ordered = list(families)
+    submits = [f for f in ordered if _is_submit_family(adapter_for(f))]
+    return [f for f in ordered if f not in submits] + submits
 
 
-def _download(url: str, target: Path, session: requests.Session) -> tuple[str, int]:
-    digest = hashlib.sha256()
-    tmp = target.with_suffix(target.suffix + ".part")
-    with session.get(url, stream=True, timeout=_TIMEOUT_GET) as resp:
-        resp.raise_for_status()
-        with open(tmp, "wb") as fh:
-            for chunk in resp.iter_content(chunk_size=_CHUNK):
-                fh.write(chunk)
-                digest.update(chunk)
-    tmp.replace(target)
-    return digest.hexdigest(), target.stat().st_size
-
-
-def _atomic_write_json(path: Path, payload: dict) -> None:
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(
-        json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8", newline="\n"
+def _complete_product(
+    root: Path,
+    adapter: FamilyAdapter,
+    scan: ProductScan,
+    *,
+    session=None,
+    client=None,
+    extract: bool,
+    form_pause: float,
+    log,
+) -> None:
+    """Fetch the missing parts of one clean product and write its v2
+    MANIFEST (kept parts carry over untouched)."""
+    design = scan.design
+    directory = root / design.relative_dir
+    directory.mkdir(parents=True, exist_ok=True)
+    manifest = (
+        read_manifest(directory / "MANIFEST.json")
+        if (directory / "MANIFEST.json").exists()
+        else {}
     )
-    tmp.replace(path)
+    parts = dict(manifest.get("parts") or {})
+    fetched = False
+    for part in design.parts:
+        if part.name not in scan.missing_parts:
+            continue
+        parts[part.name] = adapter.fetch_part(
+            design, part, directory, session=session, client=client, log=log
+        )
+        fetched = True
+        if _is_submit_family(adapter):
+            time.sleep(form_pause)
+    if adapter.extracts:
+        n_data_files = _count_data_files(directory)
+        if extract and (fetched or n_data_files == 0) and parts:
+            for archive in sorted(directory.iterdir()):
+                if archive.is_file() and archive.suffix.lower() in (".txz", ".zip", ".tar"):
+                    _safe_extract(archive, directory)
+            n_data_files = _count_data_files(directory)
+        manifest["n_data_files"] = n_data_files
+        manifest["extracted"] = n_data_files > 0
+    manifest["parts"] = parts
+    payload = strip_legacy(dict(manifest))
+    payload.update(
+        {
+            "family": design.family,
+            "release": design.release,
+            "label": design.label,
+            "kind": design.kind,
+        }
+    )
+    payload.update(adapter.manifest_fields(design))
+    section = adapter.family_section(design)
+    if section is not None:
+        payload["family_section"] = section
+    write_manifest(directory / "MANIFEST.json", payload)
 
 
-def _product_target(database: Path, family: str, release: str, label: str) -> Path:
-    return database / family / release / label
+def _dry_run(root: Path, families: list[str], log) -> None:
+    report = scan_database(root, families=families)
+    for family in families:
+        adapter = adapter_for(family)
+        fam = report.families[family]
+        fetches = fam.auto_fetches()
+        submit = _is_submit_family(adapter)
+        # per-product missing lines: always for package families, and for
+        # form families once their root exists (a measured database — a
+        # fresh one would list every pending cell)
+        if fetches and (not submit or (root / family).is_dir()):
+            by_design: dict[str, list[str]] = {}
+            for scan, part_name in fetches:
+                by_design.setdefault(scan.design.relative_dir, []).append(part_name)
+            for rel in sorted(by_design):
+                log(f"{rel}: {', '.join(sorted(by_design[rel]))} missing")
+        review = fam.review_products()
+        if review:
+            log(
+                f"{family}: {len(review)} product(s) NOT in the automatic plan "
+                "(manual review; never auto-refetched):"
+            )
+            for scan in review:
+                log(f"  {scan.design.relative_dir}: {scan.detail()}")
+        if submit:
+            designed_count = fam.designed_count
+            log(
+                f"{family}: {len(fam.committed_keys)} fetch-stage cells "
+                f"({designed_count:,} designed), {len(fetches)} form submissions "
+                "to the fetch-stage target"
+            )
+        else:
+            committed = list(adapter.committed())
+            total = sum(d.facts.get("size_bytes") or 0 for d in committed)
+            log(
+                f"{family}: {len(committed)} package product(s), {total:,} bytes "
+                f"total ({total / 1e9:.1f} GB)"
+            )
 
 
 def build_database(
     database: str | Path,
     models: Iterable[str] | None = None,
-    session: requests.Session | None = None,
+    session=None,
     verify_existing: bool = True,
     dry_run: bool = False,
     extract: bool = True,
     form_pause: float = 5.0,
+    log=print,
 ):
-    """Build (or complete) a local database with the full published matrix.
-
-    Package products (every release and parameter set a source publishes
-    as an official package) are downloaded, checksummed, extracted, and
-    recorded in a per-product MANIFEST. Form products (a source whose
-    only isochrone channel is an official computation service — the
-    PARSEC CMD web form) are built from that source's declared
-    acquisition blueprint: each fetch-stage cell submits its two age
-    grids as separate jobs into one cell directory, verifies the
-    server's header echo, and archives both tables with their complete
-    acquisition records (exact payload, timestamps, sha256) and one
-    extended cell MANIFEST. Products already present with a matching
-    checksum are never re-acquired, whichever the channel — a form job
-    is server-side compute, so re-running the build only completes what
-    is missing. Cells whose archived log-age half does not conform to
-    the design are skipped with a notice, never patched or overwritten
-    (``tools/parsec/blueprint_status.py`` is the review artifact).
+    """Build (or complete) a local database with every family's design.
 
     ``models`` limits the build to the given families (default: all).
-    ``dry_run=True`` only reports what would be fetched. With
-    ``extract=False`` only the official archives are kept (the complete,
-    self-contained backup); ``Database.grid`` extracts a product on first
-    open, verifying the archive's sha256 first — the right mode when the
-    disk cannot hold the extracted form of every package at once (the
-    extracted size is several times the archive size). ``form_pause``
-    seconds are waited between consecutive form jobs (the service is a
+    ``dry_run=True`` reports the plan — missing parts of clean products
+    per family, with the manual-review list separate — and touches
+    nothing. ``session`` is used as given for every family; otherwise
+    each family's own default session applies (a declared CA bundle is
+    honored). ``verify_existing=False`` classifies present files without
+    re-hashing them (the rebuild-trust knob). With ``extract=False``
+    only the official archives are kept (the complete, self-contained
+    backup); ``Database.grid`` extracts a product on first open,
+    verifying the archive's sha256 first — the right mode when the disk
+    cannot hold the extracted form of every package at once. The
+    archive always stays alongside any extraction. ``form_pause``
+    seconds are waited after every form submission (the service is a
     small public host; the default keeps submissions polite).
     """
     root = Path(database)
-    families = list(models) if models is not None else list(backend_names())
-
-    catalogs = {family: catalog(family) for family in families}
-    for family, cat in catalogs.items():
-        if cat.get("channel") == "manual":
-            _fail_manual(root, family, cat)
-        if cat.get("channel") == "form":
-            families = [f for f in families if f != family] + [family]
-
-    jobs = []
-    for family in families:
-        cat = catalogs[family]
-        if cat.get("channel") == "form":
-            continue  # acquired through the blueprint below
-        for release_entry in cat["releases"]:
-            for product in release_entry["products"]:
-                jobs.append((family, release_entry, product))
+    families = _family_order(
+        list(models) if models is not None else list(adapter_families())
+    )
 
     if dry_run:
-        total = 0
-        missing_size = 0
-        for family, release_entry, product in jobs:
-            size = product.get("size_bytes")
-            if size is None:
-                missing_size += 1
-                size_text = "size unknown"
-            else:
-                total += size
-                size_text = f"{size:,} bytes"
-            print(f"{family}/{release_entry['release']}/{product['label']}  {size_text}")
-        print(
-            f"{len(jobs)} package product(s), {total:,} bytes total "
-            f"({total / 1e9:.1f} GB, {missing_size} with unknown size)"
-        )
-        for family, cat in catalogs.items():
-            if cat.get("channel") == "form":
-                from stellariso.models.parsec.build import fetch_plan
-
-                plan = fetch_plan(root if root.exists() else None)
-                print(
-                    f"{family}: {plan['target_cells']} fetch-stage cells "
-                    f"({sum(v['designed_cells'] for v in plan['sets'].values())} "
-                    f"designed), {plan['submissions_to_target']} form submissions "
-                    "to the fetch-stage target"
-                )
+        _dry_run(root, families, log)
         return None
 
     root.mkdir(parents=True, exist_ok=True)
-    sessions = _sessions(root, families, session)
+    report = scan_database(root, families=families, verify_checksums=verify_existing)
 
-    for family, release_entry, product in jobs:
-        _build_product(
-            root, family, release_entry["release"], product,
-            sessions[family], verify_existing, extract=extract,
-        )
-
-    for family, cat in catalogs.items():
-        if cat.get("channel") == "form":
-            from stellariso.models.parsec.build import build_blueprint
-
-            build_blueprint(root, pause=form_pause)
+    for family in families:
+        adapter = adapter_for(family)
+        fam = report.families[family]
+        fam_session = session if session is not None else adapter.default_session(root)
+        client = adapter.fetch_client(session=fam_session)
+        for key in sorted(fam.products):
+            if key not in fam.committed_keys:
+                continue  # beyond the committed target: never fetched
+            scan = fam.products[key]
+            if scan.needs_review:
+                log(
+                    f"NOTICE {scan.design.relative_dir}: {scan.detail()}; "
+                    "product left untouched (manual review)"
+                )
+                continue
+            if not scan.missing_parts:
+                log(f"keep verified {scan.design.relative_dir}")
+                continue
+            _complete_product(
+                root,
+                adapter,
+                scan,
+                session=fam_session,
+                client=client,
+                extract=extract,
+                form_pause=form_pause,
+                log=log,
+            )
+            log(f"fetched {scan.design.relative_dir}")
 
     write_inventory(root)
     return open_database(root)
-
-
-def _fail_manual(database: Path, family: str, cat: dict) -> None:
-    raise SourceUnavailableError(
-        f"{family} publishes no downloadable packages: {cat.get('manual_note', '')} "
-        f"(full procedure: docs/data-sources.md). Obtain the files, put them "
-        f"under {database / family}, and create their MANIFESTs with "
-        "stellariso.register_local_product()."
-    )
-
-
-def _default_session() -> requests.Session:
-    s = requests.Session()
-    s.headers["User-Agent"] = "stellariso (isochrone database builder)"
-    return s
-
-
-def _sessions(
-    database: Path, families: list[str], session: requests.Session | None
-) -> dict[str, requests.Session]:
-    """One session per family: an explicit session is used as given; default
-    sessions honor a family's declared CA bundle (hosts whose TLS chain
-    omits an intermediate — currently stev.oapd.inaf.it — get the bundled
-    intermediate appended to the standard trust store, so verification
-    stays ON instead of being switched off)."""
-    if session is not None:
-        return {family: session for family in families}
-
-    sessions = {}
-    for family in families:
-        s = _default_session()
-        bundle_name = catalog(family).get("ca_bundle")
-        if bundle_name:
-            s.verify = str(_ca_bundle(database, family, bundle_name))
-        sessions[family] = s
-    return sessions
-
-
-def _ca_bundle(database: Path, family: str, name: str) -> Path:
-    import certifi
-
-    model_dir = Path(__file__).parent.parent / "models" / family
-    intermediate = model_dir / name
-    if not intermediate.exists():
-        raise SourceUnavailableError(
-            f"catalog of {family!r} declares CA bundle {name!r}, which is "
-            f"missing from {model_dir}"
-        )
-    tls_dir = database / ".tls"
-    tls_dir.mkdir(parents=True, exist_ok=True)
-    combined = tls_dir / f"{family}-ca-bundle.pem"
-    combined.write_bytes(
-        Path(certifi.where()).read_bytes() + b"\n" + intermediate.read_bytes()
-    )
-    return combined
-
-
-def _build_product(
-    database: Path,
-    family: str,
-    release: str,
-    product: dict,
-    session: requests.Session | None,
-    verify_existing: bool,
-    extract: bool = True,
-) -> None:
-    target_dir = _product_target(database, family, release, product["label"])
-    target_dir.mkdir(parents=True, exist_ok=True)
-    archive = target_dir / product["filename"]
-    manifest_path = target_dir / "MANIFEST.json"
-    manifest = (
-        json.loads(manifest_path.read_text(encoding="utf-8"))
-        if manifest_path.exists()
-        else {}
-    )
-
-    fresh = False
-    if archive.exists():
-        recorded = manifest.get("sha256")
-        if recorded and (not verify_existing or sha256_file(archive) == recorded):
-            print(f"keep verified {family}/{release}/{product['label']}")
-            sha = recorded
-            size = manifest.get("size_bytes")
-        else:
-            sha, size = _download(product["url"], archive, session)
-            fresh = True
-    else:
-        sha, size = _download(product["url"], archive, session)
-        fresh = True
-
-    expected = product.get("size_bytes")
-    if expected is not None and fresh and size != expected:
-        warnings.warn(
-            f"{family}/{release}/{product['label']}: downloaded {size:,} bytes "
-            f"but the release catalog recorded {expected:,} bytes; the "
-            "upstream file may have been replaced",
-            CatalogSizeMismatchWarning,
-            stacklevel=2,
-        )
-
-    n_data_files = _count_data_files(target_dir)
-    if extract and (fresh or n_data_files == 0):
-        _safe_extract(archive, target_dir)
-        n_data_files = _count_data_files(target_dir)
-
-    manifest.update(
-        {
-            "family": family,
-            "release": release,
-            "label": product["label"],
-            "kind": product["kind"],
-            "physics": product.get("physics"),
-            "url": product["url"],
-            "sha256": sha,
-            "size_bytes": size,
-            "expected_size_bytes": product.get("size_bytes"),
-            "n_data_files": n_data_files,
-            "extracted": n_data_files > 0,
-            "retrieved_at": manifest.get("retrieved_at") if not fresh else _now_iso(),
-            "source_class": "official_origin",
-            "note": catalog(family).get(
-                "source_note", "official published package"
-            ),
-            "format": product.get("format"),
-            "references": [r.citation for r in references(family)],
-        }
-    )
-    _atomic_write_json(manifest_path, manifest)
