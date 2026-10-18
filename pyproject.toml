@@ -45,6 +45,7 @@ Homepage = "https://github.com/astro-jingtao/stellariso"
 where = ["src"]
 
 [tool.setuptools.package-data]
+"stellariso" = ["skills/**/*"]
 "stellariso.registry" = ["*.json"]
 "stellariso.models.mist" = ["*.json"]
 "stellariso.models.parsec" = ["*.json", "*.crt"]

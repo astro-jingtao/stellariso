@@ -1,0 +1,12 @@
+# External metadata of the stellariso usage skill.
+# Read before deploying; never deployed itself.
+# Schema: skill-forge references/skill-meta.md.
+requires:
+  - kind: python-package
+    name: stellariso
+    note: the skill documents the installed stellariso package; locate the deployment source with stellariso.skill_directory()
+notes:
+  - The deployment source is the installed package tree (site-packages of the environment stellariso was imported from), not a repository checkout.
+  - A linked deployment tracks the installed version — reinstalling or upgrading the package updates the skill through the link; a copied deployment drifts and must be re-copied after every upgrade.
+  - The link target lives inside one environment's site-packages; removing or rebuilding that environment dangles the link. Re-run the guide after switching environments.
+  - The deployment guide ships beside this file at skills/SKILL-DEPLOY.md inside the installation.

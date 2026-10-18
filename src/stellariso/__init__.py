@@ -18,6 +18,7 @@ from stellariso.grid import IsochroneGrid, open_grid
 from stellariso.interp import InterpolationRecord, interpolate_along
 from stellariso.isochrone import Isochrone, IsochroneSet
 from stellariso.native import NativeTable
+from stellariso.skill import skill_directory
 from stellariso.provenance import (
     DataAsset,
     Provenance,
@@ -63,6 +64,8 @@ __all__ = [
     # interpolation
     "InterpolationRecord",
     "interpolate_along",
+    # shipped skill
+    "skill_directory",
     # errors
     "StellarIsoError",
 ]

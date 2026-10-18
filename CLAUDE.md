@@ -26,3 +26,8 @@ README and the `docs/` tree; consult them before editing:
   transformation must be recorded in provenance objects.
 - Public API surface is re-exported from `stellariso/__init__.py`; keep the
   `__all__` list in sync.
+- The package ships a Claude Agent Skill documenting its usage
+  (`src/stellariso/skills/`, installed as package data and exposed by
+  `stellariso.skill_directory()`; never deployed by the installation
+  itself). When the public API changes, update the skill in the same
+  change so the shipped documentation stays true.

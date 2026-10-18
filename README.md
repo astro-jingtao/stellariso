@@ -34,6 +34,26 @@ pip install .
 
 Requires Python >= 3.10, numpy, astropy, scipy, and requests.
 
+## Claude Agent Skill
+
+The package ships a Claude Agent Skill that teaches coding agents how
+to use stellariso — entry points, selection and interpolation
+semantics, the database workflow, the PARSEC form client. It is
+installed with the package as ordinary package data and deployed
+nowhere on its own; deploying it is an explicit choice:
+
+```python
+import stellariso
+
+stellariso.skill_directory()   # the shipped skill's directory
+```
+
+Link or copy that directory into a skills directory (for example
+`~/.claude/skills/stellariso`) to make it available to Claude Code;
+the deployment guide shipped beside it (`stellariso/skills/SKILL-DEPLOY.md`
+inside the installation) describes the procedure and its upgrade
+semantics.
+
 ## Quick start
 
 ```python
