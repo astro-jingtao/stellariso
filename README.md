@@ -128,13 +128,40 @@ Every product directory keeps the downloaded archive, the extracted
 files, and a `MANIFEST.json` recording the exact URL, sha256, size,
 retrieval time, file-format notes, and the literature to cite; the
 database root carries an inventory (`database.json`), a human `README.md`
-with format notes and citations, and a snapshot of the
-[unified-parameters](docs/unified-parameters.md) documentation. The
-database is therefore self-contained — with both model websites gone, the
-data and its meaning remain interpretable — and portable: the whole
-database, or any subset of its product directories, can be copied to
-another machine and opened there. Verified products are never
-re-downloaded; re-running the build completes whatever is missing.
+with format notes and citations, a snapshot of the
+[unified-parameters](docs/unified-parameters.md) documentation, and the
+two-state status report (`db_status.md`/`.json`). The database is
+therefore self-contained — with both model websites gone, the data and
+its meaning remain interpretable — and portable: the whole database, or
+any subset of its product directories, can be copied to another machine
+and opened there. Verified products are never re-downloaded; re-running
+the build completes whatever is missing, and never overwrites what is
+already archived.
+
+Moving a database (or a selection of it) between machines is a
+first-class operation — `tools/db_transfer.py` writes an export plan
+(every file of the selected products, checksums included), assembles
+the rsync transport, verifies the receiving copy, and merges one local
+database into another through a pure-copy channel; historical
+MANIFEST shapes stay readable, and one command upgrades a whole
+database to the current schema. The full machinery — concepts, the
+two-state model, invariants, operations — is expanded in
+[docs/database.md](docs/database.md):
+
+```bash
+python tools/db_status.py <db>                        # two-state status, all families
+python tools/db_transfer.py export <db> --name pick --families parsec --mh "-1.0:0.0"
+python tools/db_transfer.py rsync <db> --name pick --destination user@host:/path/db/
+python tools/db_transfer.py merge <source-db> <target-db>
+python tools/db_transfer.py verify <db> --plan <db>/export/pick/transfer.json
+python tools/db_transfer.py refresh <db>
+python tools/db_transfer.py migrate-manifests <db> --apply
+```
+
+```python
+stellariso.merge_database("subset-db", "target-db")   # the copy channel, from Python
+stellariso.refresh_database("target-db")              # regenerate the root artifacts
+```
 
 What the sources publish (verified live 2026-10-11/10-15; all sizes exact):
 
@@ -157,8 +184,8 @@ What the sources publish (verified live 2026-10-11/10-15; all sizes exact):
   secondary sets sparsely first): 471 cells, 942 submissions. Every
   archived table keeps its exact complete payload and the server's own
   header echo, so the identical request can be replayed;
-  `tools/parsec/blueprint_status.py` measures any database against the
-  blueprint and marks what is complete, pending, or to be re-fetched.
+  `tools/db_status.py` measures any database against the blueprint and
+  reports each product as complete or incomplete, part by part.
 
 See [docs/data-sources.md](docs/data-sources.md) for the full source
 registry, verification dates, and known caveats.
@@ -176,6 +203,10 @@ registry, verification dates, and known caveats.
 
 - [Architecture](docs/architecture.md) — the two-layer model, the
   registry, the database, parameters, provenance, backends.
+- [Database management](docs/database.md) — the local database's whole
+  machinery: designs and family adapters, the two-state model, the v2
+  MANIFEST and its upgrade, build/status/refresh, merge, export,
+  verify, and the rsync transport.
 - [Data sources](docs/data-sources.md) — verified upstream sources and
   their caveats.
 - [The CMD 3.9 web form](docs/parsec/cmd-form.md) — the complete wire-level
@@ -183,7 +214,7 @@ registry, verification dates, and known caveats.
   formats, and the protocol pitfalls.
 - [The PARSEC acquisition blueprint](docs/parsec/blueprint.md) — the
   declared full design of the form-computed database: cells, grids,
-  fixed parameters, fetch tiers, and the completion-report tool.
+  fixed parameters, fetch tiers, and the two-state status report.
 - [Unified parameters](docs/unified-parameters.md) — the unified
   vocabulary and every source's mapping into it, generated from the
   registry data file.

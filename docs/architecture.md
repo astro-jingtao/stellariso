@@ -6,9 +6,9 @@ the objects that carry them.
 
 ```mermaid
 flowchart LR
-    C[release catalog<br/>models/&lt;family&gt;/catalog.json] --> B[build_database<br/>official packages + form jobs]
+    C[family designs<br/>catalog.json / blueprint.py] --> B[build_database<br/>official packages + form jobs]
     W[CMD web form<br/>request layer cmd_form.py] --> B
-    B --> D[local database<br/>MANIFEST per product, self-contained]
+    B --> D[local database<br/>v2 MANIFEST per product, self-contained]
     D --> R[backend reader<br/>models/&lt;family&gt;/reader.py]
     F[user-held file<br/>.iso / CMD table] --> R
     R --> N[NativeTable<br/>verbatim columns, header, facts]
@@ -77,36 +77,31 @@ sync. Built databases carry a snapshot of the same document.
 ## The local database
 
 `stellariso.database` replaces any notion of a cache. A database is one
-directory the user chooses and passes explicitly (`database=...`); there is
-no environment variable and no implicit fallback location.
+directory the user chooses and passes explicitly (`database=...`); there
+is no environment variable and no implicit fallback location.
+`open_database(database=...)` / `Database.grid("mist/1.2", label=...)`
+query it fully offline.
 
-- `build_database(database=...)` acquires, once, the complete published
-  matrix declared in per-family release catalogs
-  (`models/<family>/catalog.json`). Package products are downloaded,
-  kept as the official archives (the database doubles as the offline
-  backup), extracted, and described by a per-product `MANIFEST.json` —
-  source URL, sha256, size, retrieval time, file format, citations.
-  Form products (PARSEC) submit their declared payload through the
-  request-layer client `models/parsec/cmd_form.py`, verify the server's
-  header echo, and archive the table with its complete acquisition
-  record (exact payload, timestamps, checksum) under the
-  `official_computed` source class. Verified products are never
-  re-acquired, whichever the channel — a form job is server-side
-  compute.
-- `open_database(database=...)` / `Database.grid("mist/1.2", label=...)`
-  query the database fully offline.
-- Self-containment: the root carries `database.json` (inventory),
-  `README.md` (summary with format notes and citations), and a
-  `unified-parameters.md` snapshot, so the data stays interpretable with
-  the upstream websites gone.
-- Portability: manifests store relative paths only; the whole database or
-  any subset of its product directories can be copied to another machine
-  and opened there.
+The management machinery is family-agnostic: designs, parts, per-part
+verdicts, and one `FamilyAdapter` per source (the only family-specific
+code) feed a shared scanner, builder, and transfer layer. Products are
+**complete** or **incomplete** — two states; the finer outcomes (which
+part is missing, why a part is off-design) live in per-part verdicts
+with reasons. Every product is described by a v2 `MANIFEST.json`
+(parts with checksums, identity, citations; historical shapes stay
+readable through a bridge), the root carries derived artifacts
+(`database.json`, `README.md`, a `unified-parameters.md` snapshot,
+`db_status.*`) regenerated from the products alone, and any subset of
+the product directories copies to another machine and opens there.
+The full expansion — concepts, invariants, build/status/refresh/
+merge/export/verify, and how a family joins — is
+[docs/database.md](database.md).
 
-A family whose catalog declares no usable channel makes `build_database`
-fail loudly with the manual registration procedure (no current family
-does); `register_local_product` records locally held files with the same
-manifest shape and an explicit `local_user_file` source class.
+A family whose adapter cannot acquire (no usable channel) makes
+`build_database` fail loudly with the manual registration procedure
+(no current family does); `register_local_product` records locally held
+files with the same manifest shape and an explicit `local_user_file`
+source class.
 
 ## Parameters
 

@@ -16,11 +16,6 @@ The report is the review artifact: it plans automatic work (missing
 parts of clean products) and lists what stays with a human
 (nonconforming data, superseded directories). Marked data is never
 deleted or refetched by it.
-
-The historical four-state vocabulary maps onto this exactly —
-``complete`` → complete; ``log_only`` → incomplete (log ok, linear
-missing); ``refetch`` → incomplete with a nonconforming part, manual
-review; ``pending`` → incomplete, all parts missing.
 """
 
 from __future__ import annotations
@@ -379,15 +374,15 @@ def render_markdown(report: DatabaseReport) -> str:
     for family in report.families.values():
         lines.extend(_family_block(family))
     totals = report.totals()
-    fetch_plan = _fetch_plan(report)
+    fetch_summary = _fetch_summary(report)
     lines.extend(
         [
             "## Totals",
             "",
             f"- complete {totals['complete']}, incomplete {totals['incomplete']} "
             f"({totals['needs_review']} needing manual review)",
-            f"- automatic fetch work: {fetch_plan['downloads']} archive downloads "
-            f"({_bytes_text(fetch_plan['bytes'])}), {fetch_plan['submissions']} form "
+            f"- automatic fetch work: {fetch_summary['downloads']} archive downloads "
+            f"({_bytes_text(fetch_summary['bytes'])}), {fetch_summary['submissions']} form "
             "submissions",
             f"- superseded directories: {totals['superseded']}",
             "",
@@ -402,7 +397,7 @@ def _bytes_text(size: int | None) -> str:
     return f"{size:,} bytes" if size is not None else "size unknown"
 
 
-def _fetch_plan(report: DatabaseReport) -> dict:
+def _fetch_summary(report: DatabaseReport) -> dict:
     """The automatic work split by channel, via the adapters' costs."""
     downloads = submissions = 0
     bytes_total: int | None = 0
