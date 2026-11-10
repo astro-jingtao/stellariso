@@ -5,8 +5,7 @@ database. Each source entry states its class following the priority
 order: model-team origin first, official archives second, scientific
 archives third, third-party packages last.
 
-All URL verifications below were performed live on 2026-10-11 (every
-catalog URL is re-checked by `pytest -m network`).
+All URL verifications below were performed live on 2026-10-11 (every catalog URL is re-checked by `pytest -m network`); entries added later carry their own verification status inline.
 
 ## Acquisition policy
 
@@ -29,6 +28,7 @@ catalog URL is re-checked by `pytest -m network`).
   historical host `waps.cfa.harvard.edu/MIST/data/` still resolves but is
   a 302 alias of `https://mist.science/data/` (verified 2026-10-11); the
   catalog uses the canonical URLs.
+- Isochrone products entry page: `https://mist.science/model_grids.html#isochrones` — the packaged model grids page whose isochrone sections link the tarball directories under `/data/` (page verified 200 live 2026-11-10).
 - `/data/` holds exactly two version directories: `tarballs_v1.2/` and
   `tarballs_v2.5/` (no v1.0/v1.1/v2.0 tarballs exist; the older links on
   the resources page are dead upstream).
@@ -83,6 +83,7 @@ published tarballs, so stellariso acquires the packages.
 - Model family: PARSEC (PAdova and TRieste Stellar Evolution Code) with
   the COLIBRI extension for the TP-AGB.
 - Official site: https://stev.oapd.inaf.it.
+- PARSEC tracks database (data portal): `https://stev.oapd.inaf.it/PARSEC/tracks_database.html` — under the `/PARSEC/` directory the CMD form links as "Tables of evolutionary tracks". The track archives reached from it are out of scope; isochrones are acquired through the CMD web form below. URL recorded 2026-11-10: the host was verified live 2026-10-11 (site) and 2026-10-14 (form session), but this page could not be re-opened from the recording machine that day — outbound TLS to the host is reset at the proxy — so the page itself carries no fresh live verification.
 
 ### CMD web form (the isochrone channel)
 
