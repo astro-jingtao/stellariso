@@ -32,7 +32,7 @@ CMD simulation, or stellar-parameter inference.
 pip install .
 ```
 
-Requires Python >= 3.10, numpy, astropy, scipy, and requests.
+Requires Python >= 3.9, numpy, astropy, scipy, and requests.
 
 ## Claude Agent Skill
 

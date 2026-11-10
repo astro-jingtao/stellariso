@@ -40,11 +40,8 @@ def write_inventory(root: Path) -> None:
         ],
     }
     tmp = root / "database.json.tmp"
-    tmp.write_text(
-        json.dumps(inventory, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    with open(tmp, "w", encoding="utf-8", newline="\n") as _f:
+        _f.write(json.dumps(inventory, indent=2, sort_keys=True) + "\n")
     tmp.replace(root / "database.json")
 
     lines = [
@@ -92,13 +89,13 @@ def write_inventory(root: Path) -> None:
             if citation not in seen:
                 seen.add(citation)
                 lines.append(f"- {citation}")
-    (root / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+    with open(root / "README.md", "w", encoding="utf-8", newline="\n") as _f:
+        _f.write("\n".join(lines) + "\n")
 
     from stellariso.registry.docs import render_documentation
 
-    (root / "unified-parameters.md").write_text(
-        render_documentation(), encoding="utf-8", newline="\n"
-    )
+    with open(root / "unified-parameters.md", "w", encoding="utf-8", newline="\n") as _f:
+        _f.write(render_documentation())
 
 
 def refresh_database(database: str | Path, *, log=print) -> None:
@@ -118,12 +115,8 @@ def refresh_database(database: str | Path, *, log=print) -> None:
         raise NotADirectoryError(f"{root} is not a database directory")
     write_inventory(root)
     report = scan_database(root)
-    (root / "db_status.md").write_text(
-        render_markdown(report), encoding="utf-8", newline="\n"
-    )
-    (root / "db_status.json").write_text(
-        json.dumps(report_json(report), indent=2, ensure_ascii=True) + "\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    with open(root / "db_status.md", "w", encoding="utf-8", newline="\n") as _f:
+        _f.write(render_markdown(report))
+    with open(root / "db_status.json", "w", encoding="utf-8", newline="\n") as _f:
+        _f.write(json.dumps(report_json(report), indent=2, ensure_ascii=True) + "\n")
     log(f"refreshed database.json, README.md, unified-parameters.md, db_status.* at {root}")

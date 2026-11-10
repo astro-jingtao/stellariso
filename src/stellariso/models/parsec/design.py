@@ -200,11 +200,8 @@ class ParsecAdapter(FamilyAdapter):
                 f"contain {expected!r}; echo was {list(out.comment_lines[:4])}"
             )
         (directory / table).write_bytes(out.content)
-        (directory / (table + ".record.json")).write_text(
-            json.dumps(out.record(), indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-            newline="\n",
-        )
+        with open(directory / (table + ".record.json"), "w", encoding="utf-8", newline="\n") as _f:
+            _f.write(json.dumps(out.record(), indent=2, sort_keys=True) + "\n")
         return {
             "file": table,
             "sha256": out.sha256,

@@ -66,9 +66,8 @@ def main(argv: list[str] | None = None) -> int:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(out.content)
     record_path = target.with_name(target.name + ".record.json")
-    record_path.write_text(
-        json.dumps(out.record(), indent=2) + "\n", encoding="utf-8", newline="\n"
-    )
+    with open(record_path, "w", encoding="utf-8", newline="\n") as _f:
+        _f.write(json.dumps(out.record(), indent=2) + "\n")
     print(f"wrote {target} and {record_path}")
     return 0
 

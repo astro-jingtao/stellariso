@@ -57,7 +57,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(rendered, encoding="utf-8", newline="\n")
+    with open(args.output, "w", encoding="utf-8", newline="\n") as _f:
+        _f.write(rendered)
     print(f"wrote {args.output}")
     return 0
 

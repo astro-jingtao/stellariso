@@ -70,7 +70,8 @@ def main() -> None:
             out.append(" ".join(row))
     out.append("#isochrone terminated")
 
-    TARGET.write_text("\n".join(out) + "\n", encoding="utf-8", newline="\n")
+    with open(TARGET, "w", encoding="utf-8", newline="\n") as _f:
+        _f.write("\n".join(out) + "\n")
     print(f"wrote {TARGET} ({len(BLOCKS)} blocks x {len(rows)} rows)")
 
 

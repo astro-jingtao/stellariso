@@ -100,11 +100,8 @@ def main() -> None:
     catalog = dict(STATIC)
     catalog["releases"] = [_release_entry(ts) for ts in bp.TRACK_SETS.values()]
     n = sum(len(r["products"]) for r in catalog["releases"])
-    CATALOG.write_text(
-        json.dumps(catalog, indent=2, ensure_ascii=True) + "\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    with open(CATALOG, "w", encoding="utf-8", newline="\n") as _f:
+        _f.write(json.dumps(catalog, indent=2, ensure_ascii=True) + "\n")
     print(f"wrote {CATALOG} with {n} products in {len(catalog['releases'])} releases")
 
 

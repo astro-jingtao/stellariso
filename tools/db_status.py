@@ -59,13 +59,11 @@ def main(argv: list[str] | None = None) -> int:
         print(render_markdown(report), end="")
     else:
         markdown_path = args.database / "db_status.md"
-        markdown_path.write_text(render_markdown(report), encoding="utf-8", newline="\n")
+        with open(markdown_path, "w", encoding="utf-8", newline="\n") as _f:
+            _f.write(render_markdown(report))
         json_path = args.database / "db_status.json"
-        json_path.write_text(
-            json.dumps(report_json(report), indent=2, ensure_ascii=True) + "\n",
-            encoding="utf-8",
-            newline="\n",
-        )
+        with open(json_path, "w", encoding="utf-8", newline="\n") as _f:
+            _f.write(json.dumps(report_json(report), indent=2, ensure_ascii=True) + "\n")
         print(render_summary(report))
         print(f"wrote {markdown_path} and {json_path}")
     return 0

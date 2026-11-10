@@ -184,9 +184,8 @@ def write_manifest(path: Path, manifest: dict) -> None:
     payload = dict(manifest)
     payload["schema"] = SCHEMA
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(
-        json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8", newline="\n"
-    )
+    with open(tmp, "w", encoding="utf-8", newline="\n") as _f:
+        _f.write(json.dumps(payload, indent=2, sort_keys=True))
     tmp.replace(path)
 
 

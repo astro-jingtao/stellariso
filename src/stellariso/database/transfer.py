@@ -459,26 +459,18 @@ def export_database(
 
     outdir.mkdir(parents=True)
     plan_rel_dir = f"export/{name}"
-    (outdir / "transfer.json").write_text(
-        json.dumps(plan, indent=2, ensure_ascii=True) + "\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    with open(outdir / "transfer.json", "w", encoding="utf-8", newline="\n") as _f:
+        _f.write(json.dumps(plan, indent=2, ensure_ascii=True) + "\n")
     rsync_lines = [e["family"] + "/" + e["collection"] + "/" + e["label"] for e in entries]
     rsync_lines.append(f"{plan_rel_dir}/transfer.json")
-    (outdir / "files.rsync").write_text(
-        "\n".join(rsync_lines) + "\n", encoding="utf-8", newline="\n"
-    )
+    with open(outdir / "files.rsync", "w", encoding="utf-8", newline="\n") as _f:
+        _f.write("\n".join(rsync_lines) + "\n")
     txt_lines = [f["path"] for e in entries for f in e["files"]]
     txt_lines.append(f"{plan_rel_dir}/transfer.json")
-    (outdir / "files.txt").write_text(
-        "\n".join(txt_lines) + "\n", encoding="utf-8", newline="\n"
-    )
-    (outdir / "README.md").write_text(
-        _export_readme(root, name, plan),
-        encoding="utf-8",
-        newline="\n",
-    )
+    with open(outdir / "files.txt", "w", encoding="utf-8", newline="\n") as _f:
+        _f.write("\n".join(txt_lines) + "\n")
+    with open(outdir / "README.md", "w", encoding="utf-8", newline="\n") as _f:
+        _f.write(_export_readme(root, name, plan))
     log(
         f"exported {len(entries)} product(s), {total_files} file(s), "
         f"{total_bytes:,} bytes to {outdir}"
