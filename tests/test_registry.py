@@ -45,8 +45,9 @@ class TestRegistryData:
     def test_loads_and_lists_backends_and_products(self):
         reg = load_registry()
         assert reg["schema_version"] == 3
-        assert set(backend_names()) == {"mist", "parsec"}
+        assert set(backend_names()) == {"mist", "padova", "parsec"}
         assert product_names("mist") == ("isochrones",)
+        assert product_names("padova") == ("isochrones_2000", "isochrones_1994")
         assert set(product_names("parsec")) == {"cmd_table", "cmd_table_3_9"}
 
     def test_unified_vocabulary_present(self):

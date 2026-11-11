@@ -1,0 +1,128 @@
+{
+  "family": "padova",
+  "channel": "archive",
+  "source_note": "Static CDS/VizieR catalog archives, not the model team's site: padova/1994 = J/A+AS/106/275 (Bertelli et al. 1994), padova/2000 = J/A+AS/141/371 (Girardi et al. 2000); the original host pleiadi.pd.astro.it is effectively dead. The canonical catalog host (cdsarc.cds.unistra.fr) is unreachable from this network (proxy CONNECT tunnel hangs, verified 2026-11-10); the ADAC mirror's native tree over plain HTTP is the verified channel, and the CfA mirror carries no native tree. Upstream publishes no checksums; the sha256 values below were computed at download and re-verified identical on 2026-11-10 and 2026-11-12.",
+  "mirror_base": "http://vizier.nao.ac.jp/ftp/cats",
+  "canonical_base": "https://cdsarc.cds.unistra.fr/ftp/cats",
+  "scope_note": "The isochrone tables of each catalog only. The track tables (mstracks, hbtracks), surface-composition tables, SSP integrated colors, and the postscript print versions of the 1994 tables are out of scope: stellariso consumes isochrones, and the pst files are a print rendering of tables already acquired. Both catalogs are acquired whole in their in-scope parts (each directory is well under 5 MB compressed).",
+  "excluded": [
+    "J/A+AS/141/371 mstracks.dat.gz, hbtracks.dat.gz, surfcomp.dat.gz, sspcolor.dat.gz: evolutionary tracks, surface compositions, and SSP colors are out of scope (isochrone product only)",
+    "J/A+AS/106/275 z0004.pst..z05.pst: postscript print renderings of table1..table6 (duplicate format of in-scope data)"
+  ],
+  "format_notes": {
+    "isochrones_2000": "isochron.dat: fixed-width Lrecl 142, no comment header; one row per isochrone point, grid axes (Overshoot, Z, age) carried as columns; blocks are consecutive rows of one (Overshoot, Z, age). isochsum.dat: fixed-width Lrecl 94, characteristic points per isochrone with G1 stage labels — the companion the derived phase field requires.",
+    "isochrones_1994": "table1..table6: fixed-width Lrecl 106, no comment header, one file per published (Z, Y); the rows state neither composition nor release — the canonical file names carry the composition per the catalog ReadMe's file list, and ages run oldest-first within each file."
+  },
+  "releases": [
+    {
+      "release": "1994",
+      "products": [
+        {
+          "label": "vizier_tables",
+          "kind": "isochrones",
+          "format": "isochrones_1994",
+          "physics": {
+            "compositions": {
+              "table1": [0.0004, 0.23],
+              "table2": [0.001, 0.23],
+              "table3": [0.004, 0.24],
+              "table4": [0.008, 0.25],
+              "table5": [0.02, 0.28],
+              "table6": [0.05, 0.352]
+            },
+            "note": "single Y per Z (no Z-Y plane in the isochrone tables); table2 from Huebner 1977 opacities, the rest Iglesias 1992"
+          },
+          "files": [
+            {
+              "part": "readme",
+              "filename": "ReadMe",
+              "url": "http://vizier.nao.ac.jp/ftp/cats/J/A+AS/106/275/ReadMe",
+              "size_bytes": 5981,
+              "sha256": "03ba1ec77ab7c79629d0a470c99e78cfcbda56411f4b8bc1f66d62fffa879070"
+            },
+            {
+              "part": "table1",
+              "filename": "table1.gz",
+              "url": "http://vizier.nao.ac.jp/ftp/cats/J/A+AS/106/275/table1.gz",
+              "size_bytes": 121897,
+              "sha256": "4c43fe832694e2041e8b71bf750772ba672cf61a44d18111adec294b079d067f"
+            },
+            {
+              "part": "table2",
+              "filename": "table2.gz",
+              "url": "http://vizier.nao.ac.jp/ftp/cats/J/A+AS/106/275/table2.gz",
+              "size_bytes": 115575,
+              "sha256": "5a261a4fd09158dfbc032c834135b55416d8f120860c740f931c55155f53f3de"
+            },
+            {
+              "part": "table3",
+              "filename": "table3.gz",
+              "url": "http://vizier.nao.ac.jp/ftp/cats/J/A+AS/106/275/table3.gz",
+              "size_bytes": 131922,
+              "sha256": "8bea70e6d93c28fd768ebde65f4a57d2d1c426423705eddb66623f3bcfdea497"
+            },
+            {
+              "part": "table4",
+              "filename": "table4.gz",
+              "url": "http://vizier.nao.ac.jp/ftp/cats/J/A+AS/106/275/table4.gz",
+              "size_bytes": 134121,
+              "sha256": "973151721ce558210c8635258d25c07069e8a75faf7c932d301a15dea38aebb8"
+            },
+            {
+              "part": "table5",
+              "filename": "table5.gz",
+              "url": "http://vizier.nao.ac.jp/ftp/cats/J/A+AS/106/275/table5.gz",
+              "size_bytes": 132222,
+              "sha256": "1c49e7d119ae2a3d96b0acd6001b642be956644dcb1cd63b1c4f25b7d90376be"
+            },
+            {
+              "part": "table6",
+              "filename": "table6.gz",
+              "url": "http://vizier.nao.ac.jp/ftp/cats/J/A+AS/106/275/table6.gz",
+              "size_bytes": 129872,
+              "sha256": "f043176ccba89b5cc3ba54118da5cbcb5462e0a0bf8f488f2b31fe888a85262f"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "release": "2000",
+      "products": [
+        {
+          "label": "vizier_tables",
+          "kind": "isochrones",
+          "format": "isochrones_2000",
+          "physics": {
+            "overshoot": "1 across the grid (moderate convective overshoot); 0 = solar-composition comparison set with the classical Schwarzschild criterion",
+            "z_values": [0.0004, 0.001, 0.004, 0.008, 0.019, 0.03],
+            "note": "one Y per Z (0.23/0.23/0.24/0.25/0.273/0.30; solar = [Z=0.019, Y=0.273] per the ReadMe); log(age) 7.80-10.25 step 0.05 per (Overshoot, Z)"
+          },
+          "files": [
+            {
+              "part": "readme",
+              "filename": "ReadMe",
+              "url": "http://vizier.nao.ac.jp/ftp/cats/J/A+AS/141/371/ReadMe",
+              "size_bytes": 14625,
+              "sha256": "a7106ce1bfe370f6f1d54427baab5e9f0a9b2484b3805118fc1615bceb9d50f9"
+            },
+            {
+              "part": "isochron",
+              "filename": "isochron.dat.gz",
+              "url": "http://vizier.nao.ac.jp/ftp/cats/J/A+AS/141/371/isochron.dat.gz",
+              "size_bytes": 2894512,
+              "sha256": "635451374979c4955f3ef6a3fa1fb83eaec56b60356b7a0b1b02186b1b15d61c"
+            },
+            {
+              "part": "isochsum",
+              "filename": "isochsum.dat.gz",
+              "url": "http://vizier.nao.ac.jp/ftp/cats/J/A+AS/141/371/isochsum.dat.gz",
+              "size_bytes": 105869,
+              "sha256": "8c4bd5c220e9bfa73e76c025d80b0f95c630fd45fb46293bf1fb533e9c620816"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

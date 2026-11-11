@@ -18,7 +18,7 @@ from stellariso.grid import IsochroneGrid
 from stellariso.interp import InterpolationRecord
 from stellariso.isochrone import IsochroneSet
 
-__all__ = ["UnifiedIso", "MistIso", "ParsecIso", "construct"]
+__all__ = ["UnifiedIso", "MistIso", "PadovaIso", "ParsecIso", "construct"]
 
 
 class UnifiedIso(IsochroneGrid, ABC):
@@ -162,6 +162,34 @@ class MistIso(UnifiedIso):
         return cls(grid.sets)
 
 
+class PadovaIso(UnifiedIso):
+    """The legacy Padova isochrone archives under the unified interface."""
+
+    model_name = "padova"
+
+    @classmethod
+    def construct(cls, paths=None) -> "PadovaIso":
+        """Load legacy Padova isochrones from local files or directories.
+
+        The two releases live in static CDS/VizieR catalogs, not on the
+        model team's site: ``padova/2000`` is one ``isochron.dat`` (with
+        its ``isochsum.dat`` companion beside it, which the derived
+        phase field requires), ``padova/1994`` is the ``table1``..
+        ``table6`` files whose canonical names carry each table's (Z, Y).
+        Obtain them from the catalogs (a local database built with
+        ``stellariso.build_database`` archives both) and pass the paths.
+        """
+        if paths is None:
+            raise ValueError(
+                "construct('padova/<release>') requires paths= to locally "
+                "held VizieR tables (or a database built with "
+                "stellariso.build_database); the archives are static "
+                "catalog files, never fetched on demand"
+            )
+        grid = IsochroneGrid.from_paths("padova", _as_path_list(paths))
+        return cls(grid.sets)
+
+
 class ParsecIso(UnifiedIso):
     """PARSEC/PADova CMD isochrone tables under the unified interface."""
 
@@ -197,7 +225,7 @@ def _as_path_list(paths) -> list:
     return list(paths)
 
 
-_REGISTRY = {"mist": MistIso, "parsec": ParsecIso}
+_REGISTRY = {"mist": MistIso, "padova": PadovaIso, "parsec": ParsecIso}
 
 
 def construct(

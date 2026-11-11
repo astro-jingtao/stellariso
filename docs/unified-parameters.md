@@ -143,6 +143,97 @@ Field mapping version: `1`.
 - Dotter, A. 2016, ApJS, 222, 8 (bibcode `2016ApJS..222....8D`)
 - Paxton, B., et al. 2011, ApJS, 192, 3 (MESA I) (bibcode `2011ApJS..192....3P`)
 
+## padova (`padova`)
+
+Field mapping version: `1`.
+
+- Sources are the two static CDS/VizieR catalogs, not the model team's site: padova/2000 = J/A+AS/141/371 (Girardi et al. 2000), padova/1994 = J/A+AS/106/275 (Bertelli et al. 1994); the original host pleiadi.pd.astro.it is effectively dead. Both catalogs publish no checksums; sha256 is computed at download and recorded.
+- Neither archive carries per-row evolutionary-stage columns. padova/2000 phases are anchored on the source's own isochsum.dat characteristic points (its G1 stage labels: TO, RGBb, RGBt, BHeb, EHeb, 1TP, AGBt, Cb); padova/1994 phases are derived by documented shape rules over the isochrone's own columns (the archive has no stage vocabulary at all). Both mappings are declared derived and versioned by mapping_version.
+- The files state neither composition nor release in their content: padova/1994 tables carry no header and no Z column, so each table's (Z, Y) comes from the catalog ReadMe's documented file list and the canonical file names table1..table6 are required; padova/2000 carries its Z and Overshoot as columns but its Y-per-Z pairing and the solar identification (Z=0.019) come from the ReadMe text.
+- [Fe/H] is a stellariso-declared conversion under the scaled-solar assumption: [Fe/H] = log10(Z/Z_ref) with each release's own solar Z (padova/2000: Z_ref = 0.019, ReadMe-declared solar composition; padova/1994: Z_ref = 0.02, the solar point of the paper's composition grid). The two references differ and are never shared across releases.
+- padova/2000 isochrones start at the ZAMS and end at the thermally pulsing AGB or carbon ignition (no post-AGB/WD rows); padova/1994 isochrones extend beyond the AGB tip to the white-dwarf stage after the planetary-nebula phase (paper abstract).
+- padova/2000 Mact can exceed Mini by up to ~5e-5 Msun on 1,177 of 64,381 rows — a print-precision artifact of Mact's F6.4 format against Mini's F10.8, not a physics violation; assertions must use the file's precision.
+- padova/1994 current mass M is non-monotonic within an isochrone by construction (ReadMe Note 1: it drops at the RGB-to-ZAHB and AGB-to-post-AGB transitions under the mass-loss prescription); initial_mass is recovered by inverting the tabulated FLUM and is non-decreasing in every published block.
+- padova/1994 star mass is M where Mwind = 0 and Mwind where Mwind > 0 (ReadMe Note 2: for massive stars the actual mass is the wind-reduced value; Mwind is printed only in the youngest isochrones).
+- The Reimers eta of both releases' RGB mass loss is stated in the papers, not in the catalog ReadMes; until extracted from the paper texts it is recorded implicit/not_reported rather than assumed.
+
+### isochrones_2000 (`isochrones_2000`)
+
+#### Field mappings
+
+| Unified field | Native source | Origin | Transformation | Notes |
+|---|---|---|---|---|
+| `initial_mass` | `Mini` | native | — | initial mass of the star whose evolution the row samples (Mini column) |
+| `current_mass` | `Mact` | native | — | actual mass including the mass-loss history (Mact column); can exceed Mini by up to ~5e-5 Msun through F6.4 print rounding |
+| `log_luminosity` | `logL` | native | — | — |
+| `log_effective_temperature` | `logTeff` | native | — | — |
+| `effective_temperature` | `logTeff` | transformed_native | 10 ** x | — |
+| `log_surface_gravity` | `logg` | native | — | — |
+| `phase` | `isochsum.dat Stage anchors` | derived | stage boundaries at the isochsum.dat characteristic-point initial masses of this isochrone (G1 labels): rows below M_TO are main_sequence; subgiant starts at M_TO; red_giant_branch at M_RGBb (or Brg); core_helium_burning at M_RGBt (or Tip, or BHeb); early_asymptotic_giant_branch at M_EHeb; thermally_pulsing_asymptotic_giant_branch at M_1TP. Interior markers (Te-m, Te-M, L-M, L-m) are not boundaries; a missing anchor extends the previous stage; rows beyond the last anchor keep it (massive isochrones end at C-ignition, Cb, and stay in the last AGB stage — the unified vocabulary has no carbon-ignition stage). Requires the isochsum.dat companion next to isochron.dat | — |
+| `native_phase` | — | missing | — | no per-row phase column exists; the source's own stage labels appear only at isochsum.dat characteristic points and anchor the derived phase |
+| `log_radius` | — | missing | — | no radius column is published; log_surface_gravity carries the size information the unified vocabulary needs |
+| `eep` | — | missing | — | isochrones are tabulated in initial mass, not EEPs |
+
+#### Phase mapping
+
+| Native code | Meaning | Unified stage |
+|---|---|---|
+
+#### Physical parameters
+
+| Parameter | Role | Value / source | Notes |
+|---|---|---|---|
+| `log_age` | axis (varies across the published grid) | file values `log_age` | log10(age/yr) as printed per row (F5.2); 7.80 to 10.25, step 0.05, in every (Overshoot, Z) column of the grid |
+| `initial_z` | axis (varies across the published grid) | file values `initial_z` | exact metallicity value of the isochrone (Z column); six published values 0.0004 to 0.03 |
+| `initial_helium` | axis (varies across the published grid) | file values `initial_helium` | one Y per published Z, from the ReadMe description ([0.0004,0.23], [0.001,0.23], [0.004,0.24], [0.008,0.25], [0.019,0.273] solar, [0.03,0.30]); not tabulated in the data file |
+| `overshoot` | axis (varies across the published grid) | file values `overshoot` | the Overshoot column: 1 = models with a moderate amount of convective overshoot (the whole grid), 0 = solar-comparison set computed with the classical Schwarzschild criterion (solar Z only) |
+| `initial_feh` | derived (stated relation) | file values `initial_feh`; relation `log10(initial_z / Z_ref)` (Z_ref=0.019) | scaled-solar conversion anchored on the ReadMe's declared solar composition [Z=0.019, Y=0.273]; the published Z grid has no exact [Fe/H] = -1 or -0.5 point (nearest equivalents -0.677 and -0.376) |
+| `alpha_fe` | fixed (known value for the whole product) | `0.0` | the published composition sets are scaled-solar [Z, Y] pairs; the alpha-enhanced grids of the same generation are a separate publication (Salasnich et al. 2000) |
+| `initial_rotation` | not applicable under this physics | — | the models are non-rotating; no rotation axis exists in this release |
+| `eta_reimers` | implicit (used by the model, not recoverable) | — | RGB mass loss with a Reimers-type law is in the models (Mact carries its history); the efficiency value is stated in the paper text, not in the catalog — record pending paper extraction |
+| `mixing_length` | implicit (used by the model, not recoverable) | — | not_reported |
+
+### isochrones_1994 (`isochrones_1994`)
+
+#### Field mappings
+
+| Unified field | Native source | Origin | Transformation | Notes |
+|---|---|---|---|---|
+| `initial_mass` | `FLUM` | derived | inversion of the tabulated Salpeter luminosity-function integral: FLUM = Mini^(1-alpha)/(1-alpha) with alpha = 2.35 and A = 1 (ReadMe note), so Mini = ((alpha-1) * \|FLUM\|)^(1/(1-alpha)); verified non-decreasing in every published block (the current-mass column is NOT, by construction) | — |
+| `current_mass` | `M, Mwind` | derived | M where Mwind = 0, Mwind where Mwind > 0 (ReadMe Note 2: for massive stars the actual mass is the wind-reduced value; Mwind is tabulated only in the youngest isochrones) | — |
+| `log_luminosity` | `Mbol` | derived | logL = (Mbol_sun - Mbol) / 2.5 with Mbol_sun = 4.77, the zero point of the same group's immediately following release (derivable exactly from Girardi et al. 2000's own paired logL and Mbol columns, spread 1e-3 = print rounding); the 1994 paper's stated constant has not been re-verified from the paper text | — |
+| `log_effective_temperature` | `log(Teff)` | native | — | — |
+| `effective_temperature` | `log(Teff)` | transformed_native | 10 ** x | — |
+| `log_surface_gravity` | `M (or Mwind), Mbol, log(Teff)` | derived | surface-gravity closure from the tabulated quantities: logg = log10(M/Msun) + 4 log10(Teff/Teff_sun) - log10(L/Lsun) + log10(g_sun) with g_sun = 10^4.438 cm/s2, Teff_sun = 5777 K, and L through the declared Mbol_sun = 4.77 chain; the constants are declared by this mapping, not stated by the source | — |
+| `phase` | `shape rules over log(Teff), Mbol, M, FLUM` | derived | documented shape rules per isochrone (the archive publishes no stage vocabulary): main_sequence up to the turnoff, the first log(Teff) maximum followed by a >= 0.1 dex fall (the descent toward the giants; the global maximum would misfire on the youngest isochrones whose stripped Wolf-Rayet tail is hotter than any main-sequence star); red_giant_branch (subgiant not separated, the MIST phase-2 precedent) up to the first logL local maximum followed by a >= 0.15 dex decrease (the RGB tip; the RGB-to-HB mass drop that follows completes it); core_helium_burning until logL re-exceeds that tip luminosity; early_asymptotic_giant_branch until the second current-mass drop (AGB-to-post-AGB, told from the RGB drop by the post-drop luminosity staying within 0.3 dex of the tip); post_agb up to the tail's maximum log(Teff); white_dwarf after it; and wolf_rayet for post-turnoff rows hotter than the turnoff with initial mass above 10 Msun (stripped massive cores — the unified vocabulary's stage for them; nothing else in these isochrones can be both). A block whose chain does not resolve consistently is classified 'unknown' with a warning, never guessed | — |
+| `native_phase` | — | missing | — | the archive publishes no stage vocabulary at all; the derived phase is pure shape analysis of the source's own columns |
+| `log_radius` | — | missing | — | no radius column is published; log_surface_gravity carries the size information the unified vocabulary needs |
+| `eep` | — | missing | — | isochrones are tabulated in luminosity-function order, not EEPs |
+
+#### Phase mapping
+
+| Native code | Meaning | Unified stage |
+|---|---|---|
+
+#### Physical parameters
+
+| Parameter | Role | Value / source | Notes |
+|---|---|---|---|
+| `log_age` | axis (varies across the published grid) | file values `log_age` | log10(age/yr) as printed per row (F6.3); 6.60 to 10.30 across the six tables (one table carries 6.60 to 10.24) |
+| `initial_z` | axis (varies across the published grid) | file values `initial_z` | per-table Z from the catalog ReadMe's file list (the data files state no composition): table1 0.0004, table2 0.001, table3 0.004, table4 0.008, table5 0.02, table6 0.05 — the canonical file names are therefore required |
+| `initial_helium` | axis (varies across the published grid) | file values `initial_helium` | per-table Y from the same ReadMe list: 0.23, 0.23, 0.24, 0.25, 0.28, 0.352; the table2 set is computed with Huebner et al. (1977) opacities, the rest with Iglesias et al. (1992) |
+| `initial_feh` | derived (stated relation) | file values `initial_feh`; relation `log10(initial_z / Z_ref)` (Z_ref=0.02) | scaled-solar conversion anchored on the paper grid's solar composition [Z=0.02, Y=0.28] (the Padova-1994 generation's solar point); differs from padova/2000's 0.019 — each release declares its own |
+| `alpha_fe` | fixed (known value for the whole product) | `0.0` | the published composition sets are scaled-solar [Z, Y] pairs |
+| `initial_rotation` | not applicable under this physics | — | the models are non-rotating; no rotation axis exists in this release |
+| `overshoot` | implicit (used by the model, not recoverable) | — | the convective-overshoot setting of the 1994 isochrone models is described in the paper text, not in the catalog ReadMe |
+| `eta_reimers` | implicit (used by the model, not recoverable) | — | mass loss enters the tabulated current mass (ReadMe Note 1 describes the RGB and TP-AGB prescriptions by paper section); the efficiency values are stated in the paper text, not in the catalog — record pending paper extraction |
+| `mixing_length` | implicit (used by the model, not recoverable) | — | not_reported |
+
+### Scientific references
+
+- Girardi, L., Bressan, A., Bertelli, G., Chiosi, C. 2000, A&AS, 141, 371 (bibcode `2000A&AS..141..371G`)
+- Bertelli, G., Bressan, A., Chiosi, C., Fagotto, F., Nasi, E. 1994, A&AS, 106, 275 (bibcode `1994A%26AS..106..275B`)
+
 ## PARSEC / Padova (`parsec`)
 
 Field mapping version: `1`.

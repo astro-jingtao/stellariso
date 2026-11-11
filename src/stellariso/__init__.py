@@ -13,7 +13,7 @@ from stellariso.database.core import Database, open_database
 from stellariso.database.inventory import refresh_database
 from stellariso.database.transfer import merge_database
 from stellariso.exceptions import StellarIsoError
-from stellariso.facade import MistIso, ParsecIso, UnifiedIso, construct
+from stellariso.facade import MistIso, PadovaIso, ParsecIso, UnifiedIso, construct
 from stellariso.grid import IsochroneGrid, open_grid
 from stellariso.interp import InterpolationRecord, interpolate_along
 from stellariso.isochrone import Isochrone, IsochroneSet
@@ -60,6 +60,7 @@ __all__ = [
     "refresh_database",
     "UnifiedIso",
     "MistIso",
+    "PadovaIso",
     "ParsecIso",
     # interpolation
     "InterpolationRecord",

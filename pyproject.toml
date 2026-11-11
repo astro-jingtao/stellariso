@@ -49,6 +49,7 @@ where = ["src"]
 "stellariso" = ["skills/**/*"]
 "stellariso.registry" = ["*.json"]
 "stellariso.models.mist" = ["*.json"]
+"stellariso.models.padova" = ["*.json"]
 "stellariso.models.parsec" = ["*.json", "*.crt"]
 
 [tool.pytest.ini_options]

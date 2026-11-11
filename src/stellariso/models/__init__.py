@@ -14,6 +14,7 @@ from typing import Callable
 
 from stellariso.exceptions import SourceUnavailableError, UnsupportedModelError
 from stellariso.models.mist.backend import read_mist, recognize_mist
+from stellariso.models.padova.backend import read_padova, recognize_padova
 from stellariso.models.parsec.backend import read_parsec, recognize_parsec
 
 __all__ = ["BACKENDS", "get_backend", "register_backend", "catalog", "parse_model_spec"]
@@ -30,6 +31,9 @@ class Backend:
 
 BACKENDS: dict[str, Backend] = {
     "mist": Backend(name="mist", recognize=recognize_mist, read=read_mist),
+    "padova": Backend(
+        name="padova", recognize=recognize_padova, read=read_padova
+    ),
     "parsec": Backend(
         name="parsec", recognize=recognize_parsec, read=read_parsec
     ),
