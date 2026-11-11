@@ -182,10 +182,24 @@ class FamilyAdapter:
     family: str = ""
     #: package products are archives the builder extracts on fetch
     extracts: bool = False
+    #: suffixes (of the plain, non-.gz name) that count as data files
+    data_suffixes: tuple[str, ...] = (".iso", ".track", ".eep", ".dat")
 
     def designs(self) -> Iterable[ProductDesign]:
         """Every product the source declares for a finished database."""
         raise NotImplementedError
+
+    def is_data_file(self, path: Path) -> bool:
+        """Whether one file of a product directory counts as data.
+
+        Used by the read side to tell a product holding data from an
+        archives-only one (on-demand extraction). Families whose native
+        files carry other names (extension-less tables) override this.
+        """
+        name = path.name.lower()
+        if name.endswith(".gz"):
+            name = name[:-3]
+        return Path(name).suffix in self.data_suffixes or name.endswith(".iso.gz")
 
     def committed(self) -> Iterable[ProductDesign]:
         """The products the current fetch stage commits to acquiring."""
@@ -294,9 +308,11 @@ def _ensure_builtin() -> None:
     if _ADAPTERS:
         return
     from stellariso.models.mist.design import MistAdapter
+    from stellariso.models.padova.design import PadovaAdapter
     from stellariso.models.parsec.design import ParsecAdapter
 
     register_adapter(MistAdapter())
+    register_adapter(PadovaAdapter())
     register_adapter(ParsecAdapter())
 
 

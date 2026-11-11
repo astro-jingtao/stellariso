@@ -302,8 +302,8 @@ class TestAggregates:
         report = scan_database(db)  # empty database
         totals = report.totals()
         assert totals["complete"] == 0
-        assert totals["incomplete"] == 471 + 6  # parsec target + mist packages
-        assert totals["missing_part_fetches"] == 942 + 6  # submissions + downloads
+        assert totals["incomplete"] == 471 + 6 + 2  # parsec target + mist packages + padova archives
+        assert totals["missing_part_fetches"] == 942 + 6 + 10  # submissions + downloads + padova files
         # the mist family of an empty database is 6 missing packages
         assert report.families["mist"].counts() == {"complete": 0, "incomplete": 6}
 
@@ -384,4 +384,4 @@ class TestRendering:
         assert entry["parts"]["linear"]["kind"] == "missing"
         assert machine["families"]["parsec"]["committed"] == 471
         # parsec: 942 - 1 linear landed; mist of the synthetic db: 6 downloads
-        assert machine["totals"]["missing_part_fetches"] == 941 + 6
+        assert machine["totals"]["missing_part_fetches"] == 941 + 6 + 10

@@ -14,7 +14,6 @@ the integrity anchor).
 
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 from typing import Callable, Iterator
 
@@ -25,29 +24,12 @@ from stellariso.database.design import (
     PartVerdict,
     ProductDesign,
 )
-from stellariso.integrity import sha256_file
+from stellariso.integrity import download_file, sha256_file
 from stellariso.models import catalog as load_catalog
 from stellariso.registry import references
 from stellariso.warnings import CatalogSizeMismatchWarning
 
 __all__ = ["MistAdapter"]
-
-_CHUNK = 1 << 20
-_TIMEOUT_GET = 1800
-
-
-def download_file(url: str, target: Path, session) -> tuple[str, int]:
-    """Stream one package to its target; return (sha256, size_bytes)."""
-    digest = hashlib.sha256()
-    tmp = target.with_suffix(target.suffix + ".part")
-    with session.get(url, stream=True, timeout=_TIMEOUT_GET) as resp:
-        resp.raise_for_status()
-        with open(tmp, "wb") as fh:
-            for chunk in resp.iter_content(chunk_size=_CHUNK):
-                fh.write(chunk)
-                digest.update(chunk)
-    tmp.replace(target)
-    return digest.hexdigest(), target.stat().st_size
 
 
 class MistAdapter(FamilyAdapter):

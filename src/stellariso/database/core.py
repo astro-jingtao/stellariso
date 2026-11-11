@@ -183,9 +183,18 @@ class Database:
         extracted size on disk; opening a product verifies the archive
         against the recorded sha256 and extracts it then — the archive
         itself always stays (it is the true original data). Already-
-        extracted and manually-registered products are returned as-is.
+        extracted and manually-registered products are returned as-is
+        (what counts as a data file is the family adapter's call:
+        extension-less native names are data too).
         """
-        if _count_data_files(record.directory) > 0:
+        from stellariso.database.design import adapter_for
+
+        adapter = adapter_for(record.family)
+        if any(
+            adapter.is_data_file(p)
+            for p in record.directory.rglob("*")
+            if p.is_file()
+        ):
             return
         archives = [
             p

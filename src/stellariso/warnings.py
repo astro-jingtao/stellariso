@@ -16,6 +16,7 @@ __all__ = [
     "ThirdPartySourceWarning",
     "ChecksumUnavailableWarning",
     "CatalogSizeMismatchWarning",
+    "CatalogChecksumMismatchWarning",
     "CmdFormDriftWarning",
     "CmdFormOptionWarning",
 ]
@@ -58,6 +59,13 @@ class CatalogSizeMismatchWarning(StellarIsoWarning):
     """A downloaded archive's size differs from the size recorded in the
     release catalog at verification time (the upstream file may have been
     replaced)."""
+
+
+class CatalogChecksumMismatchWarning(StellarIsoWarning):
+    """A downloaded archive hashes to a different checksum than the one
+    recorded in the release catalog at verification time (the upstream
+    file may have been replaced); the download's own recorded sha256
+    remains the integrity anchor."""
 
 
 class CmdFormDriftWarning(StellarIsoWarning):

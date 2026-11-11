@@ -37,6 +37,28 @@ class TestCatalogUrlsLive:
         assert not failures, f"dead catalog URLs: {failures}"
 
 
+class TestPadovaArchiveLive:
+    def test_build_and_open_the_padova_products(self, tmp_path):
+        # the two VizieR archive products are small enough to actually
+        # build live (~3.2 MB total): fetch, MANIFEST, checksums, and a
+        # real grid open — the acquisition design's end-to-end check
+        import stellariso
+
+        db = stellariso.build_database(tmp_path, models=["padova"])
+        for model, n in (("padova/1994", 297), ("padova/2000", 350)):
+            grid = db.grid(model, label="vizier_tables")
+            assert len(grid) == n
+        manifest = (
+            tmp_path / "padova" / "1994" / "vizier_tables" / "MANIFEST.json"
+        ).read_text(encoding="utf-8")
+        assert "4c43fe832694e2041e8b71bf750772ba672cf61a44d18111adec294b079d067f" in manifest
+        assert "J/A+AS/106/275" in manifest
+        iso = db.grid("padova/2000", label="vizier_tables").get_isochrone(
+            method="exact", log_age=9.0, initial_feh=0.0, overshoot=1.0
+        )
+        assert iso.unified["phase"][0] == "main_sequence"
+
+
 class TestCmdFormLive:
     def test_submit_single_isochrone_end_to_end(self):
         # one smallest-possible job: the complete default field set asks for

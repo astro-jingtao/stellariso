@@ -89,7 +89,7 @@ class TestSelection:
 
 class TestRegistry:
     def test_builtin_families_registered(self):
-        assert adapter_families() == ("mist", "parsec")
+        assert adapter_families() == ("mist", "padova", "parsec")
 
     def test_adapter_for_unknown_family(self):
         with pytest.raises(UnsupportedModelError, match="no family adapter"):
@@ -97,9 +97,11 @@ class TestRegistry:
 
     def test_adapters_are_the_family_subclasses(self):
         from stellariso.models.mist.design import MistAdapter
+        from stellariso.models.padova.design import PadovaAdapter
         from stellariso.models.parsec.design import ParsecAdapter
 
         assert isinstance(adapter_for("mist"), MistAdapter)
+        assert isinstance(adapter_for("padova"), PadovaAdapter)
         assert isinstance(adapter_for("parsec"), ParsecAdapter)
 
 
