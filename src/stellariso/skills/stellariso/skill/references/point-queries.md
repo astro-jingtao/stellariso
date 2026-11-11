@@ -1,6 +1,6 @@
 # Point queries through the facade
 
-The facade (`MistIso` / `ParsecIso`, both `UnifiedIso`) wraps one whole
+The facade (`MistIso` / `PadovaIso` / `ParsecIso`, all `UnifiedIso`) wraps one whole
 model product and answers single-star queries directly. Read this file
 when writing more than a one-line query, or when a query fails.
 
@@ -26,7 +26,8 @@ mist = stellariso.construct("mist/1.2", database=db, label="vvcrit0.4_full_isos"
   `stellariso.open_grid(path).identity.release`, then construct with
   `"parsec/" + that release`.
 - `construct("mist")` without data raises by design (Hard Rule R4):
-  MIST data is never fetched on demand.
+  MIST data is never fetched on demand — nor is Padova's (static VizieR
+  archive files; build a database or hold the files).
 
 ## The query methods
 
@@ -41,8 +42,10 @@ value, record = mist.get_detailed("log_surface_gravity", mass=1.0, log_age=9.5,
 - `mass` — initial mass, in solar masses; the within-isochrone
   coordinate of every query.
 - `log_age` and the remaining keywords are the grid coordinates: MIST
-  takes `initial_feh`, `alpha_fe`, `initial_rotation`; PARSEC takes
-  `initial_z`. Axes with several values in the loaded product must be
+  takes `initial_feh`, `alpha_fe`, `initial_rotation`; Padova takes
+  `initial_feh` (its declared Z-to-[Fe/H] conversion) plus `overshoot`
+  for padova/2000; PARSEC takes `initial_z`. Axes with several values
+  in the loaded product must be
   pinned; the error message lists the available axes and values.
 - `selection="nearest"` (the facade default) snaps each requested
   coordinate to the nearest available value; any snapping emits

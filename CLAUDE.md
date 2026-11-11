@@ -8,7 +8,8 @@ README and the `docs/` tree; consult them before editing:
 ## Project facts
 
 - Science library: unified, provenance-first access to tabulated theoretical
-  isochrones (MIST first, PARSEC second). See `docs/architecture.md` for the
+  isochrones (MIST first, PARSEC second, legacy Padova archives third).
+  See `docs/architecture.md` for the
   two-layer (native/unified) data model.
 - All git-tracked content (code, comments, docs, commit messages) is written
   in English.

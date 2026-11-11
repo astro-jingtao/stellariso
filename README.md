@@ -91,6 +91,19 @@ mist_iso.get_phase(mass=1.0, log_age=9.5, initial_feh=0.0)  # 'main_sequence'
 mist_iso.last_record                                        # bracketing nodes, phases
 ```
 
+The legacy Padova archives read the same way — static VizieR catalog
+files, [Fe/H] as the composition coordinate, and phase derived by each
+release's documented rules (the 2000 tables from the source's own
+characteristic points, the 1994 tables from shape analysis):
+
+```python
+p94 = stellariso.construct("padova/1994", paths=["table1", "table2", "..."])
+p94.get_logg(mass=1.0, log_age=9.5, initial_feh=0.0)
+p94.get_phase(mass=0.8, log_age=10.0, initial_feh=0.0)      # 'main_sequence'
+p2000 = stellariso.construct("padova/2000", paths=["isochron.dat"])  # isochsum.dat beside it
+p2000.get_isochrone(method="exact", log_age=9.0, initial_feh=0.0, overshoot=1.0)
+```
+
 PARSEC publishes no isochrone packages; its isochrones are computed by the
 official CMD web form, which stellariso drives programmatically
 (`stellariso.models.parsec.cmd_form` — every submission archives the exact
@@ -183,13 +196,21 @@ stellariso.merge_database("subset-db", "target-db")   # the copy channel, from P
 stellariso.refresh_database("target-db")              # regenerate the root artifacts
 ```
 
-What the sources publish (verified live 2026-10-11/10-15; all sizes exact):
+What the sources publish (verified live 2026-10-11/10-15, padova 2026-11-10/11-12; all sizes exact):
 
 - MIST: v1.2 (full + basic isochrones, vvcrit 0.0/0.4) and v2.5 (full
   isochrones, vvcrit 0.0/0.4) — the isochrone theory products; the
   per-photometric-system repackages and the EEPS track tarballs are out
   of scope. Upstream publishes no checksums; sha256 is computed at
   download and recorded.
+- Legacy Padova: two static CDS/VizieR catalog directories — `padova/1994`
+  (Bertelli et al. 1994, `J/A+AS/106/275`: six per-(Z,Y) tables,
+  post-AGB/WD sequences included) and `padova/2000` (Girardi et al. 2000,
+  `J/A+AS/141/371`: one grid table plus its characteristic-point summary
+  that anchors the phase classification). The original host is dead; the
+  ADAC mirror's native tree is the verified channel (the canonical CDS
+  host is unreachable from this network). Both in-scope directories
+  total ~3.2 MB; sha256 computed at download and recorded per file.
 - PARSEC: no isochrone packages exist. The official CMD web form computes
   isochrone tables server-side on request and is scriptable when given
   the complete current field set (verified 2026-10-14); the declared
@@ -239,7 +260,9 @@ registry, verification dates, and known caveats.
   vocabulary and every source's mapping into it, generated from the
   registry data file.
 - Physics spot-checks: `python tools/check_mist_physics.py FILE...`
-  (closure relations, mass monotonicity, implied RGB Reimers efficiency).
+  (closure relations, mass monotonicity, implied RGB Reimers efficiency)
+  and `python tools/check_padova_physics.py FILE...` (gravity closure,
+  FLUM-inversion monotonicity and residuals, current-vs-initial mass).
 
 ## Tests
 

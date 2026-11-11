@@ -2,6 +2,11 @@
 
 Notable changes, newest first. Format: skill-forge `templates/changelog.md`.
 
+## 2026-11-12
+
+### Added
+- Legacy Padova family coverage — padova/1994 (Bertelli+ 1994 VizieR tables) and padova/2000 (Girardi+ 2000): construct/open_grid usage, [Fe/H] as the composition coordinate (declared Z-to-[Fe/H] conversion per release), the padova/2000 `overshoot` axis, derived-field semantics (FLUM-inverted initial mass, Mwind branch, Mbol zero point, gravity closure), and the per-release phase-classification rules (isochsum characteristic points for 2000, documented shape rules for 1994).
+
 ## 2026-10-18
 
 ### Added

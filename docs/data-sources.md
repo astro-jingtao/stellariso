@@ -164,6 +164,25 @@ verification stays on; it is never disabled.
 - Nguyen, C. T., et al. 2022, A&A, 665, A126; 2025, A&A, 701, A258
   (PARSEC v2.0, rotating)
 
+## Legacy Padova (padova/1994, padova/2000)
+
+The two pre-PARSEC Padova isochrone generations, published as static CDS/VizieR catalog directories — not on any live model-team site.
+
+- padova/1994 — Bertelli, G., et al. 1994, A&AS, 106, 275; VizieR catalog `J/A+AS/106/275`. Six fixed-width tables (`table1`..`table6`), one per published (Z, Y): Z = 0.0004/0.001/0.004/0.008/0.02/0.05 with Y = 0.23/0.23/0.24/0.25/0.28/0.352; log(age/yr) 6.60–10.30; 0.6–120 Msun; isochrones extend past the AGB tip to the white-dwarf stage after the planetary-nebula phase. The rows state neither composition nor release — the catalog ReadMe's file list is the composition authority, so the canonical file names are required.
+- padova/2000 — Girardi, L., et al. 2000, A&AS, 141, 371; VizieR catalog `J/A+AS/141/371`. One fixed-width table `isochron.dat` (every isochrone of the grid: Overshoot {0,1} × Z {0.0004, 0.001, 0.004, 0.008, 0.019 solar, 0.03} × log(age) 7.80–10.25 step 0.05; 0.15–7 Msun; ZAMS to TP-AGB or carbon ignition, no post-AGB rows) plus `isochsum.dat`, the characteristic-point summary whose G1 stage labels anchor the derived phase field. The Overshoot=0 set exists at solar composition only (classical Schwarzschild criterion).
+- Original site `pleiadi.pd.astro.it` (credited in both ReadMes) is effectively dead; the VizieR archives are the data of record.
+- Channel: the canonical cdsarc host (`cdsarc.cds.unistra.fr`) is unreachable from this network (proxy CONNECT tunnel hangs, verified 2026-11-10); the CfA mirror serves query views but no native file tree; the ADAC mirror's native tree over plain HTTP is the verified channel (`http://vizier.nao.ac.jp/ftp/cats/J/A+AS/{106/275,141/371}/`). All files of both in-scope directories verified live 2026-11-10 and re-verified byte-identical 2026-11-12; the live network test builds both products end to end.
+- Upstream publishes no checksums; sha256 was computed at download, recorded per part in the release catalog and each MANIFEST.
+- Out of scope, recorded in the catalog's exclusions: the 2000 track tables (`mstracks`, `hbtracks`), surface compositions, SSP colors, and the 1994 postscript renderings (`z*.pst`) of tables already acquired.
+- Composition convention: both releases publish Z, and [Fe/H] is a stellariso-declared scaled-solar conversion `log10(Z/Z_ref)` with each release's own solar reference — 0.019 for padova/2000 (ReadMe-declared "[Z=0.019, Y=0.273] (solar composition)"), 0.02 for padova/1994 (the solar point of the paper's composition grid). Neither release's published Z grid contains an exact [Fe/H] = −1 or −0.5 (nearest equivalents: −0.68/−0.38 for 2000, −0.70/−0.40 for 1994).
+- Reader-level conventions are declared in the unified-parameter registry: padova/1994's initial_mass inverts the tabulated FLUM Salpeter integral (A=1, α=2.35), current mass branches M/Mwind per the ReadMe note, logL uses the declared Mbol_sun = 4.77 zero point (derived exactly from the same group's 2000 paired columns), logg is the stated closure, and phase follows documented shape rules; padova/2000's phase follows the isochsum characteristic points. `tools/check_padova_physics.py` validates the closure relations, mass monotonicity, and inversion residuals on any file.
+
+### Scientific references
+
+- Bertelli, G., Bressan, A., Chiosi, C., Fagotto, F., Nasi, E. 1994, A&AS, 106, 275
+- Girardi, L., Bressan, A., Bertelli, G., Chiosi, C. 2000, A&AS, 141, 371
+- Iglesias, C. A., Rogers, F. J., Wilson, B. G. 1992, ApJ, 397, 717 (opacities; the 1994 table2 set uses Huebner et al. 1977 instead)
+
 ## Format notes relevant to readers
 
 - MIST `.iso` files: `#`-commented header; one `number of EEPs, cols`
@@ -183,3 +202,10 @@ verification stays on; it is never disabled.
   per-isochrone `Z=/Y=/X=` block headers. Reading is version-anchored:
   the file's own version echo selects the parser; both layouts are
   accepted, and no layout is guessed for an unanchored file.
+- Legacy Padova tables (both fixed-width, no comment headers): the 2000
+  `isochron.dat`/`isochsum.dat` pair (Lrecl 142/94, ReadMe byte
+  definitions; the Overshoot/Z/age columns carry the grid axes) and the
+  1994 `table1`..`table6` (Lrecl 106; composition only from the
+  catalog's documented file list). Blocks are consecutive rows of one
+  (Overshoot, Z, age) — 2000 — or one log(Age) — 1994; ages run
+  oldest-first in the 1994 files.

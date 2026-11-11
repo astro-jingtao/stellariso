@@ -7,8 +7,9 @@ database, or when choosing how much disk the build uses.
 
 There is no implicit cache location. A database is a directory you name
 explicitly, built once from what the sources publish — MIST as complete
-official packages (about 16.5 GB for the isochrone products), PARSEC as
-form-computed tables through the official CMD web form — and queried
+official packages (about 16.5 GB for the isochrone products), the
+legacy Padova releases as static VizieR archive files (a few MB),
+PARSEC as form-computed tables through the official CMD web form — and queried
 fully offline afterwards (`database=` everywhere). Re-running the build
 completes whatever is missing; already verified products are never
 re-fetched or overwritten.
@@ -24,7 +25,7 @@ db = stellariso.open_database("path/to/db")             # read-only open
 `build_database` keyword arguments:
 
 - `models=` limits the build to given families (`"mist"`,
-  `"parsec"`); default is all families.
+  `"padova"`, `"parsec"`); default is all families.
 - `dry_run=True` reports missing parts per product and touches nothing.
 - `extract=False` keeps only the official archives (the complete,
   self-contained backup): a product is extracted on first open, after
@@ -43,6 +44,7 @@ grid = db.grid("mist/1.2", label="vvcrit0.4_full_isos")  # IsochroneGrid
 mist = stellariso.construct("mist/1.2", database=db, label="vvcrit0.4_full_isos")
 db.describe()                                           # human summary
 db.provenance("mist/1.2")                               # full provenance object
+padova = stellariso.construct("padova/1994", database=db, label="vizier_tables")
 ```
 
 `model` is version-qualified; when a release holds several products,

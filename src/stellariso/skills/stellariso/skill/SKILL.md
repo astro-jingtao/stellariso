@@ -1,6 +1,6 @@
 ---
 name: stellariso
-description: Use the stellariso Python library to read, standardize, and query tabulated theoretical isochrones from the MIST and PARSEC single-star evolution models. Use when writing or running code that needs a stellar quantity at a given initial mass and age (log surface gravity, effective temperature, luminosity, radius, current mass, evolutionary phase), when selecting isochrones by age and composition, when opening MIST .iso files or PARSEC CMD web-form output tables, when building or querying the local isochrone database, or when fetching PARSEC isochrones through the official CMD web form programmatically. Also when stellariso raises GridPointNotFoundError or UnsafeInterpolationError, or warns about a nearest grid point, and the failure must be read correctly.
+description: Use the stellariso Python library to read, standardize, and query tabulated theoretical isochrones from the MIST, PARSEC, and legacy Padova (1994, 2000) single-star evolution models. Use when writing or running code that needs a stellar quantity at a given initial mass and age (log surface gravity, effective temperature, luminosity, radius, current mass, evolutionary phase), when selecting isochrones by age and composition, when opening MIST .iso files, PARSEC CMD web-form output tables, or the legacy Padova VizieR archive tables, when building or querying the local isochrone database, or when fetching PARSEC isochrones through the official CMD web form programmatically. Also when stellariso raises GridPointNotFoundError or UnsafeInterpolationError, or warns about a nearest grid point, and the failure must be read correctly.
 ---
 
 # stellariso usage
@@ -24,7 +24,7 @@ files you hold ──open_grid──► IsochroneGrid
                                 │   .unified["log_surface_gravity"]   the canonical name
                                 │   .at(mass, fields=…)               within-slice interpolation
 
-construct("mist/1.2", paths=… or database=…) ──► MistIso / ParsecIso   the point-query facade
+construct("mist/1.2", paths=… or database=…) ──► MistIso / PadovaIso / ParsecIso   the facade
                                 │   .get("log_surface_gravity", mass, log_age, …)
                                 │   .get_logg / get_log_teff / get_phase …
                                 └   grid-point selection + within-slice interpolation,
@@ -48,9 +48,12 @@ construct("mist/1.2", paths=… or database=…) ──► MistIso / ParsecIso  
   themselves; the loud mismatch catches wrong files.
 - **R4 — Data is never fetched on demand.** MIST: build a local
   database (`stellariso.build_database`) or pass `paths=` of files you
-  hold. PARSEC publishes no isochrone packages at all: obtain tables
-  through the official CMD web form (`CmdFormClient`, or the browser
-  form) and pass the downloaded tables by path.
+  hold. Legacy Padova: same — the releases are static VizieR archive
+  files (`table1..table6` for padova/1994, `isochron.dat` +
+  `isochsum.dat` for padova/2000; canonical names carry the 1994
+  composition). PARSEC publishes no isochrone packages at all: obtain
+  tables through the official CMD web form (`CmdFormClient`, or the
+  browser form) and pass the downloaded tables by path.
 - **R5 — Read what the warnings say.** `NearestGridPointWarning` means
   the numbers come from a different grid point than the one requested;
   `PhaseMappingWarning` from `get_phase` means the mass straddles a
@@ -63,6 +66,7 @@ construct("mist/1.2", paths=… or database=…) ──► MistIso / ParsecIso  
 | -------- | ----------- | ----- |
 | One number (logg, Teff, …) at (mass, age, composition) | `construct(...)` then `get_logg(...)` / `get(...)` | references/point-queries.md |
 | Whole tables, native columns, field mappings, parameters, provenance | `open_grid` → `get_isochrone` | references/two-layers.md |
+| Legacy Padova archives (VizieR tables, derived fields, phase rules) | `construct("padova/<release>", paths=…)` | references/two-layers.md |
 | Many queries or interpolation along a custom coordinate | `iso.at(...)` / `interpolate_along(...)` | references/two-layers.md |
 | Build, complete, or query the offline database | `build_database`, `open_database`, `construct(database=…)` | references/database.md |
 | Obtain PARSEC isochrone tables | `CmdFormClient` + `CmdFieldSet` | references/parsec-cmd-form.md |
@@ -83,7 +87,8 @@ Data source is `paths=` (files or a directory you hold) or `database=`
 (a built database; `label=` picks one product of a release) — never
 both, never the network. Selection coordinates are keyword arguments:
 `log_age` plus the family's composition axes (MIST: `initial_feh`,
-`alpha_fe`, `initial_rotation`; PARSEC: `initial_z`); axes with several
+`alpha_fe`, `initial_rotation`; Padova: `initial_feh`, plus `overshoot`
+for padova/2000; PARSEC: `initial_z`); axes with several
 values must be pinned. `selection=` (default `"nearest"`) and `interp=`
 (`"linear"` or `"pchip"`) control the two halves of every query — full
 semantics in references/point-queries.md.
