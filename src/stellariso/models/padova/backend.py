@@ -223,6 +223,18 @@ _TO_FALL_DEX = 0.1  # Teff fall off the main sequence that identifies the turnof
 _WR_MINI = 10.0  # Msun; stripped cores below this are not Wolf-Rayet stars
 
 
+def _unresolved_stages(n: int) -> np.ndarray:
+    warnings.warn(
+        "padova/1994 shape rules did not resolve a consistent stage "
+        "chain for one isochrone (turnoff, RGB tip, or post-AGB "
+        "boundary fell on a degenerate point); its rows are "
+        "classified 'unknown'",
+        PhaseMappingWarning,
+        stacklevel=3,
+    )
+    return np.full(n, "unknown", dtype=object)
+
+
 def _p94_phase(nt: NativeTable) -> np.ndarray:
     log_teff = np.asarray(nt["log(Teff)"], dtype=float)
     log_l = _p94_log_luminosity(nt)
@@ -251,14 +263,21 @@ def _p94_phase(nt: NativeTable) -> np.ndarray:
     # by a >= _TO_FALL_DEX fall (the descent toward the giants). The
     # global maximum would misfire on the youngest isochrones, whose
     # stripped Wolf-Rayet tail is hotter than any main-sequence star.
-    to, peak_v = 0, float(log_teff[0])
+    # When no fall completes the scan, the turnoff is identifiable only
+    # if a mass drop bounds it (the pre-drop maximum); otherwise the
+    # chain is unresolved and the block classifies 'unknown'.
+    to = None
+    to_peak, to_i = float(log_teff[0]), 0
     for i in range(1, first_drop):
-        if log_teff[i] > peak_v:
-            peak_v, to = float(log_teff[i]), i
-        elif peak_v - log_teff[i] >= _TO_FALL_DEX:
+        if log_teff[i] > to_peak:
+            to_peak, to_i = float(log_teff[i]), i
+        elif to_peak - log_teff[i] >= _TO_FALL_DEX:
+            to = to_i
             break
-    else:
+    if to is None and first_drop < n:
         to = int(np.argmax(log_teff[:first_drop]))
+    if to is None:
+        return _unresolved_stages(n)
 
     # 3. RGB tip: first luminosity maximum after the turnoff that is
     # followed by a >= _TIP_DIP_DEX fall before the post-AGB drop (the
@@ -305,16 +324,10 @@ def _p94_phase(nt: NativeTable) -> np.ndarray:
     if wr.any():
         stages[wr] = "wolf_rayet"
 
-    if tip is None or tip <= to or (cheb_end is not None and cheb_end <= tip):
-        warnings.warn(
-            "padova/1994 shape rules did not resolve a consistent stage "
-            "chain for one isochrone (turnoff, RGB tip, or post-AGB "
-            "boundary fell on a degenerate point); its rows are "
-            "classified 'unknown'",
-            PhaseMappingWarning,
-            stacklevel=2,
-        )
-        stages[:] = "unknown"
+    if tip is None or tip <= to or (
+        cheb_end is not None and cheb_end <= tip
+    ):
+        return _unresolved_stages(n)
     return stages
 
 

@@ -39,8 +39,6 @@ from stellariso.warnings import CatalogChecksumMismatchWarning, CatalogSizeMisma
 
 __all__ = ["PadovaAdapter"]
 
-_TIMEOUT_GET = 1800
-
 _VIZIER_CATALOG: dict[str, str] = {
     "1994": "J/A+AS/106/275",
     "2000": "J/A+AS/141/371",

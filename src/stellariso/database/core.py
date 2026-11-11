@@ -23,6 +23,7 @@ from stellariso.database.manifest import (
     utc_now_iso,
     write_manifest,
 )
+from stellariso.database.design import adapter_for
 from stellariso.exceptions import SourceUnavailableError
 from stellariso.grid import IsochroneGrid
 from stellariso.integrity import sha256_file
@@ -187,8 +188,6 @@ class Database:
         (what counts as a data file is the family adapter's call:
         extension-less native names are data too).
         """
-        from stellariso.database.design import adapter_for
-
         adapter = adapter_for(record.family)
         if any(
             adapter.is_data_file(p)

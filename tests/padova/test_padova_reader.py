@@ -6,7 +6,6 @@ import gzip
 import shutil
 from pathlib import Path
 
-import numpy as np
 import pytest
 
 from stellariso.exceptions import DataIntegrityError, UnrecognizedFormatError

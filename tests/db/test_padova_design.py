@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-from stellariso.database.design import PartVerdict, adapter_for
 from stellariso.integrity import sha256_bytes
 from stellariso.models.padova.design import PadovaAdapter
 from stellariso.warnings import (
@@ -175,7 +174,9 @@ class TestFetch:
         session = _FakeSession(payload)
         # the stand-in payload necessarily differs from the catalog's
         # verified values: the replaced-file tripwires fire (and warn)
-        with pytest.warns(CatalogChecksumMismatchWarning):
+        with pytest.warns(
+            (CatalogChecksumMismatchWarning, CatalogSizeMismatchWarning)
+        ):
             entry = adapter.fetch_part(
                 design, _part(design, "table1"), directory, session=session
             )
@@ -194,7 +195,9 @@ class TestFetch:
         directory = tmp_path / design.relative_dir
         directory.mkdir(parents=True)
         session = _FakeSession(gzip.compress(b"replacement content"))
-        with pytest.warns(CatalogChecksumMismatchWarning):
+        with pytest.warns(
+            (CatalogChecksumMismatchWarning, CatalogSizeMismatchWarning)
+        ):
             entry = adapter.fetch_part(
                 design, _part(design, "table1"), directory, session=session
             )
@@ -206,7 +209,9 @@ class TestFetch:
         design = _design(adapter, "2000")
         directory = tmp_path / design.relative_dir
         directory.mkdir(parents=True)
-        with pytest.warns(CatalogChecksumMismatchWarning):
+        with pytest.warns(
+            (CatalogChecksumMismatchWarning, CatalogSizeMismatchWarning)
+        ):
             entry = adapter.fetch_part(
                 design, _part(design, "readme"), directory, session=_FakeSession(b"ReadMe text")
             )
@@ -265,7 +270,6 @@ class TestIsDataFile:
         and opens, where the generic suffix rule would have looked for
         an archive to extract."""
         from stellariso.database.core import Database, register_local_product
-        import shutil
 
         fixture = Path(__file__).parent.parent / "data" / "padova" / "p1994"
         record = register_local_product(
