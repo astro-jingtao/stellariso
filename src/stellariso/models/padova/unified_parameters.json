@@ -127,7 +127,7 @@
           },
           "values_from": "initial_feh",
           "source": "derived_from_official_relation",
-          "description": "scaled-solar conversion anchored on the ReadMe's declared solar composition [Z=0.019, Y=0.273]; the published Z grid has no exact [Fe/H] = -1 or -0.5 point (nearest equivalents -0.677 and -0.376)"
+          "description": "scaled-solar conversion anchored on the ReadMe's declared solar composition [Z=0.019, Y=0.273]; a recorded parameter — the selection coordinate is the native initial_z"
         },
         {
           "name": "alpha_fe",
@@ -249,7 +249,7 @@
           },
           "values_from": "initial_feh",
           "source": "derived_from_official_relation",
-          "description": "scaled-solar conversion anchored on the paper grid's solar composition [Z=0.02, Y=0.28] (the Padova-1994 generation's solar point); differs from padova/2000's 0.019 — each release declares its own"
+          "description": "scaled-solar conversion anchored on the paper grid's solar composition [Z=0.02, Y=0.28] (the Padova-1994 generation's solar point); differs from padova/2000's 0.019 — each release declares its own; a recorded parameter — the selection coordinate is the native initial_z"
         },
         {
           "name": "alpha_fe",

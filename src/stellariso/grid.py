@@ -35,8 +35,9 @@ class IsochroneGrid:
 
     The selectable coordinates are derived from the keys the backend pinned
     in each isochrone's selection metadata (MIST: log_age, initial_feh,
-    alpha_fe, initial_rotation; PARSEC: log_age, initial_z), so the grid
-    stays model-agnostic.
+    alpha_fe, initial_rotation; PARSEC: log_age, initial_z; Padova:
+    log_age, initial_z, plus overshoot for 2000), so the grid stays
+    model-agnostic.
     """
 
     def __init__(self, sets: Iterable[IsochroneSet]):

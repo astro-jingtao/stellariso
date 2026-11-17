@@ -54,7 +54,7 @@ class TestPadovaArchiveLive:
         assert "4c43fe832694e2041e8b71bf750772ba672cf61a44d18111adec294b079d067f" in manifest
         assert "J/A+AS/106/275" in manifest
         iso = db.grid("padova/2000", label="vizier_tables").get_isochrone(
-            method="exact", log_age=9.0, initial_feh=0.0, overshoot=1.0
+            method="exact", log_age=9.0, initial_z=0.019, overshoot=1.0
         )
         assert iso.unified["phase"][0] == "main_sequence"
 

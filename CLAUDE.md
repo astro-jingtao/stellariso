@@ -25,6 +25,16 @@ README and the `docs/` tree; consult them before editing:
 - Runtime dependencies stay minimal: numpy, astropy, scipy, requests.
 - No silent fallbacks: errors surface (fail clearly), and any data
   transformation must be recorded in provenance objects.
+- Upstream stance for workorder requests: stellariso serves uncertain
+  downstream consumers, so design decisions (names, coordinates,
+  defaults, API shape) follow the library's own consistency rules,
+  never one consumer's convenience. When a workorder asks for
+  consumer-specific machinery (a conversion, a view, a default), the
+  response declines it and the consumer adapts. The composition
+  selection coordinate, for example, is each family's native
+  publication coordinate (MIST [Fe/H]; PARSEC and Padova Z); derived
+  conversions such as Padova [Fe/H] = log10(Z/Z_ref) are recorded
+  parameters, never selection axes.
 - Public API surface is re-exported from `stellariso/__init__.py`; keep the
   `__all__` list in sync.
 - The package ships a Claude Agent Skill documenting its usage

@@ -92,16 +92,18 @@ mist_iso.last_record                                        # bracketing nodes, 
 ```
 
 The legacy Padova archives read the same way — static VizieR catalog
-files, [Fe/H] as the composition coordinate, and phase derived by each
-release's documented rules (the 2000 tables from the source's own
-characteristic points, the 1994 tables from shape analysis):
+files, the source's own Z as the composition coordinate ([Fe/H] is
+recorded as a derived parameter, never a selection axis), and phase
+derived per release (the 2000 tables anchored on the source's own
+characteristic points, the 1994 tables through stellariso-derived
+shape rules):
 
 ```python
 p94 = stellariso.construct("padova/1994", paths=["table1", "table2", "..."])
-p94.get_logg(mass=1.0, log_age=9.5, initial_feh=0.0)
-p94.get_phase(mass=0.8, log_age=10.0, initial_feh=0.0)      # 'main_sequence'
+p94.get_logg(mass=1.0, log_age=9.5, initial_z=0.02)
+p94.get_phase(mass=0.8, log_age=10.0, initial_z=0.02)        # 'main_sequence'
 p2000 = stellariso.construct("padova/2000", paths=["isochron.dat"])  # isochsum.dat beside it
-p2000.get_isochrone(method="exact", log_age=9.0, initial_feh=0.0, overshoot=1.0)
+p2000.get_isochrone(method="exact", log_age=9.0, initial_z=0.019, overshoot=1.0)
 ```
 
 PARSEC publishes no isochrone packages; its isochrones are computed by the

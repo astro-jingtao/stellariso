@@ -387,12 +387,11 @@ def _read_2000(source, provenance: Provenance | None) -> IsochroneSet:
 
     isochrones = []
     for block, meta in zip(parsed.blocks, parsed.native.block_metadata):
-        # [Fe/H] is the composition selection coordinate (the consumer
-        # contract's display system); Z stays in the parameters, the
-        # block metadata, and the native Z column
+        # the composition selection coordinate is the source's own Z (the
+        # family's native axis); [Fe/H] stays a derived, recorded parameter
         selection = {
             "log_age": block.log_age,
-            "initial_feh": _feh(block.z, Z_REFERENCE_2000),
+            "initial_z": block.z,
             "overshoot": float(block.overshoot),
         }
         block_native = NativeTable(
@@ -455,7 +454,7 @@ def _read_1994(source, provenance: Provenance | None) -> IsochroneSet:
 
     isochrones = []
     for block, meta in zip(parsed.blocks, parsed.native.block_metadata):
-        selection = {"log_age": block.log_age, "initial_feh": feh}
+        selection = {"log_age": block.log_age, "initial_z": z}
         block_native = NativeTable(
             table=parsed.native.table[block.row_start : block.row_stop],
             header=(),

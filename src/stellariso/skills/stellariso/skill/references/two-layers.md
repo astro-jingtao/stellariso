@@ -26,8 +26,9 @@ iso = grid.get_isochrone(log_age=9.0, initial_feh=-1.0)           # method="exac
 iso = grid.get_isochrone(log_age=9.2, method="nearest")           # snaps + warns
 ```
 
-Selectable coordinates: MIST `log_age`, `initial_feh`, `alpha_fe`,
-`initial_rotation`; Padova `log_age`, `initial_feh` (plus `overshoot`
+Selectable coordinates — each family's native publication coordinate:
+MIST `log_age`, `initial_feh`, `alpha_fe`,
+`initial_rotation`; Padova `log_age`, `initial_z` (plus `overshoot`
 for padova/2000); PARSEC `log_age`, `initial_z`. Under `exact`,
 axes the grid holds at a single value are filled automatically;
 multi-valued axes left unpinned raise and list the available values.

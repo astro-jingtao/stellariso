@@ -86,8 +86,9 @@ mist.last_record                                        # bracketing nodes and t
 Data source is `paths=` (files or a directory you hold) or `database=`
 (a built database; `label=` picks one product of a release) — never
 both, never the network. Selection coordinates are keyword arguments:
-`log_age` plus the family's composition axes (MIST: `initial_feh`,
-`alpha_fe`, `initial_rotation`; Padova: `initial_feh`, plus `overshoot`
+`log_age` plus the family's composition axes — each family's own native
+publication coordinate (MIST: `initial_feh`, `alpha_fe`,
+`initial_rotation`; Padova: `initial_z`, plus `overshoot`
 for padova/2000; PARSEC: `initial_z`); axes with several
 values must be pinned. `selection=` (default `"nearest"`) and `interp=`
 (`"linear"` or `"pchip"`) control the two halves of every query — full

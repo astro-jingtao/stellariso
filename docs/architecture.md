@@ -141,8 +141,12 @@ acquisition records.
 `IsochroneGrid.get_isochrone` supports `exact` (loud
 `GridPointNotFoundError`) and `nearest` (warns, and records requested vs
 returned values and distances in `selection_info`). Selectable coordinates
-are derived from what each backend pins (MIST: `log_age`, `initial_feh`,
-`alpha_fe`, `initial_rotation`; PARSEC: `log_age`, `initial_z`).
+are derived from what each backend pins — each family's own native
+publication coordinate (MIST: `log_age`, `initial_feh`, `alpha_fe`,
+`initial_rotation`; PARSEC: `log_age`, `initial_z`; Padova: `log_age`,
+`initial_z`, plus `overshoot` for 2000), so the composition axis differs
+between families by design; derived conversions (Padova's
+[Fe/H] = log10(Z/Z_ref)) are recorded parameters, never selection axes.
 
 Within one isochrone, `interpolate_along` interpolates along a monotonic
 coordinate (`initial_mass` by default) with `linear` or `pchip`; requests

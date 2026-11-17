@@ -40,7 +40,7 @@ def _iso(set_, **coords):
 
 class TestPadova2000Unified:
     def test_native_direct_fields(self, set_2000):
-        iso = _iso(set_2000, log_age=9.0, initial_feh=0.0, overshoot=1.0)
+        iso = _iso(set_2000, log_age=9.0, initial_z=0.019, overshoot=1.0)
         u, nt = iso.unified, iso.native
         assert np.array_equal(u["initial_mass"], nt["Mini"])
         assert np.array_equal(u["current_mass"], nt["Mact"])
@@ -50,14 +50,14 @@ class TestPadova2000Unified:
         assert np.allclose(u["effective_temperature"], 10.0 ** nt["logTeff"])
 
     def test_field_origins(self, set_2000):
-        iso = _iso(set_2000, log_age=9.0, initial_feh=0.0, overshoot=1.0)
+        iso = _iso(set_2000, log_age=9.0, initial_z=0.019, overshoot=1.0)
         assert iso.field_info("initial_mass").origin is FieldOrigin.NATIVE
         assert iso.field_info("phase").origin is FieldOrigin.DERIVED
         assert iso.field_info("native_phase").origin is FieldOrigin.MISSING
         assert iso.field_info("log_radius").origin is FieldOrigin.MISSING
 
     def test_phase_anchored_on_isochsum_points(self, set_2000):
-        iso = _iso(set_2000, log_age=9.0, initial_feh=0.0, overshoot=1.0)
+        iso = _iso(set_2000, log_age=9.0, initial_z=0.019, overshoot=1.0)
         u = iso.unified
         # anchors of this isochrone: TO 1.7933, RGBb 2.0728, RGBt 2.0866,
         # EHeb 2.2986, 1TP 2.308 (BHeb 2.0913 collapses into the RGBt
@@ -78,7 +78,7 @@ class TestPadova2000Unified:
     def test_missing_anchor_extends_stage(self, set_2000):
         # the young isochrone (7.80) has no 1TP: its most massive rows
         # stay in early_asymptotic_giant_branch through the C-ignition end
-        iso = _iso(set_2000, log_age=7.8, initial_feh=0.0, overshoot=1.0)
+        iso = _iso(set_2000, log_age=7.8, initial_z=0.019, overshoot=1.0)
         u = iso.unified
         assert u["phase"][-1] == "early_asymptotic_giant_branch"
         assert "thermally_pulsing_asymptotic_giant_branch" not in set(u["phase"])
@@ -96,11 +96,12 @@ class TestPadova2000Unified:
             iso.unified["phase"]
 
     def test_selection_keys(self, set_2000):
-        iso = _iso(set_2000, log_age=10.0, initial_feh=0.0, overshoot=1.0)
-        # [Fe/H] is the composition coordinate; Z stays in the block
-        # metadata and the native column
-        assert iso.selection["initial_feh"] == pytest.approx(0.0)
+        iso = _iso(set_2000, log_age=10.0, initial_z=0.019, overshoot=1.0)
+        # the source's own Z is the composition coordinate; [Fe/H] stays
+        # a derived parameter, never a selection key
+        assert iso.selection["initial_z"] == pytest.approx(0.019)
         assert iso.selection["overshoot"] == 1.0
+        assert "initial_feh" not in iso.selection
         assert iso.native.metadata["z_values"] == (0.004, 0.019)
 
     def test_parameters(self, set_2000):

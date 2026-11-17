@@ -41,9 +41,11 @@ value, record = mist.get_detailed("log_surface_gravity", mass=1.0, log_age=9.5,
   lists them) or a native column name of the file.
 - `mass` — initial mass, in solar masses; the within-isochrone
   coordinate of every query.
-- `log_age` and the remaining keywords are the grid coordinates: MIST
+- `log_age` and the remaining keywords are the grid coordinates — each
+  family's native publication coordinate: MIST
   takes `initial_feh`, `alpha_fe`, `initial_rotation`; Padova takes
-  `initial_feh` (its declared Z-to-[Fe/H] conversion) plus `overshoot`
+  `initial_z` ([Fe/H] is a recorded derived parameter, not a selection
+  axis) plus `overshoot`
   for padova/2000; PARSEC takes `initial_z`. Axes with several values
   in the loaded product must be
   pinned; the error message lists the available axes and values.

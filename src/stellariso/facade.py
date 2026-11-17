@@ -49,7 +49,8 @@ class UnifiedIso(IsochroneGrid, ABC):
         """One quantity at (initial mass, grid coordinates).
 
         ``log_age`` and any backend coordinate (MIST: ``initial_feh``,
-        ``alpha_fe``, ``initial_rotation``; PARSEC: ``initial_z``) select the
+        ``alpha_fe``, ``initial_rotation``; PARSEC: ``initial_z``; Padova:
+        ``initial_z``, plus ``overshoot`` for 2000) select the
         isochrone — ``nearest`` warns and records any snapping, ``exact``
         requires an available grid point. ``interp`` chooses the
         within-isochrone method (``linear`` or ``pchip``). The interpolation

@@ -49,17 +49,13 @@ class TestOpenGrid:
 class TestGridSelection:
     def test_axes(self, grid_2000, grid_1994):
         assert grid_2000.axis_values("log_age") == (7.8, 9.0, 10.0)
-        assert grid_2000.axis_values("initial_feh") == pytest.approx(
-            (-0.6766936096248666, 0.0)
-        )
+        assert grid_2000.axis_values("initial_z") == (0.004, 0.019)
         assert grid_2000.axis_values("overshoot") == (0.0, 1.0)
-        assert grid_1994.axis_values("initial_feh") == pytest.approx(
-            (-1.6989700043360187, 0.0)
-        )
+        assert grid_1994.axis_values("initial_z") == (0.0004, 0.02)
 
     def test_exact_selection(self, grid_2000):
         iso = grid_2000.get_isochrone(
-            method="exact", log_age=9.0, initial_feh=0.0, overshoot=1.0
+            method="exact", log_age=9.0, initial_z=0.019, overshoot=1.0
         )
         assert iso.selection_info["method"] == "exact"
 
@@ -67,24 +63,30 @@ class TestGridSelection:
         with pytest.raises(GridPointNotFoundError):
             grid_2000.get_isochrone(method="exact", log_age=9.0)
 
-    def test_initial_feh_is_a_selection_coordinate(self, grid_2000):
+    def test_initial_z_is_a_selection_coordinate(self, grid_2000):
         iso = grid_2000.get_isochrone(
-            method="exact", log_age=9.0, initial_feh=0.0, overshoot=1.0
+            method="exact", log_age=9.0, initial_z=0.019, overshoot=1.0
         )
         assert iso.native.metadata["z_values"] == (0.004, 0.019)
 
-    def test_nearest_feh_snaps_and_warns(self, grid_1994):
-        # the consumer grid's -0.5 has no exact point: the fixture's
-        # [Fe/H] values are -1.70 and 0.0; nearest to -0.5 is 0.0
-        with pytest.warns(NearestGridPointWarning):
-            iso = grid_1994.get_isochrone(
-                method="nearest", log_age=9.0, initial_feh=-0.5
+    def test_derived_feh_is_not_a_selection_coordinate(self, grid_2000):
+        # [Fe/H] is a derived, recorded parameter (log10(Z/Z_ref)); the
+        # selection coordinate is the source's own Z
+        with pytest.raises(ValueError, match="unknown selection coordinates"):
+            grid_2000.get_isochrone(
+                method="exact", log_age=9.0, initial_feh=0.0, overshoot=1.0
             )
-        assert iso.selection["initial_feh"] == pytest.approx(0.0)
+
+    def test_nearest_z_snaps_and_warns(self, grid_2000):
+        with pytest.warns(NearestGridPointWarning):
+            iso = grid_2000.get_isochrone(
+                method="nearest", log_age=9.0, initial_z=0.015, overshoot=1.0
+            )
+        assert iso.selection["initial_z"] == pytest.approx(0.019)
 
     def test_nearest_age_snaps(self, grid_1994):
         with pytest.warns(NearestGridPointWarning):
-            iso = grid_1994.get_isochrone(method="nearest", log_age=8.8, initial_feh=0.0)
+            iso = grid_1994.get_isochrone(method="nearest", log_age=8.8, initial_z=0.02)
         assert iso.selection["log_age"] == 9.0
 
 
@@ -93,9 +95,9 @@ class TestFacade:
         iso = stellariso.construct(
             "padova/1994", paths=[P1994_DIR / "table1", P1994_DIR / "table5"]
         )
-        logg = iso.get_logg(mass=1.0, log_age=9.0, initial_feh=0.0)
+        logg = iso.get_logg(mass=1.0, log_age=9.0, initial_z=0.02)
         assert 3.0 < logg < 5.0
-        phase = iso.get_phase(mass=1.0, log_age=9.0, initial_feh=0.0)
+        phase = iso.get_phase(mass=1.0, log_age=9.0, initial_z=0.02)
         assert phase == "main_sequence"
         assert iso.last_record is not None
         assert iso.last_record.coordinate == "initial_mass"
@@ -106,7 +108,7 @@ class TestFacade:
         # the facade object is itself the grid: the multi-valued
         # overshoot axis must be pinned for exact selection
         with pytest.raises(GridPointNotFoundError):
-            iso.get_isochrone(method="exact", log_age=9.0, initial_feh=0.0)
+            iso.get_isochrone(method="exact", log_age=9.0, initial_z=0.019)
 
     def test_construct_release_validated(self):
         with pytest.raises(ValueError, match="release"):
