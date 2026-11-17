@@ -215,7 +215,10 @@ def _p94_log_surface_gravity(nt: NativeTable) -> np.ndarray:
 
 
 # Shape-rule constants of the 1994 phase classification (see the registry
-# entry's transformation text for what each one separates).
+# entry's transformation text for what each one separates). The values are
+# empirical, not source-stated: calibrated once on the full published
+# archive — every block resolves to a consistent stage chain, and
+# Wolf-Rayet rows appear only in the youngest blocks.
 _MASS_DROP = 1e-3  # Msun; a current-mass discontinuity of the tables
 _RGB_DROP_LOGF_DEX = 0.3  # RGB->HB drops break the luminosity; AGB->P-AGB do not
 _TIP_DIP_DEX = 0.15  # luminosity fall that identifies the RGB-tip turning point
