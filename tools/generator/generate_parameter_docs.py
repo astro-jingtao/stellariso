@@ -8,8 +8,8 @@ loads and validates them as one registry; this tool renders it (through
 stellariso.registry.docs) into the human-readable reference document. Run
 it after every registry edit:
 
-    python tools/generate_parameter_docs.py           # write the doc
-    python tools/generate_parameter_docs.py --check   # verify it is current
+    python tools/generator/generate_parameter_docs.py           # write the doc
+    python tools/generator/generate_parameter_docs.py --check   # verify it is current
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from pathlib import Path
 
 from stellariso.registry.docs import render_documentation
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DOC = REPO_ROOT / "docs" / "unified-parameters.md"
 
 
@@ -49,7 +49,7 @@ def main(argv: list[str] | None = None) -> int:
         if current != rendered:
             print(
                 f"{args.output} is out of date with the registry; "
-                "run tools/generate_parameter_docs.py",
+                "run tools/generator/generate_parameter_docs.py",
                 file=sys.stderr,
             )
             return 1

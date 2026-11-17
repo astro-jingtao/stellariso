@@ -10,7 +10,7 @@ family's data file ``models/<family>/unified_parameters.json`` next to
 its ``catalog.json``. This module loads the definitions and every family
 file together, validates them as one registry, and serves the merged
 structure; the human-readable document ``docs/unified-parameters.md`` is
-generated from it by ``tools/generate_parameter_docs.py`` — edit the
+generated from it by ``tools/generator/generate_parameter_docs.py`` — edit the
 JSON files, regenerate the doc, never the other way round.
 
 Backends read their field specs, phase mappings, parameter templates, and

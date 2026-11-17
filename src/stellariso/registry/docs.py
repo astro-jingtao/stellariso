@@ -1,7 +1,7 @@
 """Render the unified-parameter registry into its documentation form.
 
 ``render_documentation()`` produces the markdown reference that ships as
-``docs/unified-parameters.md`` (via ``tools/generate_parameter_docs.py``)
+``docs/unified-parameters.md`` (via ``tools/generator/generate_parameter_docs.py``)
 and is copied into every built database as a self-containment snapshot.
 """
 
@@ -74,7 +74,7 @@ def render_documentation() -> str:
     add("Regenerate the repository copy after editing the registry:")
     add("")
     add("```bash")
-    add("python tools/generate_parameter_docs.py")
+    add("python tools/generator/generate_parameter_docs.py")
     add("```")
     add("")
 

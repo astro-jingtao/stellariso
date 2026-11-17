@@ -5,7 +5,7 @@ This document records the unified vocabulary every data source maps into, each s
 Regenerate the repository copy after editing the registry:
 
 ```bash
-python tools/generate_parameter_docs.py
+python tools/generator/generate_parameter_docs.py
 ```
 
 ## Unified evolutionary stages

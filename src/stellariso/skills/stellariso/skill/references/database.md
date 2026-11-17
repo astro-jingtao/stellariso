@@ -75,9 +75,9 @@ pure-copy channel (checksums compared; conflicts reported, never
 overwritten silently). `refresh_database` regenerates the root
 inventory, README, and status report from the products present.
 
-The export/rsync/verify machinery (`tools/db_transfer.py` — export
+The export/rsync/verify machinery (`tools/database/db_transfer.py` — export
 plans with per-file checksums, an assembled rsync command, receiving-
 side verification, manifest-schema upgrades) and the status CLI
-(`tools/db_status.py`) ship with the repository checkout, not with the
+(`tools/database/db_status.py`) ship with the repository checkout, not with the
 installed package; in an installed-package context use the Python API
 above.

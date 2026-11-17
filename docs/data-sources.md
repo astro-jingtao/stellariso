@@ -92,7 +92,7 @@ the official CMD web form (`https://stev.oapd.inaf.it/cgi-bin/cmd`,
 multipart POST to the versioned endpoint `/cgi-bin/cmd_3.9`), which
 stellariso drives programmatically through the request-layer client
 `stellariso.models.parsec.cmd_form` (CLI:
-`tools/parsec/fetch_parsec_isochrones.py`). The form's complete wire-level
+`tools/database/fetch_parsec_isochrones.py`). The form's complete wire-level
 documentation — every field, output layout, protocol pitfalls — is
 [cmd-form.md](parsec/cmd-form.md); the declared acquisition design built on
 it is [blueprint.md](parsec/blueprint.md).
@@ -175,7 +175,7 @@ The two pre-PARSEC Padova isochrone generations, published as static CDS/VizieR 
 - Upstream publishes no checksums; sha256 was computed at download, recorded per part in the release catalog and each MANIFEST.
 - Out of scope, recorded in the catalog's exclusions: the 2000 track tables (`mstracks`, `hbtracks`), surface compositions, SSP colors, and the 1994 postscript renderings (`z*.pst`) of tables already acquired.
 - Composition convention: both releases publish Z, and the composition selection coordinate is that native Z. [Fe/H] is a stellariso-declared scaled-solar conversion `log10(Z/Z_ref)` with each release's own solar reference — 0.019 for padova/2000 (ReadMe-declared "[Z=0.019, Y=0.273] (solar composition)"), 0.02 for padova/1994 (the solar point of the paper's composition grid) — recorded as a derived parameter, never a selection axis; consumers querying in [Fe/H] convert with the recorded Z_ref themselves.
-- Reader-level conventions are declared in the unified-parameter registry: padova/1994's initial_mass inverts the tabulated FLUM Salpeter integral (A=1, α=2.35), current mass branches M/Mwind per the ReadMe note, logL uses the declared Mbol_sun = 4.77 zero point (derived exactly from the same group's 2000 paired columns), logg is the stated closure, and phase follows stellariso-derived shape rules (empirically locked on the full archive, not documented by the source; see the registry's transformation text); padova/2000's phase follows the isochsum characteristic points. `tools/check_padova_physics.py` validates the closure relations, mass monotonicity, and inversion residuals on any file.
+- Reader-level conventions are declared in the unified-parameter registry: padova/1994's initial_mass inverts the tabulated FLUM Salpeter integral (A=1, α=2.35), current mass branches M/Mwind per the ReadMe note, logL uses the declared Mbol_sun = 4.77 zero point (derived exactly from the same group's 2000 paired columns), logg is the stated closure, and phase follows stellariso-derived shape rules (empirically locked on the full archive, not documented by the source; see the registry's transformation text); padova/2000's phase follows the isochsum characteristic points. `tools/database/check_padova_physics.py` validates the closure relations, mass monotonicity, and inversion residuals on any file.
 
 ### Scientific references
 

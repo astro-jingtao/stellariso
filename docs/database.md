@@ -103,7 +103,7 @@ Every product directory carries one `MANIFEST.json` in schema `stellariso-manife
 
 **Reading is version-tolerant, writing is not.** The read side (`stellariso.database.manifest`) accepts the historical shapes too — the run-4 package product (flat top-level `sha256` describing the archive), the run-4 form product (the same flat keys describing the log table), and the blueprint form product (a `blueprint` section whose `parts` map supersedes the flat keys) — and returns a v2-shaped view, so old database copies and backups open without any prior conversion. Every write path goes through one function that stamps the current schema; no code can persist a legacy shape.
 
-**Upgrading a whole database.** `tools/db_transfer.py migrate-manifests <db>` (dry run by default, `--apply` to write) rewrites every product MANIFEST to clean v2 in one pass: one atomic rewrite per product, archived data files untouched. A manifest whose information cannot be carried over losslessly — an unknown schema from a newer stellariso, a missing identity, flat keys contradicting the blueprint parts — is reported with its reasons and left exactly as it was; the read bridge keeps it usable, and the disposition stays with the database owner.
+**Upgrading a whole database.** `tools/database/db_transfer.py migrate-manifests <db>` (dry run by default, `--apply` to write) rewrites every product MANIFEST to clean v2 in one pass: one atomic rewrite per product, archived data files untouched. A manifest whose information cannot be carried over losslessly — an unknown schema from a newer stellariso, a missing identity, flat keys contradicting the blueprint parts — is reported with its reasons and left exactly as it was; the read bridge keeps it usable, and the disposition stays with the database owner.
 
 ## Operations
 
@@ -119,7 +119,7 @@ One loop serves every family. It scans first, then per product: needs-review pro
 ### Status
 
 ```bash
-python tools/db_status.py C:/path/to/database
+python tools/database/db_status.py C:/path/to/database
 ```
 
 Writes `db_status.md` + `db_status.json` at the database root and prints the digest: per family the source's own declarations (axes, grids, windows), one line per product — `complete`, or `incomplete` with the per-part detail and reasons — plus the superseded directories (present but mapping nowhere in the design, with reasons), the automatic-fetch plan, and the manual-review list. A database root that still carries `blueprint_status.*` reports from earlier tooling keeps them; `db_status.*` is the report that is regenerated, and an old report's per-cell statuses read against it as: complete → complete; log-only → incomplete (log ok, linear missing); re-fetch → incomplete with a nonconforming part, manual review; pending → incomplete, all parts missing. The library face is `stellariso.database.scan.scan_database`; its `DatabaseReport` carries per-product verdicts for programmatic use.
@@ -144,7 +144,7 @@ result = export_database(db, SelectionCriteria(families=("parsec",),
 ```
 
 ```bash
-python tools/db_transfer.py export <db> --name metal-poor --families parsec --mh "-1.0:0.0"
+python tools/database/db_transfer.py export <db> --name metal-poor --families parsec --mh "-1.0:0.0"
 ```
 
 Writes `<db>/export/<name>/` (the plan travels with the database, so rsync from the database root carries it along):
@@ -162,7 +162,7 @@ Selection is declarative: `families`, `collections`, `labels`, `products` (expli
 
 ### Transport
 
-- **rsync**: `python tools/db_transfer.py rsync <db> --name N --destination user@host:/path/db/` assembles the command (`rsync -a --info=progress2 --files-from=<plan>/files.rsync <db>/ dest`); `--exec` runs it. rsync is assembled, not reimplemented; without rsync on PATH the tool says so (on Windows: WSL or cwRsync).
+- **rsync**: `python tools/database/db_transfer.py rsync <db> --name N --destination user@host:/path/db/` assembles the command (`rsync -a --info=progress2 --files-from=<plan>/files.rsync <db>/ dest`); `--exec` runs it. rsync is assembled, not reimplemented; without rsync on PATH the tool says so (on Windows: WSL or cwRsync).
 - **copy channel**: `merge_database` below — pure shutil with checksum verification, cross-platform.
 
 ### Merge
@@ -172,7 +172,7 @@ stellariso.merge_database("subset-or-full-source", "path/to/target")
 ```
 
 ```bash
-python tools/db_transfer.py merge <source> <target>          # same selection flags
+python tools/database/db_transfer.py merge <source> <target>          # same selection flags
 ```
 
 Imports one local database — or any partial copy of one; an rsync'd subset is itself a legal database — into another, keyed by directory relative path with the manifest identity triple cross-checked:
@@ -192,7 +192,7 @@ Staging lives under `<target>/.staging/` (swept at start and at exit); after the
 ### Verify
 
 ```bash
-python tools/db_transfer.py verify <db> --plan <db>/export/<name>/transfer.json
+python tools/database/db_transfer.py verify <db> --plan <db>/export/<name>/transfer.json
 ```
 
 Recomputes every recorded checksum and size against the receiving database and reports missing files, size mismatches, and sha mismatches. Files without a recorded sha (extracted content exported without `--checksums all`) are checked for presence and size.
@@ -215,10 +215,10 @@ A family implements one `FamilyAdapter` (`stellariso.database.design`) and there
 
 | command | purpose |
 |---|---|
-| `python tools/db_status.py <db>` | two-state status report for every family (`db_status.md`/`.json`) |
-| `python tools/db_transfer.py export <db> [selection]` | write an export plan under `<db>/export/<name>/` |
-| `python tools/db_transfer.py rsync <db> --name N --destination D [--exec]` | assemble (or run) the rsync transport |
-| `python tools/db_transfer.py merge <source> <target> [selection]` | import through the copy channel |
-| `python tools/db_transfer.py verify <db> --plan P` | check a database against a plan |
-| `python tools/db_transfer.py refresh <db>` | regenerate the derived root artifacts |
-| `python tools/db_transfer.py migrate-manifests <db> [--apply]` | rewrite every MANIFEST to clean v2 |
+| `python tools/database/db_status.py <db>` | two-state status report for every family (`db_status.md`/`.json`) |
+| `python tools/database/db_transfer.py export <db> [selection]` | write an export plan under `<db>/export/<name>/` |
+| `python tools/database/db_transfer.py rsync <db> --name N --destination D [--exec]` | assemble (or run) the rsync transport |
+| `python tools/database/db_transfer.py merge <source> <target> [selection]` | import through the copy channel |
+| `python tools/database/db_transfer.py verify <db> --plan P` | check a database against a plan |
+| `python tools/database/db_transfer.py refresh <db>` | regenerate the derived root artifacts |
+| `python tools/database/db_transfer.py migrate-manifests <db> [--apply]` | rewrite every MANIFEST to clean v2 |

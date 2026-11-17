@@ -131,7 +131,7 @@ parsec_iso.get_logg(mass=0.8, log_age=9.0)
 The CLI form of fetching, for use outside Python:
 
 ```bash
-python tools/parsec/fetch_parsec_isochrones.py \
+python tools/database/fetch_parsec_isochrones.py \
     --isoc_isagelog 1 --isoc_lagelow 9.0 --isoc_lageupp 10.0 --isoc_dlage 0.5 \
     [--out my_isos.dat]
 ```
@@ -174,7 +174,7 @@ the build completes whatever is missing, and never overwrites what is
 already archived.
 
 Moving a database (or a selection of it) between machines is a
-first-class operation — `tools/db_transfer.py` writes an export plan
+first-class operation — `tools/database/db_transfer.py` writes an export plan
 (every file of the selected products, checksums included), assembles
 the rsync transport, verifies the receiving copy, and merges one local
 database into another through a pure-copy channel; historical
@@ -184,13 +184,13 @@ two-state model, invariants, operations — is expanded in
 [docs/database.md](docs/database.md):
 
 ```bash
-python tools/db_status.py <db>                        # two-state status, all families
-python tools/db_transfer.py export <db> --name pick --families parsec --mh "-1.0:0.0"
-python tools/db_transfer.py rsync <db> --name pick --destination user@host:/path/db/
-python tools/db_transfer.py merge <source-db> <target-db>
-python tools/db_transfer.py verify <db> --plan <db>/export/pick/transfer.json
-python tools/db_transfer.py refresh <db>
-python tools/db_transfer.py migrate-manifests <db> --apply
+python tools/database/db_status.py <db>                        # two-state status, all families
+python tools/database/db_transfer.py export <db> --name pick --families parsec --mh "-1.0:0.0"
+python tools/database/db_transfer.py rsync <db> --name pick --destination user@host:/path/db/
+python tools/database/db_transfer.py merge <source-db> <target-db>
+python tools/database/db_transfer.py verify <db> --plan <db>/export/pick/transfer.json
+python tools/database/db_transfer.py refresh <db>
+python tools/database/db_transfer.py migrate-manifests <db> --apply
 ```
 
 ```python
@@ -227,7 +227,7 @@ What the sources publish (verified live 2026-10-11/10-15, padova 2026-11-10/11-1
   secondary sets sparsely first): 471 cells, 942 submissions. Every
   archived table keeps its exact complete payload and the server's own
   header echo, so the identical request can be replayed;
-  `tools/db_status.py` measures any database against the blueprint and
+  `tools/database/db_status.py` measures any database against the blueprint and
   reports each product as complete or incomplete, part by part.
 
 See [docs/data-sources.md](docs/data-sources.md) for the full source
@@ -261,9 +261,9 @@ registry, verification dates, and known caveats.
 - [Unified parameters](docs/unified-parameters.md) — the unified
   vocabulary and every source's mapping into it, generated from the
   registry data file.
-- Physics spot-checks: `python tools/check_mist_physics.py FILE...`
+- Physics spot-checks: `python tools/database/check_mist_physics.py FILE...`
   (closure relations, mass monotonicity, implied RGB Reimers efficiency)
-  and `python tools/check_padova_physics.py FILE...` (gravity closure,
+  and `python tools/database/check_padova_physics.py FILE...` (gravity closure,
   FLUM-inversion monotonicity and residuals, current-vs-initial mass).
 
 ## Tests

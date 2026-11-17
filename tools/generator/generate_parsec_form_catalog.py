@@ -24,7 +24,7 @@ docs/parsec/cmd-form.md):
   young-age half of each cell is a blueprint-builder acquisition archived
   beside the log table.
 
-Run:  python tools/parsec/generate_parsec_form_catalog.py   (rewrites the file)
+Run:  python tools/generator/generate_parsec_form_catalog.py   (rewrites the file)
 """
 
 from __future__ import annotations

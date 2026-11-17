@@ -71,7 +71,7 @@ the family file, not coded as branches.
 
 The human-readable reference
 [docs/unified-parameters.md](unified-parameters.md) is generated from the
-registry by `tools/generate_parameter_docs.py`; a test keeps the two in
+registry by `tools/generator/generate_parameter_docs.py`; a test keeps the two in
 sync. Built databases carry a snapshot of the same document.
 
 ## The local database

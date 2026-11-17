@@ -211,7 +211,8 @@ class TestReferencesAndNotes:
 class TestGeneratedDocument:
     def test_docs_unified_parameters_md_is_current(self):
         result = subprocess.run(
-            [sys.executable, str(REPO_ROOT / "tools" / "generate_parameter_docs.py"),
+            [sys.executable,
+             str(REPO_ROOT / "tools" / "generator" / "generate_parameter_docs.py"),
              "--check"],
             capture_output=True,
             text=True,

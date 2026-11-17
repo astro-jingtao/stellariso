@@ -86,7 +86,7 @@ committed cells is the supported way to fetch at scale.
 
 ## Related channels
 
-- CLI fetch outside Python: `tools/parsec/fetch_parsec_isochrones.py`
+- CLI fetch outside Python: `tools/database/fetch_parsec_isochrones.py`
   (`--isoc_isagelog 1 --isoc_lagelow 9.0 ...`) — ships with the
   repository checkout, not with the installed package.
 - Tables downloaded by hand in a browser enter a database through

@@ -8,7 +8,7 @@ part is nonconforming and why) — plus the superseded directories and
 the automatic-fetch plan. The report is the review artifact: marked
 data is never deleted or refetched by this tool.
 
-    python tools/db_status.py C:/Users/me/stellariso-database
+    python tools/database/db_status.py C:/Users/me/stellariso-database
 
 Writes ``db_status.md`` and ``db_status.json`` next to the database's
 inventory and prints the console digest; ``--stdout`` prints the full

@@ -501,9 +501,9 @@ def _export_readme(root: Path, name: str, plan: dict) -> str:
         "\n"
         "1. the data lands under the target database root (any subset of "
         "product directories is itself a legal database);\n"
-        "2. verify: `python tools/db_transfer.py verify <target-db> "
+        "2. verify: `python tools/database/db_transfer.py verify <target-db> "
         f"--plan <target-db>/export/{name}/transfer.json`;\n"
-        "3. refresh: `python tools/db_transfer.py refresh <target-db>` "
+        "3. refresh: `python tools/database/db_transfer.py refresh <target-db>` "
         "(regenerates database.json, README.md, unified-parameters.md, "
         "db_status.*).\n"
     )
