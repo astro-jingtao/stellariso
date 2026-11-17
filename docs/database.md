@@ -2,13 +2,14 @@
 
 A stellariso database is one directory the user chooses and passes explicitly (`database=...`): no environment variable, no implicit location, no cache semantics. Built once by `build_database`, queried fully offline by `open_database`. Every product directory is self-contained (data files + acquisition records + a v2 MANIFEST, relative paths only), so the whole database — or any subset of its product directories — copies to another machine and opens there.
 
-This page expands the whole management machinery: the concepts, the two-state model, the MANIFEST schema, and every operation (build, status, refresh, merge, export, verify, upgrade). The PARSEC family's own design data is expanded in [parsec/blueprint.md](parsec/blueprint.md); the MIST release catalog lives at `models/mist/catalog.json`.
+This page expands the whole management machinery: the concepts, the two-state model, the MANIFEST schema, and every operation (build, status, refresh, merge, export, verify, upgrade). The PARSEC family's own design data is expanded in [parsec/blueprint.md](parsec/blueprint.md); the package families' release catalogs (MIST, Padova) live at `models/<family>/catalog.json`.
 
 ```mermaid
 flowchart TB
     subgraph A["family specialization (models/&lt;family&gt;)"]
         MA["mist/design.py<br/>(catalog = the design)"]
         PA["parsec/design.py<br/>(+ blueprint.py design data)"]
+        DO["padova/design.py<br/>(catalog = the design)"]
     end
     subgraph C["family-agnostic core (stellariso/database/)"]
         D["design.py — designs, parts, verdicts,<br/>FamilyAdapter, selection criteria"]
@@ -18,9 +19,10 @@ flowchart TB
         M["manifest.py — v2 read/write,<br/>legacy bridge, upgrade"]
         I["inventory.py — root artifacts,<br/>refresh_database"]
     end
-    NET["upstream (HTTP packages / CMD form)"]
+    NET["upstream (published packages ·<br/>scientific archives · CMD form)"]
     MA --> D
     PA --> D
+    DO --> D
     D --> S
     D --> B
     D --> T
@@ -112,6 +114,10 @@ Every product directory carries one `MANIFEST.json` in schema `stellariso-manife
 ```python
 db = stellariso.build_database("path/to/database")          # complete what is missing
 stellariso.build_database("path/to/database", dry_run=True) # the plan, nothing written
+```
+
+```bash
+python tools/database/build_database.py <db> [--dry-run] [--families padova ...]
 ```
 
 One loop serves every family. It scans first, then per product: needs-review products are skipped with a NOTICE; every missing part of a clean product is fetched through its family adapter (an archive download, or one form submission with a polite pause between submissions); the MANIFEST is rewritten as clean v2 (kept parts carry over untouched). Verified parts are never re-acquired — a form job is server-side compute, and a re-run only completes what is missing. `models=` limits the build to given families; `session=` supplies the HTTP session; `verify_existing=False` classifies present files without re-hashing (the rebuild-trust knob); `extract=False` keeps only the official archives.
@@ -215,6 +221,7 @@ A family implements one `FamilyAdapter` (`stellariso.database.design`) and there
 
 | command | purpose |
 |---|---|
+| `python tools/database/build_database.py <db> [--dry-run] [--families F ...]` | build or complete a database (all families; package downloads + form submissions) |
 | `python tools/database/db_status.py <db>` | two-state status report for every family (`db_status.md`/`.json`) |
 | `python tools/database/db_transfer.py export <db> [selection]` | write an export plan under `<db>/export/<name>/` |
 | `python tools/database/db_transfer.py rsync <db> --name N --destination D [--exec]` | assemble (or run) the rsync transport |

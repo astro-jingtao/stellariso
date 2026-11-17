@@ -9,9 +9,10 @@ description: Use the stellariso Python library to read, standardize, and query t
 
 You write and run Python that uses stellariso — the provenance-first
 reader and query interface for tabulated theoretical isochrones from
-the MIST and PARSEC single-star evolution models. Your job is to pick
-the right entry point, keep every query inside the library's
-physics-safety contract, and read its errors and warnings as designed.
+the MIST, PARSEC, and legacy Padova single-star evolution models. Your
+job is to pick the right entry point, keep every query inside the
+library's physics-safety contract, and read its errors and warnings as
+designed.
 
 ## The library in one screen
 

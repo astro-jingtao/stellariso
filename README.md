@@ -212,7 +212,7 @@ What the sources publish (verified live 2026-10-11/10-15, padova 2026-11-10/11-1
   that anchors the phase classification). The original host is dead; the
   ADAC mirror's native tree is the verified channel (the canonical CDS
   host is unreachable from this network). Both in-scope directories
-  total ~3.2 MB; sha256 computed at download and recorded per file.
+  total ~3.8 MB; sha256 computed at download and recorded per file.
 - PARSEC: no isochrone packages exist. The official CMD web form computes
   isochrone tables server-side on request and is scriptable when given
   the complete current field set (verified 2026-10-14); the declared

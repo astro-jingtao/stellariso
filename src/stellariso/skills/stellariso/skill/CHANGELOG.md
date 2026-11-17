@@ -2,6 +2,13 @@
 
 Notable changes, newest first. Format: skill-forge `templates/changelog.md`.
 
+## 2026-11-17
+
+### Changed
+- Padova composition selection corrected to the native coordinate: `initial_z` (plus `overshoot` for padova/2000), not `[Fe/H]`. Each family's selection axes are its own native publication coordinates (MIST publishes [Fe/H]; PARSEC and Padova publish Z); Padova's [Fe/H] = log10(Z/Z_ref) is a recorded derived parameter, never a selection axis.
+- The padova/1994 phase rules are now described as stellariso-derived shape rules (empirically locked on the full archive; the source documents no stage classification), replacing "documented shape rules".
+- Role statement names all three families (MIST, PARSEC, legacy Padova).
+
 ## 2026-11-12
 
 ### Added
