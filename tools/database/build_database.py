@@ -1,11 +1,17 @@
 """Build (or complete) a local stellariso database, from the CLI.
 
 Command-line form of ``stellariso.build_database``: every family's
-declared design is acquired — published packages are downloaded from
-the URLs the release catalogs record (MIST, Padova), and form-computed
-products are submitted through the source's official computation
-service (PARSEC's CMD web form). Re-running completes whatever is
-missing; already verified products are never re-fetched or re-computed.
+committed fetch stage is acquired — published packages are downloaded
+from the URLs the release catalogs record (MIST, Padova), and
+form-computed products are submitted through the source's official
+computation service (PARSEC's CMD web form). For the package families
+the committed stage is the whole declared design; a staged source
+commits to a declared subset of its blueprint (PARSEC), and the cells
+beyond it are designed but never fetched. ``db_status.py`` measures a
+database against the full declared design, so the gap between the
+blueprint and the fetched content stays visible. Re-running completes
+whatever is missing; already verified products are never re-fetched
+or re-computed.
 
     python tools/database/build_database.py /path/to/database --dry-run
     python tools/database/build_database.py /path/to/database --families padova

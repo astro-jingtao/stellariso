@@ -29,7 +29,9 @@ Build, inspect, and move local databases (CLI forms of the
 
 - `build_database.py` — build or complete a database for any selection
   of families: download the declared packages (MIST, Padova) and submit
-  the declared form jobs (PARSEC).
+  the committed fetch-stage form jobs (PARSEC — a declared subset of
+  the blueprint; `db_status.py` measures a database against the whole
+  design, so the staged remainder stays visible).
 - `db_status.py` — the two-state completion report over every family's
   declared design (`db_status.md`/`.json`).
 - `db_transfer.py` — export, rsync, merge, verify, refresh, and

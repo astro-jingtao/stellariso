@@ -115,8 +115,8 @@ def _complete_product(
     write_manifest(directory / "MANIFEST.json", payload)
 
 
-def _dry_run(root: Path, families: list[str], log) -> None:
-    report = scan_database(root, families=families)
+def _dry_run(root: Path, families: list[str], log, *, verify: bool = True) -> None:
+    report = scan_database(root, families=families, verify_checksums=verify)
     for family in families:
         adapter = adapter_for(family)
         fam = report.families[family]
@@ -165,7 +165,10 @@ def build_database(
     form_pause: float = 5.0,
     log=print,
 ):
-    """Build (or complete) a local database with every family's design.
+    """Build (or complete) a local database to every family's committed
+    fetch stage (a staged source commits to a subset of its declared
+    design; the scan still measures the whole design, so the gap stays
+    visible in the two-state report).
 
     ``models`` limits the build to the given families (default: all).
     ``dry_run=True`` reports the plan — missing parts of clean products
@@ -188,7 +191,7 @@ def build_database(
     )
 
     if dry_run:
-        _dry_run(root, families, log)
+        _dry_run(root, families, log, verify=verify_existing)
         return None
 
     root.mkdir(parents=True, exist_ok=True)
