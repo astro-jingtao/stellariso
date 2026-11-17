@@ -6,11 +6,11 @@ the objects that carry them.
 
 ```mermaid
 flowchart LR
-    C[family designs<br/>catalog.json / blueprint.py] --> B[build_database<br/>official packages + form jobs]
-    W[CMD web form<br/>request layer cmd_form.py] --> B
+    C[family acquisition designs<br/>release catalogs / blueprints] --> B[build_database<br/>package downloads + service submissions]
+    W[source channels<br/>official packages · scientific archives ·<br/>computation services] --> B
     B --> D[local database<br/>v2 MANIFEST per product, self-contained]
     D --> R[backend reader<br/>models/&lt;family&gt;/reader.py]
-    F[user-held file<br/>.iso / CMD table] --> R
+    F[user-held file<br/>any native product] --> R
     R --> N[NativeTable<br/>verbatim columns, header, facts]
     N --> S[IsochroneSet / Isochrone<br/>per-age slices with selection metadata]
     S --> U[UnifiedView<br/>renamed + documented transforms]
