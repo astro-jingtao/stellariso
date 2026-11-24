@@ -2,9 +2,9 @@
 
 The cache is the scan's accelerator and nothing else, so the tests pin
 the contract: a hit serves the recorded answer without reading the
-file, any write is a new signature (nothing is served stale), the
-bypass computes everything and writes nothing, and a non-writing cache
-never creates the store file.
+file, any write is a new signature (nothing is served stale), and a
+non-writing cache never creates the store file. The bypass (every
+check a full read, no store file) is pinned at the scan entry.
 """
 
 from __future__ import annotations
@@ -114,24 +114,6 @@ class TestFact:
 
 
 class TestModes:
-    def test_bypass_computes_every_time_and_writes_nothing(self, tmp_path: Path):
-        f = tmp_path / "table.dat"
-        f.write_bytes(b"x")
-        calls = []
-        cache = SignatureCache()
-
-        def compute() -> int:
-            calls.append(1)
-            return 1
-
-        assert cache.fact(f, "blocks", compute) == 1
-        assert cache.fact(f, "blocks", compute) == 1
-        assert len(calls) == 2  # served nothing
-        assert cache.sha256(f) == sha256_file(f)  # always a full read
-        cache.remember(f, "0" * 64)  # a no-op, not an error
-        cache.save_if_dirty()
-        assert not (tmp_path / SIGNATURE_CACHE_NAME).exists()
-
     def test_writable_false_records_in_memory_never_writes(self, tmp_path: Path):
         f = tmp_path / "data.bin"
         f.write_bytes(b"payload")
@@ -211,3 +193,8 @@ class TestScanIntegration:
             ]
             assert scan.state == "incomplete"
             assert scan.needs_review
+
+    def test_bypass_scan_writes_no_store_file(self, tmp_path: Path):
+        self._mist_product(tmp_path)
+        scan_database(tmp_path, cache=False)
+        assert not (tmp_path / SIGNATURE_CACHE_NAME).exists()

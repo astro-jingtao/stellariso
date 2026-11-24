@@ -34,6 +34,7 @@ dependencies = [
     "scipy>=1.10",
     "requests>=2.28",
     "certifi",
+    "file_quick_signature @ git+https://github.com/astro-jingtao/file_quick_signature",
 ]
 
 [project.optional-dependencies]
