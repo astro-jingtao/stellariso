@@ -2,18 +2,16 @@
 
 from __future__ import annotations
 
-import io
-import zipfile
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from stellariso.exceptions import UnsafeInterpolationError
+from stellariso.exceptions import UnsafeInterpolationError, UnsupportedModelError
 from stellariso.facade import MistIso, UnifiedIso, construct
 from stellariso.grid import IsochroneGrid
 from stellariso.interp import interpolate_along
-from stellariso.warnings import NearestGridPointWarning, PhaseMappingWarning
+from stellariso.warnings import NearestGridPointWarning
 
 FIXTURE = (
     Path(__file__).parent / "data" / "mist" / "MIST_v1.2_feh_m1.00_afe_p0.0_vvcrit0.4_fixture.iso"
@@ -33,7 +31,7 @@ def iso(grid):
 class TestInterpolateAlong:
     def test_linear_reproduces_nodes(self, iso):
         masses = iso.native["initial_mass"]
-        out, record = interpolate_along(
+        out, _ = interpolate_along(
             iso, "initial_mass", masses[:5], ["log_surface_gravity"]
         )
         assert np.allclose(out["log_surface_gravity"], iso.native["log_g"][:5])
@@ -83,7 +81,7 @@ class TestInterpolateAlong:
     def test_record_content(self, iso):
         m = iso.native["initial_mass"]
         mid = 0.5 * (m[10] + m[11])
-        out, record = interpolate_along(iso, "initial_mass", mid, ["log_g"])
+        _, record = interpolate_along(iso, "initial_mass", mid, ["log_g"])
         assert record.method == "linear"
         assert record.coordinate == "initial_mass"
         assert record.node_indices[0] == (10, 11)
@@ -123,7 +121,6 @@ class TestFacade:
         assert issubclass(UnifiedIso, IsochroneGrid)
 
     def test_construct_dispatch_rejects_unknown(self):
-        from stellariso.exceptions import UnsupportedModelError
 
         with pytest.raises(UnsupportedModelError):
             construct("nonexistent/1.0")

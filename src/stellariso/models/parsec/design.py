@@ -21,12 +21,16 @@ to the :class:`~stellariso.database.design.FamilyAdapter` contract:
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from functools import cache, partial
 import gzip
 import io
 import json
-from functools import lru_cache
 from pathlib import Path
-from typing import Callable, Iterator
+from typing import Any, Callable
+
+import certifi
+import requests
 
 from stellariso.database.design import (
     DirectoryMatch,
@@ -37,8 +41,10 @@ from stellariso.database.design import (
     SelectionCriteria,
 )
 from stellariso.exceptions import SourceUnavailableError
+from stellariso.models import catalog as load_catalog
 from stellariso.models.parsec import blueprint as bp
-from stellariso.models.parsec.cmd_form import CmdFieldSet
+from stellariso.models.parsec.cmd_form import CmdFieldSet, CmdFormClient
+from stellariso.registry import references
 
 __all__ = ["ParsecAdapter", "count_blocks"]
 
@@ -70,6 +76,7 @@ def count_blocks(path: Path) -> int | None:
 
 
 class ParsecAdapter(FamilyAdapter):
+    """PARSEC: form-computed cells of the declared blueprint."""
     family = "parsec"
 
     # -- enumeration ------------------------------------------------------
@@ -86,6 +93,7 @@ class ParsecAdapter(FamilyAdapter):
         )
 
     def designs(self) -> Iterator[ProductDesign]:
+        """Every designed cell of every track set (the full blueprint)."""
         # 162k designs: enumerated once per adapter instance, then reused
         cached = self.__dict__.get("_designs_cache")
         if cached is None:
@@ -94,6 +102,7 @@ class ParsecAdapter(FamilyAdapter):
         return iter(cached)
 
     def committed(self) -> Iterator[ProductDesign]:
+        """The cells the current fetch stage commits to acquiring."""
         for ts in bp.TRACK_SETS.values():
             for cell in bp.fetch_cells(ts):
                 yield self._design_of_cell(cell)
@@ -101,6 +110,7 @@ class ParsecAdapter(FamilyAdapter):
     # -- directory mapping --------------------------------------------------
 
     def product_of_directory(self, root: Path, directory: Path) -> DirectoryMatch:
+        """Match a directory against the blueprint's set/cell labels."""
         set_key = directory.parent.name
         ts = bp.TRACK_SETS.get(set_key)
         if ts is None:
@@ -135,6 +145,7 @@ class ParsecAdapter(FamilyAdapter):
         *,
         verify: bool = True,
     ) -> PartVerdict:
+        """A table is conforming when its payload and block count match the design."""
         cell: bp.Cell = design.facts["cell"]
         reasons: list[str] = []
         table = directory / part.filename
@@ -171,17 +182,16 @@ class ParsecAdapter(FamilyAdapter):
 
     def fetch_part(
         self,
-        design,
-        part,
-        directory,
+        design: ProductDesign,
+        part: PartDesign,
+        directory: Path,
         *,
-        session=None,
-        client=None,
+        session: requests.Session | None = None,
+        client: CmdFormClient | None = None,
         log: Callable[[str], None] = print,
     ) -> dict:
+        """Submit the cell through the CMD form and archive the returned table."""
         if client is None:
-            from stellariso.models.parsec.cmd_form import CmdFormClient
-
             client = CmdFormClient(session=session)
         cell: bp.Cell = design.facts["cell"]
         table = part.filename
@@ -214,19 +224,13 @@ class ParsecAdapter(FamilyAdapter):
 
     # -- manifest and report --------------------------------------------------
 
-    def default_session(self, database: Path):
+    def default_session(self, database: Path) -> requests.Session:
         """A session with the form host's missing TLS intermediate
         appended to the standard trust store, so verification stays ON
         (the combined bundle is written under ``<database>/.tls/``)."""
-        import requests
-
-        from stellariso.models import catalog as load_catalog
-
         bundle_name = load_catalog("parsec").get("ca_bundle")
         if not bundle_name:
             return None
-        import certifi
-
         model_dir = Path(__file__).parent
         intermediate = model_dir / bundle_name
         if not intermediate.exists():
@@ -245,14 +249,12 @@ class ParsecAdapter(FamilyAdapter):
         session.verify = str(combined)
         return session
 
-    def fetch_client(self, session=None):
-        from stellariso.models.parsec.cmd_form import CmdFormClient
-
+    def fetch_client(self, session: requests.Session | None = None) -> CmdFormClient:
+        """The form client shared by one build run (default_session's bundle honored)."""
         return CmdFormClient(session=session)
 
     def manifest_fields(self, design: ProductDesign) -> dict:
-        from stellariso.registry import references
-
+        """Citation list for the computed-service channel."""
         return {
             "source_class": "official_computed",
             "note": (
@@ -264,7 +266,8 @@ class ParsecAdapter(FamilyAdapter):
             "references": [r.citation for r in references("parsec")],
         }
 
-    def family_section(self, design) -> dict:
+    def family_section(self, design: ProductDesign) -> dict:
+        """The blueprint cell the product realizes, in full."""
         cell: bp.Cell = design.facts["cell"]
         return {
             "module": "stellariso.models.parsec.blueprint",
@@ -300,7 +303,8 @@ class ParsecAdapter(FamilyAdapter):
             },
         }
 
-    def report_header(self, designs) -> list[str]:
+    def report_header(self, designs: list[ProductDesign]) -> list[str]:
+        """Report header naming the computation service and the staged design."""
         lines = [
             "Source: official CMD 3.9 computation service "
             "(https://stev.oapd.inaf.it/cgi-bin/cmd); the declared "
@@ -351,49 +355,44 @@ class ParsecAdapter(FamilyAdapter):
             )
         return lines
 
-    def matches_criteria(self, design, criteria: SelectionCriteria) -> bool:
+    def matches_criteria(
+        self, design: ProductDesign, criteria: SelectionCriteria
+    ) -> bool:
+        """Narrow selection to the blueprint axes ([M/H], rotation, eta, dust, LPV)."""
         if not super().matches_criteria(design, criteria):
             return False
         cell: bp.Cell = design.facts["cell"]
-        axes = criteria.axes or {}
-        for name, wanted in axes.items():
-            if name == "mh":
-                if isinstance(wanted, (tuple, list)) and len(wanted) == 2:
-                    lo, hi = wanted
-                    if not (lo - 1e-9 <= cell.mh <= hi + 1e-9):
-                        return False
-                elif cell.mh not in _as_list(wanted):
-                    return False
-            elif name == "omega":
-                if cell.omega not in _as_list(wanted):
-                    return False
-            elif name == "eta":
-                if cell.eta not in _as_list(wanted):
-                    return False
-            elif name == "n_inTPC":
-                if cell.n_intpc not in _as_list(wanted, cast=int):
-                    return False
-            elif name == "dust_m":
-                if cell.dust_m not in _as_list(wanted):
-                    return False
-            elif name == "dust_c":
-                if cell.dust_c not in _as_list(wanted):
-                    return False
-            elif name == "lpv":
-                if cell.lpv not in _as_list(wanted):
-                    return False
-            elif name == "tier":
-                if cell.set.tier not in _as_list(wanted):
-                    return False
-            else:
-                raise ValueError(
-                    f"unknown PARSEC axis filter {name!r} (known: mh, omega, "
-                    "eta, n_inTPC, dust_m, dust_c, lpv, tier)"
-                )
+        for name, wanted in (criteria.axes or {}).items():
+            if not _axis_matches(cell, name, wanted):
+                return False
         return True
 
 
-def _as_list(value, cast=None):
+
+_AXIS_FILTERS = ("mh", "omega", "eta", "n_inTPC", "dust_m", "dust_c", "lpv", "tier")
+
+
+def _axis_matches(cell: bp.Cell, name: str, wanted: Any) -> bool:
+    """Whether one blueprint axis filter accepts the cell."""
+    if name == "mh":
+        # a 2-tuple is an inclusive range; anything else a value list
+        if isinstance(wanted, (tuple, list)) and len(wanted) == 2:
+            lo, hi = wanted
+            return lo - 1e-9 <= cell.mh <= hi + 1e-9
+        return cell.mh in _as_list(wanted)
+    if name == "n_inTPC":
+        return cell.n_intpc in _as_list(wanted, cast=int)
+    if name == "tier":
+        return cell.set.tier in _as_list(wanted)
+    for axis in ("omega", "eta", "dust_m", "dust_c", "lpv"):
+        if name == axis:
+            return getattr(cell, axis) in _as_list(wanted)
+    raise ValueError(
+        f"unknown PARSEC axis filter {name!r} (known: {_AXIS_FILTERS})"
+    )
+
+
+def _as_list(value: Any, cast: Callable[[Any], Any] | None = None) -> tuple:
     values = value if isinstance(value, (tuple, list)) else (value,)
     if cast is not None:
         values = [cast(v) for v in values]
@@ -403,7 +402,7 @@ def _as_list(value, cast=None):
 # -- payload ↔ cell mapping (directory side) ------------------------------------
 
 
-@lru_cache(maxsize=None)
+@cache
 def _cell_index(ts_key: str) -> dict[tuple, bp.Cell]:
     """Axis tuple -> designed cell, for one set (built once per set)."""
     ts = bp.TRACK_SETS[ts_key]
@@ -415,6 +414,7 @@ def _cell_index(ts_key: str) -> dict[tuple, bp.Cell]:
 
 def _find_cell(
     ts: bp.TrackSet,
+    *,
     mh: float,
     omega: float,
     eta: float,
@@ -444,7 +444,11 @@ def _cell_of_payload(payload: dict[str, str]) -> bp.Cell | None:
         lpv = payload["kind_LPV"]
     except (KeyError, ValueError):
         return None
-    return _find_cell(bp.TRACK_SETS[key], mh, omega, eta, n_intpc, dust_m, dust_c, lpv)
+    return _find_cell(
+        bp.TRACK_SETS[key],
+        mh=mh, omega=omega, eta=eta, n_intpc=n_intpc,
+        dust_m=dust_m, dust_c=dust_c, lpv=lpv,
+    )
 
 
 def _cell_of_label(ts: bp.TrackSet, label: str) -> bp.Cell | None:
@@ -457,39 +461,14 @@ def _cell_of_label(ts: bp.TrackSet, label: str) -> bp.Cell | None:
 
     # strip the optional axis suffixes (fixed emitted order, but parsed
     # tolerantly from the end); dust names carry no underscores.
-    eta: float | None = None
-    omega: float | None = None
-    n_intpc: int | None = None
-    dust_m: str | None = None
-    dust_c: str | None = None
-    lpv: str | None = None
-    while True:
-        if lpv is None and text.endswith(tuple(f"_lpv{v}" for v in bp.LPV_VALUES)):
-            lpv = text.rsplit("_lpv", 1)[1]
-            text = text.rsplit("_lpv", 1)[0]
-        elif dust_c is None and text.endswith(tuple(f"_dC{v}" for v in bp.DUST_C_VALUES)):
-            dust_c = text.rsplit("_dC", 1)[1]
-            text = text.rsplit("_dC", 1)[0]
-        elif dust_m is None and text.endswith(tuple(f"_dM{v}" for v in bp.DUST_M_VALUES)):
-            dust_m = text.rsplit("_dM", 1)[1]
-            text = text.rsplit("_dM", 1)[0]
-        elif n_intpc is None and text.endswith(tuple(f"_n{v}" for v in bp.N_INTPC_VALUES)):
-            n_intpc = int(text.rsplit("_n", 1)[1])
-            text = text.rsplit("_n", 1)[0]
-        elif eta is None and (sep := text.rfind("_e")) != -1 and "." in text[sep + 2 :]:
-            try:
-                eta = float(text[sep + 2 :])
-            except ValueError:
-                break
-            text = text[:sep]
-        elif omega is None and (sep := text.rfind("_w")) != -1 and "." in text[sep + 2 :]:
-            try:
-                omega = float(text[sep + 2 :])
-            except ValueError:
-                break
-            text = text[:sep]
-        else:
-            break
+    axes = _strip_axis_suffixes(text)
+    text = axes["text"]
+    eta = axes.get("eta")
+    omega = axes.get("omega")
+    n_intpc = axes.get("n_intpc")
+    dust_m = axes.get("dust_m")
+    dust_c = axes.get("dust_c")
+    lpv = axes.get("lpv")
 
     if not text.startswith("mh_") or len(text) < 5 or text[3] not in "mp":
         return None
@@ -503,7 +482,54 @@ def _cell_of_label(ts: bp.TrackSet, label: str) -> bp.Cell | None:
     dust_m = bp.CANONICAL_DUST_M if dust_m is None else dust_m
     dust_c = bp.CANONICAL_DUST_C if dust_c is None else dust_c
     lpv = bp.CANONICAL_LPV if lpv is None else lpv
-    return _find_cell(ts, mh, omega, eta, n_intpc, dust_m, dust_c, lpv)
+    return _find_cell(
+        ts,
+        mh=mh, omega=omega, eta=eta, n_intpc=n_intpc,
+        dust_m=dust_m, dust_c=dust_c, lpv=lpv,
+    )
+
+
+def _strip_axis_suffixes(label: str) -> dict[str, Any]:
+    """Peel the optional axis suffixes off a cell label, from the end.
+
+    Returns the remaining text under ``"text"`` plus every axis value
+    peeled off (each at most once, in emitted order).
+    """
+    def strip_listed(text: str, *, marker: str, values: tuple[str, ...],
+                     cast: Callable[[str], Any]) -> tuple[Any, str] | None:
+        if not text.endswith(tuple(f"{marker}{v}" for v in values)):
+            return None
+        head, _, value = text.rpartition(marker)
+        return cast(value), head
+
+    def strip_numbered(text: str, *, marker: str) -> tuple[float, str] | None:
+        sep = text.rfind(marker)
+        if sep == -1 or "." not in text[sep + 2 :]:
+            return None
+        try:
+            return float(text[sep + 2 :]), text[:sep]
+        except ValueError:
+            return None
+
+    strippers: tuple[tuple[str, Callable[[str], tuple[Any, str] | None]], ...] = (
+        ("lpv", partial(strip_listed, marker="_lpv", values=bp.LPV_VALUES, cast=str)),
+        ("dust_c", partial(strip_listed, marker="_dC", values=bp.DUST_C_VALUES, cast=str)),
+        ("dust_m", partial(strip_listed, marker="_dM", values=bp.DUST_M_VALUES, cast=str)),
+        ("n_intpc", partial(strip_listed, marker="_n", values=bp.N_INTPC_VALUES, cast=int)),
+        ("eta", partial(strip_numbered, marker="_e")),
+        ("omega", partial(strip_numbered, marker="_w")),
+    )
+    out: dict[str, Any] = {"text": label}
+    while True:
+        for axis, strip in strippers:
+            if axis in out:
+                continue
+            peeled = strip(out["text"])
+            if peeled is not None:
+                out[axis], out["text"] = peeled
+                break
+        else:
+            return out
 
 
 def _load_any_payload(directory: Path) -> dict[str, str]:

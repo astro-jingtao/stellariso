@@ -12,12 +12,12 @@ import dataclasses
 from enum import Enum
 
 __all__ = [
+    "FieldOrigin",
+    "FieldSpec",
+    "ModelIdentity",
     "ParameterRole",
     "ParameterSource",
     "ParameterSpec",
-    "FieldSpec",
-    "FieldOrigin",
-    "ModelIdentity",
 ]
 
 
@@ -107,6 +107,7 @@ class ParameterSpec:
             object.__setattr__(self, "values", tuple(self.values))
 
     def to_dict(self) -> dict:
+        """JSON-ready form with the enums as their string values."""
         d = dataclasses.asdict(self)
         d["role"] = self.role.value
         if self.source is not None:
@@ -114,7 +115,8 @@ class ParameterSpec:
         return d
 
     @classmethod
-    def from_dict(cls, d: dict) -> "ParameterSpec":
+    def from_dict(cls, d: dict) -> ParameterSpec:
+        """Rebuild a ParameterSpec from its JSON-ready form."""
         d = dict(d)
         d["role"] = ParameterRole(d["role"])
         if d.get("source") is not None:
@@ -159,7 +161,7 @@ class FieldSpec:
             raise ValueError(
                 f"field {self.name!r} with origin=native must declare native_name"
             )
-        if self.origin in (FieldOrigin.TRANSFORMED_NATIVE,) and (
+        if self.origin is FieldOrigin.TRANSFORMED_NATIVE and (
             self.native_name is None or self.transformation is None
         ):
             raise ValueError(
@@ -177,12 +179,14 @@ class FieldSpec:
             )
 
     def to_dict(self) -> dict:
+        """JSON-ready form with the origin enum as its string value."""
         d = dataclasses.asdict(self)
         d["origin"] = self.origin.value
         return d
 
     @classmethod
-    def from_dict(cls, d: dict) -> "FieldSpec":
+    def from_dict(cls, d: dict) -> FieldSpec:
+        """Rebuild a FieldSpec from its JSON-ready form."""
         d = dict(d)
         d["origin"] = FieldOrigin(d["origin"])
         return cls(**d)
@@ -207,14 +211,17 @@ class ModelIdentity:
 
     @property
     def label(self) -> str:
+        """The slash-joined identity (family/release[/physics])."""
         parts = [self.family, self.release]
         if self.physics_configuration:
             parts.append(self.physics_configuration)
         return "/".join(parts)
 
     def to_dict(self) -> dict:
+        """JSON-ready form (plain dataclass fields only)."""
         return dataclasses.asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "ModelIdentity":
+    def from_dict(cls, d: dict) -> ModelIdentity:
+        """Rebuild a ModelIdentity from its JSON-ready form."""
         return cls(**d)

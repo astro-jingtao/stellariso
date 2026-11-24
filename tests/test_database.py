@@ -2,17 +2,29 @@
 
 from __future__ import annotations
 
-import io
-import json
-import tarfile
 from io import BytesIO
+import json
 from pathlib import Path
+import shutil
+import tarfile
+import zipfile
 
+import certifi
 import pytest
 
 import stellariso
 from stellariso.database.build import build_database
-from stellariso.database.core import Database, open_database, register_local_product
+import stellariso.database.core as dbmod
+from stellariso.database.core import open_database, register_local_product
+from stellariso.database.design import (
+    DirectoryMatch,
+    FamilyAdapter,
+    PartDesign,
+    PartVerdict,
+    ProductDesign,
+    register_adapter,
+    unregister_adapter,
+)
 from stellariso.exceptions import (
     DataIntegrityError,
     SourceUnavailableError,
@@ -20,6 +32,9 @@ from stellariso.exceptions import (
 from stellariso.facade import MistIso, construct
 from stellariso.grid import IsochroneGrid
 from stellariso.integrity import sha256_bytes, sha256_file, verify_checksum
+from stellariso.models.parsec import blueprint as bp
+from stellariso.models.parsec.design import ParsecAdapter
+from tests.parsec.test_build import StubClient
 
 MIST_FIXTURE = (
     Path(__file__).parent / "data" / "mist" / "MIST_v1.2_feh_m1.00_afe_p0.0_vvcrit0.4_fixture.iso"
@@ -56,27 +71,27 @@ FAKE_CATALOG = {
 
 
 class FakeStreamResponse:
-    def __init__(self, payload: bytes):
+    def __init__(self, payload: bytes) -> None:
         self._payload = payload
 
-    def raise_for_status(self):
+    def raise_for_status(self) -> None:
         pass
 
     def iter_content(self, chunk_size: int):
         for i in range(0, len(self._payload), chunk_size):
             yield self._payload[i : i + chunk_size]
 
-    def __enter__(self):
+    def __enter__(self) -> FakeStreamResponse:
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args) -> None:
         return False
 
 
 class FakeStreamSession:
     """Serves prebuilt tarball payloads for the database builder."""
 
-    def __init__(self, mapping: dict[str, bytes]):
+    def __init__(self, mapping: dict[str, bytes]) -> None:
         self.mapping = mapping
         self.calls: list[str] = []
 
@@ -95,7 +110,7 @@ def _tarball_with_iso(arcname: str = "MIST_v1.2_feh_m1.00_test.iso") -> bytes:
     return buf.getvalue()
 
 
-@pytest.fixture()
+@pytest.fixture
 def fake_env(monkeypatch, tmp_path):
     payload = _tarball_with_iso()
     mapping = {
@@ -130,7 +145,7 @@ class TestIntegrityHelpers:
 class TestBuildDatabase:
     def test_build_downloads_extracts_and_records(self, fake_env):
         session, db_path = fake_env
-        db = build_database(db_path, models=["mist"], session=session)
+        build_database(db_path, models=["mist"], session=session)
         assert len(session.calls) == 2
         for label in ("vvcrit0.4_full_isos", "vvcrit0.0_full_isos"):
             product_dir = db_path / "mist" / "1.2" / label
@@ -181,16 +196,6 @@ class TestBuildDatabase:
         assert "archive missing" in out
 
     def test_manual_family_fails_loudly(self, tmp_path):
-        from stellariso.database.design import (
-            DirectoryMatch,
-            FamilyAdapter,
-            PartDesign,
-            PartVerdict,
-            ProductDesign,
-            register_adapter,
-            unregister_adapter,
-        )
-
         class ManualAdapter(FamilyAdapter):
             family = "manualsrc"
 
@@ -267,7 +272,6 @@ class TestOpenDatabase:
         partial = db_path.parent / "partial_db"
         (partial / "mist" / "1.2").mkdir(parents=True)
         # copy ONE product directory only
-        import shutil
 
         shutil.copytree(
             db_path / "mist" / "1.2" / "vvcrit0.4_full_isos",
@@ -288,7 +292,7 @@ class TestOpenDatabase:
         assert isinstance(mist, MistIso)
         assert mist.identity.release == "1.2"
         # absent release in the database fails listing what is present
-        with pytest.raises(SourceUnavailableError, match="holds no mist/2.5"):
+        with pytest.raises(SourceUnavailableError, match=r"holds no mist/2\.5"):
             construct("mist/2.5", database=db_path, label="vvcrit0.4_full_isos")
         # a stated release that contradicts the files' own identity fails too
         with pytest.raises(ValueError, match="does not match the data"):
@@ -343,7 +347,6 @@ class TestRegisterLocalProduct:
 
 class TestSafeExtract:
     def test_escaping_member_rejected(self, tmp_path):
-        import stellariso.database.core as dbmod
 
         buf = BytesIO()
         with tarfile.open(fileobj=buf, mode="w") as tf:
@@ -359,7 +362,6 @@ class TestSafeExtract:
 
 class TestZipProductsAndCaBundle:
     def test_build_zip_archive_product(self, tmp_path, monkeypatch):
-        import zipfile
 
         dat_a = b"# a data file inside a zip product\n1.0 2.0 3.0\n"
         buf = BytesIO()
@@ -400,12 +402,10 @@ class TestZipProductsAndCaBundle:
         assert manifest["n_data_files"] == 1
 
     def test_default_session_gets_declared_ca_bundle(self, tmp_path):
-        from stellariso.models.parsec.design import ParsecAdapter
 
         session = ParsecAdapter().default_session(tmp_path / "db")
         bundle = Path(session.verify)
         assert bundle.exists()
-        import certifi
 
         content = bundle.read_bytes()
         certifi_pem = Path(certifi.where()).read_bytes()
@@ -427,9 +427,6 @@ class TestFormProducts:
     pin the dispatch and the dry-run plan)."""
 
     def test_build_submits_through_the_adapter(self, tmp_path, monkeypatch):
-        from stellariso.models.parsec import blueprint as bp
-        from stellariso.models.parsec.design import ParsecAdapter
-        from tests.parsec.test_build import StubClient
 
         cell = bp.Cell(set=bp.TRACK_SETS["v1.2S_COLIBRI_web"], mh=0.0, omega=0.0)
         adapter = ParsecAdapter()

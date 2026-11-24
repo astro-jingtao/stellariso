@@ -9,7 +9,9 @@ from __future__ import annotations
 import pytest
 import requests
 
+import stellariso
 from stellariso.models import catalog
+from stellariso.models.parsec.cmd_form import CmdFieldSet, CmdFormClient
 
 pytestmark = pytest.mark.network
 
@@ -42,7 +44,6 @@ class TestPadovaArchiveLive:
         # the two VizieR archive products are small enough to actually
         # build live (~3.2 MB total): fetch, MANIFEST, checksums, and a
         # real grid open — the acquisition design's end-to-end check
-        import stellariso
 
         db = stellariso.build_database(tmp_path, models=["padova"])
         for model, n in (("padova/1994", 297), ("padova/2000", 350)):
@@ -65,7 +66,6 @@ class TestCmdFormLive:
         # a single isochrone (1e9 yr, Z = 0.0152); the server computes it
         # synchronously in seconds. Also proves the honest (non-browser)
         # User-Agent is served real tables, not header-only output.
-        from stellariso.models.parsec.cmd_form import CmdFieldSet, CmdFormClient
 
         client = CmdFormClient()
         job = client.submit(CmdFieldSet.from_overrides())

@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from stellariso.database.core import Database, register_local_product
+from stellariso.database.design import FamilyAdapter
 from stellariso.integrity import sha256_bytes
 from stellariso.models.padova.design import PadovaAdapter
 from stellariso.warnings import (
@@ -60,13 +62,16 @@ class TestDesigns:
         directory = tmp_path / "padova" / "2000" / "vizier_tables"
         directory.mkdir(parents=True)
         match = adapter.product_of_directory(tmp_path, directory)
-        assert match.matched and match.design.key == design.key
+        assert match.matched
+        assert match.design.key == design.key
         unknown = tmp_path / "padova" / "2000" / "mystery"
         match = adapter.product_of_directory(tmp_path, unknown)
-        assert not match.matched and "label" in match.superseded_reason
+        assert not match.matched
+        assert "label" in match.superseded_reason
         stranger = tmp_path / "padova" / "1892" / "vizier_tables"
         match = adapter.product_of_directory(tmp_path, stranger)
-        assert not match.matched and "release" in match.superseded_reason
+        assert not match.matched
+        assert "release" in match.superseded_reason
 
 
 class TestClassify:
@@ -88,7 +93,6 @@ class TestClassify:
         self, adapter, tmp_path
     ):
         design = _design(adapter, "1994")
-        facts = design.facts["files"]["readme"]
         directory = tmp_path / design.relative_dir
         self._place(directory, "ReadMe", b"readme payload" * 100)
         entry = {"sha256": sha256_bytes(b"readme payload" * 100)}
@@ -138,13 +142,13 @@ class TestClassify:
 
 
 class _FakeResponse:
-    def __init__(self, payload: bytes):
+    def __init__(self, payload: bytes) -> None:
         self._payload = payload
 
-    def __enter__(self):
+    def __enter__(self) -> _FakeResponse:
         return self
 
-    def __exit__(self, *exc):
+    def __exit__(self, *exc) -> None:
         return False
 
     def raise_for_status(self):
@@ -156,7 +160,7 @@ class _FakeResponse:
 
 
 class _FakeSession:
-    def __init__(self, payload: bytes):
+    def __init__(self, payload: bytes) -> None:
         self._payload = payload
         self.requested = []
 
@@ -256,7 +260,6 @@ class TestIsDataFile:
             assert not adapter.is_data_file(tmp_path / name), name
 
     def test_default_hook_keeps_the_generic_rule(self):
-        from stellariso.database.design import FamilyAdapter
 
         default = FamilyAdapter()
         assert default.is_data_file(Path("a.iso"))
@@ -269,7 +272,6 @@ class TestIsDataFile:
         a padova product of plain extension-less tables is data-present
         and opens, where the generic suffix rule would have looked for
         an archive to extract."""
-        from stellariso.database.core import Database, register_local_product
 
         fixture = Path(__file__).parent.parent / "data" / "padova" / "p1994"
         record = register_local_product(
@@ -277,7 +279,7 @@ class TestIsDataFile:
             "padova",
             "1994",
             "hand_tables",
-            [fixture / "table5"],
+            files=[fixture / "table5"],
             note="test registration of one hand-held table",
         )
         db = Database(tmp_path)

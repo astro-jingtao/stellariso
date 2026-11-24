@@ -27,20 +27,20 @@ Format (verified against interp-form output, MIST version 1.2 / MESA r7503)::
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 import gzip
 import os
-import re
-from dataclasses import dataclass, field
 from pathlib import Path
+import re
 from typing import Any, TextIO
 
-import numpy as np
 from astropy.table import Table
+import numpy as np
 
 from stellariso.exceptions import DataIntegrityError, UnrecognizedFormatError
 from stellariso.native import NativeTable
 
-__all__ = ["MistFile", "parse_mist_iso", "open_mist_text"]
+__all__ = ["MistFile", "open_mist_text", "parse_mist_iso"]
 
 _VERSION_RE = re.compile(r"MIST version number\s*=\s*(\S+)")
 _MESA_RE = re.compile(r"MESA revision number\s*=\s*(\S+)")
@@ -89,18 +89,37 @@ def open_mist_text(source: str | os.PathLike | TextIO) -> tuple[TextIO, bool]:
         raise FileNotFoundError(path)
     if path.suffix == ".gz":
         return gzip.open(path, mode="rt", encoding="ascii", errors="replace"), True
-    return open(path, mode="r", encoding="ascii", errors="replace"), False
+    return open(path, encoding="ascii", errors="replace"), False
 
 
-def parse_mist_iso(source: str | os.PathLike | TextIO) -> MistFile:
-    """Parse a MIST theoretical isochrone file into native form."""
-    fh, opened = open_mist_text(source)
-    try:
-        lines = fh.read().splitlines()
-    finally:
-        if opened:
-            fh.close()
+def _header_fact(
+    stripped: str, facts: dict[str, Any]
+) -> tuple[str, Any] | None:
+    """The header fact a comment line carries, when it carries one."""
+    for regex, key in ((_VERSION_RE, "mist_version"), (_MESA_RE, "mesa_revision")):
+        m = regex.search(stripped)
+        if m and key not in facts:
+            return key, m.group(1)
+    m = _N_ISO_RE.search(stripped)
+    if m:
+        return "n_isochrones", int(m.group(1))
+    return None
 
+
+def _composition_values(lines: list[str], i: int) -> tuple[float, ...]:
+    """The five composition values (Yinit Zinit [Fe/H] [alpha/Fe] v/vcrit)."""
+    values = lines[i + 1].lstrip("#").split()
+    if len(values) != 5:
+        raise DataIntegrityError(
+            f"composition values line does not carry 5 values: {lines[i+1]!r}"
+        )
+    return tuple(float(v) for v in values)
+
+
+def _scan_header_and_blocks(
+    lines: list[str],
+) -> tuple[dict[str, Any], list[str], list[MistBlock], list[str]]:
+    """One pass over the comment lines: header facts and isochrone blocks."""
     facts: dict[str, Any] = {}
     header_lines: list[str] = []
     blocks: list[MistBlock] = []
@@ -121,21 +140,9 @@ def parse_mist_iso(source: str | os.PathLike | TextIO) -> MistFile:
 
         stripped = line.lstrip("# ").strip()
 
-        m = _VERSION_RE.search(stripped)
-        if m and "mist_version" not in facts:
-            facts["mist_version"] = m.group(1)
-            header_lines.append(line)
-            i += 1
-            continue
-        m = _MESA_RE.search(stripped)
-        if m and "mesa_revision" not in facts:
-            facts["mesa_revision"] = m.group(1)
-            header_lines.append(line)
-            i += 1
-            continue
-        m = _N_ISO_RE.search(stripped)
-        if m:
-            facts["n_isochrones"] = int(m.group(1))
+        fact = _header_fact(stripped, facts)
+        if fact is not None:
+            facts[fact[0]] = fact[1]
             header_lines.append(line)
             i += 1
             continue
@@ -158,17 +165,13 @@ def parse_mist_iso(source: str | os.PathLike | TextIO) -> MistFile:
 
         # composition pair: names line then values line
         if stripped.split() == list(_COMPOSITION_NAMES):
-            values = lines[i + 1].lstrip("#").split()
-            if len(values) != 5:
-                raise DataIntegrityError(
-                    f"composition values line does not carry 5 values: {lines[i+1]!r}"
-                )
-            facts["yinit"], facts["zinit"] = float(values[0]), float(values[1])
-            facts["feh"], facts["afe"], facts["vvcrit"] = (
-                float(values[2]),
-                float(values[3]),
-                float(values[4]),
-            )
+            (
+                facts["yinit"],
+                facts["zinit"],
+                facts["feh"],
+                facts["afe"],
+                facts["vvcrit"],
+            ) = _composition_values(lines, i)
             header_lines.extend([line, lines[i + 1]])
             i += 2
             continue
@@ -176,8 +179,14 @@ def parse_mist_iso(source: str | os.PathLike | TextIO) -> MistFile:
         header_lines.append(line)
         i += 1
 
-    _validate(facts, blocks, column_names)
+    assert column_names is not None  # _validate enforces the real contract
+    return facts, header_lines, blocks, column_names
 
+
+def _stack_block_rows(
+    lines: list[str], blocks: list[MistBlock], column_names: list[str]
+) -> tuple[np.ndarray, list[MistBlock]]:
+    """Stack every block's data rows into one array, stamping row ranges."""
     data = np.empty(
         (sum(b.n_rows for b in blocks), len(column_names)), dtype=np.float64
     )
@@ -193,7 +202,22 @@ def parse_mist_iso(source: str | os.PathLike | TextIO) -> MistFile:
             data[row] = [float(x) for x in parts]
             row += 1
         b.row_stop = row
+    return data, blocks
 
+
+def parse_mist_iso(source: str | os.PathLike | TextIO) -> MistFile:
+    """Parse a MIST theoretical isochrone file into native form."""
+    fh, opened = open_mist_text(source)
+    try:
+        lines = fh.read().splitlines()
+    finally:
+        if opened:
+            fh.close()
+
+    facts, header_lines, blocks, column_names = _scan_header_and_blocks(lines)
+    _validate(facts, blocks, column_names)
+
+    data, blocks = _stack_block_rows(lines, blocks, column_names)
     table = Table(data, names=list(column_names))
     block_metadata = tuple(
         {"n_eeps": b.n_eeps, "n_cols": b.n_cols} for b in blocks
@@ -249,7 +273,9 @@ def block_column_names(block: MistBlock) -> list[str]:
     return block.header_lines[2].lstrip("#").split()
 
 
-def _validate(facts: dict, blocks: list[MistBlock], column_names) -> None:
+def _validate(
+    facts: dict, blocks: list[MistBlock], column_names: list[str]
+) -> None:
     required = ("mist_version", "n_isochrones", "yinit", "zinit", "feh")
     missing = [k for k in required if k not in facts]
     if missing:

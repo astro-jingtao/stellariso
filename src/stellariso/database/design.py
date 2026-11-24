@@ -19,23 +19,27 @@ separately from automatically planned missing-part jobs.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping
+from typing import Any, Callable
+
+import requests
 
 from stellariso.exceptions import UnsupportedModelError
+from stellariso.registry import references
 
 __all__ = [
-    "PartDesign",
-    "ProductDesign",
-    "PartVerdict",
     "DirectoryMatch",
-    "SelectionCriteria",
     "FamilyAdapter",
+    "PartDesign",
+    "PartVerdict",
+    "ProductDesign",
+    "SelectionCriteria",
+    "adapter_families",
+    "adapter_for",
     "register_adapter",
     "unregister_adapter",
-    "adapter_for",
-    "adapter_families",
 ]
 
 
@@ -70,13 +74,16 @@ class ProductDesign:
 
     @property
     def key(self) -> str:
+        """The collection/label pair that names the product."""
         return f"{self.collection}/{self.label}"
 
     @property
     def relative_dir(self) -> str:
+        """The product's path under the database root."""
         return f"{self.family}/{self.collection}/{self.label}"
 
     def part_named(self, name: str) -> PartDesign:
+        """The part declared under ``name`` (KeyError when absent)."""
         for part in self.parts:
             if part.name == name:
                 return part
@@ -98,15 +105,18 @@ class PartVerdict:
     warnings: tuple[str, ...] = ()
 
     @classmethod
-    def ok(cls, *warnings: str) -> "PartVerdict":
+    def ok(cls, *warnings: str) -> PartVerdict:
+        """A verdict for a present, conforming part (warnings optional)."""
         return cls("ok", warnings=warnings)
 
     @classmethod
-    def missing(cls, *reasons: str) -> "PartVerdict":
+    def missing(cls, *reasons: str) -> PartVerdict:
+        """A verdict for an absent part."""
         return cls("missing", reasons=reasons)
 
     @classmethod
-    def nonconforming(cls, *reasons: str) -> "PartVerdict":
+    def nonconforming(cls, *reasons: str) -> PartVerdict:
+        """A verdict for a present part that fails its conformance checks."""
         return cls("nonconforming", reasons=reasons)
 
 
@@ -124,6 +134,7 @@ class DirectoryMatch:
 
     @property
     def matched(self) -> bool:
+        """Whether the directory resolved to one of the family's products."""
         return self.design is not None
 
 
@@ -150,6 +161,7 @@ class SelectionCriteria:
     axes: Mapping[str, Any] = field(default_factory=dict)
 
     def describe(self) -> str:
+        """A short human summary of the match (or the mismatch reasons)."""
         if self.products:
             return f"products {list(self.products)}"
         parts = []
@@ -197,8 +209,7 @@ class FamilyAdapter:
         files carry other names (extension-less tables) override this.
         """
         name = path.name.lower()
-        if name.endswith(".gz"):
-            name = name[:-3]
+        name = name.removesuffix(".gz")
         return Path(name).suffix in self.data_suffixes or name.endswith(".iso.gz")
 
     def committed(self) -> Iterable[ProductDesign]:
@@ -231,30 +242,28 @@ class FamilyAdapter:
         part: PartDesign,
         directory: Path,
         *,
-        session=None,
-        client=None,
+        session: requests.Session | None = None,
+        client: Any = None,
         log: Callable[[str], None] = print,
     ) -> dict:
         """Acquire one part into its directory; return its parts entry
         (file / sha256 / size_bytes / retrieved_at / record / url)."""
         raise NotImplementedError
 
-    def default_session(self, database: Path):
+    def default_session(self, database: Path) -> requests.Session | None:
         """The family's own session (CA bundle honored), or None for a
         plain one. Only used when the caller passes no session."""
-        return None
+        return
 
-    def fetch_client(self, session=None):
+    def fetch_client(self, session: requests.Session | None = None) -> Any:
         """The reusable fetch handle passed as ``client=`` to every
         :meth:`fetch_part` of one build run (a form client, or None)."""
-        return None
+        return
 
     def manifest_fields(self, design: ProductDesign) -> dict:
         """The family's top-level MANIFEST fields (source_class, note,
         format, physics); parts, identity, and schema are the loop's."""
         family = design.family
-        from stellariso.registry import references
-
         return {"references": [r.citation for r in references(family)]}
 
     def report_header(self, designs: list[ProductDesign]) -> list[str]:
@@ -275,13 +284,11 @@ class FamilyAdapter:
         their ``axes`` filters."""
         if criteria.families and design.family not in criteria.families:
             return False
-        if criteria.collections and design.collection not in criteria.collections:
-            return False
-        if criteria.labels and design.label not in criteria.labels:
-            return False
-        if criteria.products and design.relative_dir not in criteria.products:
-            return False
-        return True
+        return not (
+            (criteria.collections and design.collection not in criteria.collections)
+            or (criteria.labels and design.label not in criteria.labels)
+            or (criteria.products and design.relative_dir not in criteria.products)
+        )
 
 
 # -- the adapter registry -------------------------------------------------------
@@ -303,13 +310,13 @@ def unregister_adapter(family: str) -> None:
 
 
 def _ensure_builtin() -> None:
-    # Imported lazily: the adapter modules import design types from here,
-    # so the dependency direction models -> database stays one-way.
     if _ADAPTERS:
         return
-    from stellariso.models.mist.design import MistAdapter
-    from stellariso.models.padova.design import PadovaAdapter
-    from stellariso.models.parsec.design import ParsecAdapter
+    # Imported lazily: the adapter modules import design types from here,
+    # so the dependency direction models -> database stays one-way.
+    from stellariso.models.mist.design import MistAdapter  # noqa: PLC0415
+    from stellariso.models.padova.design import PadovaAdapter  # noqa: PLC0415
+    from stellariso.models.parsec.design import ParsecAdapter  # noqa: PLC0415
 
     register_adapter(MistAdapter())
     register_adapter(PadovaAdapter())
@@ -317,6 +324,7 @@ def _ensure_builtin() -> None:
 
 
 def adapter_for(family: str) -> FamilyAdapter:
+    """The family's registered adapter (UnsupportedModelError when none)."""
     _ensure_builtin()
     try:
         return _ADAPTERS[family]
@@ -328,5 +336,6 @@ def adapter_for(family: str) -> FamilyAdapter:
 
 
 def adapter_families() -> tuple[str, ...]:
+    """Every family with a registered adapter."""
     _ensure_builtin()
     return tuple(_ADAPTERS)

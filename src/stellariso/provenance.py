@@ -13,13 +13,13 @@ import dataclasses
 from enum import Enum
 
 __all__ = [
-    "SourceClass",
-    "SourceStatus",
-    "SourceRecord",
     "DataAsset",
-    "SourceChain",
-    "Reference",
     "Provenance",
+    "Reference",
+    "SourceChain",
+    "SourceClass",
+    "SourceRecord",
+    "SourceStatus",
 ]
 
 
@@ -41,6 +41,7 @@ class SourceClass(Enum):
 
 
 class SourceStatus(Enum):
+    """What was established about a source channel when it was last contacted."""
     VERIFIED = "verified"  # retrieved and checksum-validated
     RETRIEVED = "retrieved"  # retrieved, not checksum-validated
     UNAVAILABLE = "unavailable"  # checked and unreachable
@@ -65,13 +66,15 @@ class SourceRecord:
             raise TypeError("status must be a SourceStatus")
 
     def to_dict(self) -> dict:
+        """JSON-ready form with the enums as their string values."""
         d = dataclasses.asdict(self)
         d["source_class"] = self.source_class.value
         d["status"] = self.status.value
         return d
 
     @classmethod
-    def from_dict(cls, d: dict) -> "SourceRecord":
+    def from_dict(cls, d: dict) -> SourceRecord:
+        """Rebuild a SourceRecord from its JSON-ready form."""
         d = dict(d)
         d["source_class"] = SourceClass(d["source_class"])
         d["status"] = SourceStatus(d.get("status", "not_checked"))
@@ -91,13 +94,15 @@ class DataAsset:
     note: str | None = None
 
     def to_dict(self) -> dict:
+        """JSON-ready form with the nested source record expanded."""
         d = dataclasses.asdict(self)
         if self.source is not None:
             d["source"] = self.source.to_dict()
         return d
 
     @classmethod
-    def from_dict(cls, d: dict) -> "DataAsset":
+    def from_dict(cls, d: dict) -> DataAsset:
+        """Rebuild a DataAsset from its JSON-ready form."""
         d = dict(d)
         if d.get("source") is not None:
             d["source"] = SourceRecord.from_dict(d["source"])
@@ -117,6 +122,7 @@ class SourceChain:
         object.__setattr__(self, "transformations", tuple(self.transformations))
 
     def to_dict(self) -> dict:
+        """JSON-ready form with nested records expanded."""
         return {
             "upstream_sources": [s.to_dict() for s in self.upstream_sources],
             "immediate_source": (
@@ -126,7 +132,8 @@ class SourceChain:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "SourceChain":
+    def from_dict(cls, d: dict) -> SourceChain:
+        """Rebuild a SourceChain from its JSON-ready form."""
         d = dict(d)
         d["upstream_sources"] = [
             SourceRecord.from_dict(s) for s in d.get("upstream_sources", [])
@@ -148,10 +155,12 @@ class Reference:
     note: str | None = None
 
     def to_dict(self) -> dict:
+        """JSON-ready form with nested records expanded."""
         return dataclasses.asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "Reference":
+    def from_dict(cls, d: dict) -> Reference:
+        """Rebuild a Reference from its JSON-ready form."""
         return cls(**d)
 
 
@@ -178,6 +187,7 @@ class Provenance:
         object.__setattr__(self, "transformations", tuple(self.transformations))
 
     def to_dict(self) -> dict:
+        """JSON-ready form with every nested record expanded."""
         return {
             "data_sources": [s.to_dict() for s in self.data_sources],
             "assets": [a.to_dict() for a in self.assets],
@@ -188,7 +198,8 @@ class Provenance:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "Provenance":
+    def from_dict(cls, d: dict) -> Provenance:
+        """Rebuild a Provenance from its JSON-ready form."""
         return cls(
             data_sources=tuple(
                 SourceRecord.from_dict(s) for s in d.get("data_sources", [])

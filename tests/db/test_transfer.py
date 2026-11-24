@@ -172,7 +172,7 @@ class TestMerge:
         source, target = tmp_path / "src", tmp_path / "dst"
         cell = _cell(0.1)
         # a product with no sound part (coarse log, no linear)
-        directory = _product(source, cell, parts=("log",), log_blocks=71)
+        _product(source, cell, parts=("log",), log_blocks=71)
         # record carries the designed payload, so the block count is what
         # makes it nonconforming
         report = merge_database(source, target, log=lambda *_: None)
@@ -292,7 +292,8 @@ class TestExport:
         txt = (result.outdir / "files.txt").read_text(encoding="utf-8").splitlines()
         assert "parsec/" + WEB.key + "/mh_p0.0/output.dat" in txt
         readme = (result.outdir / "README.md").read_text(encoding="utf-8")
-        assert "verify" in readme and "refresh" in readme
+        assert "verify" in readme
+        assert "refresh" in readme
 
     def test_export_checksums_all_hashes_every_file(self, tmp_path: Path):
         db = tmp_path / "db"
@@ -382,7 +383,6 @@ class TestRsync:
         assert command.endswith(" host:/db")
 
     def test_run_without_rsync_fails_loudly(self, tmp_path, monkeypatch):
-        import stellariso.database.transfer as transfer
 
         monkeypatch.setattr(
             "shutil.which", lambda name: None, raising=True

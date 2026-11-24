@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 import os
-from pathlib import Path
 from typing import TextIO
 
 import numpy as np
 
 from stellariso.core import ModelIdentity
 from stellariso.isochrone import Isochrone, IsochroneSet
+from stellariso.models.parsec.reader import (
+    ParsecFile,
+    open_parsec_text,
+    parse_parsec_cmd,
+)
 from stellariso.native import NativeTable
 from stellariso.provenance import Provenance
 from stellariso.registry import (
@@ -19,22 +24,21 @@ from stellariso.registry import (
     resolve_parameters,
 )
 from stellariso.unified import UnifiedView
-from stellariso.models.parsec.reader import ParsecFile, parse_parsec_cmd
 
-__all__ = ["read_parsec", "recognize_parsec", "PARSEC_REFERENCES"]
+__all__ = ["PARSEC_REFERENCES", "read_parsec", "recognize_parsec"]
 
 PARSEC_REFERENCES = references("parsec")
 
 
-def _phase_computation(product: str):
+def _phase_computation(
+    product: str,
+) -> Mapping[str, Callable[[NativeTable], np.ndarray]]:
     mapping = phase_mapping("parsec", product)
     return {"phase": lambda nt: mapping(np.asarray(nt["label"]))}
 
 
 def recognize_parsec(source: str | os.PathLike | TextIO) -> bool:
     """Cheap sniff for CMD isochrone tables (header + column signature)."""
-    from stellariso.models.parsec.reader import open_parsec_text
-
     fh, opened = open_parsec_text(source)
     try:
         header = []
@@ -54,12 +58,12 @@ def recognize_parsec(source: str | os.PathLike | TextIO) -> bool:
             tokens = line.lstrip("#").split()
             if "M_ini" in tokens and "M_act" in tokens:
                 return True
-        return False
     except (OSError, UnicodeDecodeError):
         return False
     finally:
         if opened:
             fh.close()
+    return False
 
 
 def parsec_identity(facts: dict) -> ModelIdentity:
@@ -79,7 +83,9 @@ def parsec_identity(facts: dict) -> ModelIdentity:
     )
 
 
-def parsec_parameters(product: str, facts: dict, block_z, log_ages) -> tuple:
+def parsec_parameters(
+    product: str, facts: dict, block_z: float, log_ages: np.ndarray
+) -> tuple:
     """ParameterSpecs for one CMD isochrone table.
 
     Static knowledge (roles, the v1.2S helium enrichment law, the
@@ -100,6 +106,7 @@ def read_parsec(
     source: str | os.PathLike | TextIO,
     provenance: Provenance | None = None,
 ) -> IsochroneSet:
+    """Read one CMD isochrone table into an IsochroneSet."""
     parsed: ParsecFile = parse_parsec_cmd(source)
     native = parsed.native
     facts = parsed.facts

@@ -17,13 +17,13 @@ from stellariso.models.mist.backend import read_mist, recognize_mist
 from stellariso.models.padova.backend import read_padova, recognize_padova
 from stellariso.models.parsec.backend import read_parsec, recognize_parsec
 
-__all__ = ["BACKENDS", "get_backend", "register_backend", "catalog", "parse_model_spec"]
+__all__ = ["BACKENDS", "catalog", "get_backend", "parse_model_spec", "register_backend"]
 
 
 class Backend:
     """One model family's entry in the registry."""
 
-    def __init__(self, name: str, recognize: Callable, read: Callable):
+    def __init__(self, name: str, recognize: Callable, read: Callable) -> None:
         self.name = name
         self.recognize = recognize
         self.read = read
@@ -41,6 +41,7 @@ BACKENDS: dict[str, Backend] = {
 
 
 def get_backend(name: str) -> Backend:
+    """The registered backend of a model family name."""
     try:
         return BACKENDS[name.lower()]
     except KeyError:

@@ -10,23 +10,23 @@ first. Manually held files enter through ``register_local_product``.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+from dataclasses import dataclass
+from pathlib import Path
 import tarfile
 import warnings
 import zipfile
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Iterable
 
+from stellariso.database.design import adapter_for
 from stellariso.database.manifest import (
     primary_part,
     read_manifest,
     utc_now_iso,
     write_manifest,
 )
-from stellariso.database.design import adapter_for
 from stellariso.exceptions import SourceUnavailableError
 from stellariso.grid import IsochroneGrid
-from stellariso.integrity import sha256_file
+from stellariso.integrity import sha256_file, verify_checksum
 from stellariso.models import parse_model_spec
 from stellariso.provenance import Provenance, SourceClass, SourceRecord, SourceStatus
 from stellariso.registry import references
@@ -87,18 +87,22 @@ class ProductRecord:
 
     @property
     def family(self) -> str:
+        """The product's family name (from its MANIFEST)."""
         return self.manifest["family"]
 
     @property
     def release(self) -> str:
+        """The product's release string (from its MANIFEST)."""
         return self.manifest["release"]
 
     @property
     def label(self) -> str:
+        """The product's label within the release (from its MANIFEST)."""
         return self.manifest["label"]
 
     @property
     def kind(self) -> str | None:
+        """The product's kind, when the family distinguishes several."""
         return self.manifest.get("kind")
 
     def _primary_entry(self) -> dict:
@@ -107,10 +111,12 @@ class ProductRecord:
 
     @property
     def url(self) -> str | None:
+        """The primary part's recorded URL, if any."""
         return self._primary_entry().get("url")
 
     @property
     def sha256(self) -> str | None:
+        """The primary part's recorded sha256, if any."""
         return self._primary_entry().get("sha256")
 
     def __repr__(self) -> str:  # pragma: no cover - debug convenience
@@ -120,7 +126,8 @@ class ProductRecord:
 class Database:
     """An opened local database: the products present under one root."""
 
-    def __init__(self, root: Path):
+    def __init__(self, root: Path) -> None:
+        """Open the database rooted at ``root`` and index its products."""
         self.root = root
         self._products = tuple(
             ProductRecord(directory=manifest.parent, manifest=read_manifest(manifest))
@@ -129,9 +136,11 @@ class Database:
 
     @property
     def products(self) -> tuple[ProductRecord, ...]:
+        """Every product directory found under the root."""
         return self._products
 
     def products_for(self, family: str, release: str | None = None) -> tuple[ProductRecord, ...]:
+        """The products of one family, optionally narrowed to one release."""
         return tuple(
             p
             for p in self._products
@@ -214,8 +223,6 @@ class Database:
         archive = archives[0]
         expected = record.sha256
         if expected:
-            from stellariso.integrity import verify_checksum
-
             verify_checksum(archive, expected)
         else:
             warnings.warn(
@@ -231,6 +238,7 @@ class Database:
         write_manifest(record.directory / "MANIFEST.json", manifest)
 
     def describe(self) -> str:
+        """A short human summary of the database (paths, sizes, releases)."""
         lines = [f"stellariso database at {self.root}", f"products: {len(self._products)}"]
         for p in self._products:
             size = p._primary_entry().get("size_bytes")
@@ -292,6 +300,7 @@ def register_local_product(
     family: str,
     release: str,
     label: str,
+    *,
     files: Iterable[Path],
     note: str,
 ) -> ProductRecord:
@@ -304,8 +313,6 @@ def register_local_product(
     registration), and the acquisition note stating exactly how the
     files were produced.
     """
-    from stellariso.provenance import SourceClass as _SC
-
     root = Path(database)
     target_dir = root / family / release / label
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -327,13 +334,15 @@ def register_local_product(
         "label": label,
         "kind": "local_user_files",
         "physics": None,
-        "source_class": _SC.LOCAL_USER_FILE.value,
+        "source_class": SourceClass.LOCAL_USER_FILE.value,
         "note": note,
         "parts": parts,
         "references": [r.citation for r in references(family)],
     }
     write_manifest(target_dir / "MANIFEST.json", manifest)
-    from stellariso.database.inventory import write_inventory
+    # inventory imports Database from this module — cycle breaker, one side
+    # must stay function-local
+    from stellariso.database.inventory import write_inventory  # noqa: PLC0415
 
     write_inventory(root)
     return ProductRecord(directory=target_dir, manifest=read_manifest(target_dir / "MANIFEST.json"))

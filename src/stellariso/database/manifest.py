@@ -41,9 +41,10 @@ Reading is version-tolerant, writing is not:
 
 from __future__ import annotations
 
-import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import json
 from pathlib import Path
 
 from stellariso.exceptions import ManifestError
@@ -52,15 +53,15 @@ __all__ = [
     "SCHEMA",
     "ManifestUpgradeFailure",
     "ManifestUpgradeReport",
-    "upgrade_manifests",
     "is_v2",
     "load_raw",
     "normalize",
     "primary_part",
     "read_manifest",
     "strip_legacy",
-    "write_manifest",
+    "upgrade_manifests",
     "utc_now_iso",
+    "write_manifest",
 ]
 
 #: The manifest schema every write path produces.
@@ -213,7 +214,7 @@ def primary_part(manifest: dict) -> str | None:
     for name in ("archive", "log"):
         if name in parts:
             return name
-    return sorted(parts)[0]
+    return min(parts)
 
 
 # -- the whole-database upgrade (write side converges on v2) --------------------
@@ -239,6 +240,7 @@ class ManifestUpgradeReport:
 
     @property
     def ok(self) -> bool:
+        """Whether every product manifest was upgraded (none refused)."""
         return not self.failed
 
 
@@ -296,7 +298,10 @@ def _carries_equivalently(stamped: dict, raw: dict) -> bool:
 
 
 def upgrade_manifests(
-    database: str | Path, *, dry_run: bool = False, log=print
+    database: str | Path,
+    *,
+    dry_run: bool = False,
+    log: Callable[[str], None] = print,
 ) -> ManifestUpgradeReport:
     """Rewrite every product MANIFEST of a database to clean v2.
 

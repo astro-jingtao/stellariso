@@ -9,9 +9,9 @@ product; a file is rarely a single isochrone, so this layer always exists.
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from collections.abc import Iterable, Iterator, Mapping
+from typing import Any
 
-import numpy as np
 from astropy.table import Table
 
 from stellariso.core import FieldSpec, ModelIdentity, ParameterSpec
@@ -34,12 +34,14 @@ class Isochrone:
         self,
         native: NativeTable,
         identity: ModelIdentity,
+        *,
         parameters: tuple[ParameterSpec, ...] = (),
         field_specs: Mapping[str, FieldSpec] | None = None,
         provenance: Provenance | None = None,
         selection: Mapping[str, Any] | None = None,
         unified_view: Any = None,
-    ):
+    ) -> None:
+        """Assemble one isochrone from a backend's parsed pieces."""
         self._native = native
         self.identity = identity
         self.parameters = tuple(parameters)
@@ -49,7 +51,7 @@ class Isochrone:
         self.selection_info: Mapping[str, Any] | None = None
         self._unified_view = unified_view
 
-    def with_selection_info(self, info: Mapping[str, Any]) -> "Isochrone":
+    def with_selection_info(self, info: Mapping[str, Any]) -> Isochrone:
         """A shallow copy carrying grid-selection metadata.
 
         The native table, identity, parameters, and unified view are shared
@@ -73,10 +75,12 @@ class Isochrone:
 
     @property
     def native(self) -> NativeTable:
+        """The parsed upstream table (verbatim data plus header material)."""
         return self._native
 
     @property
-    def unified(self):
+    def unified(self) -> Any:
+        """The backend-built unified view (AttributeError when none was attached)."""
         if self._unified_view is None:
             raise AttributeError(
                 "no unified view is attached; the backend that produced this "
@@ -87,6 +91,7 @@ class Isochrone:
     # -- parameter access ----------------------------------------------------
 
     def parameter(self, name: str) -> ParameterSpec:
+        """The parameter spec named ``name`` (KeyError when absent)."""
         for spec in self.parameters:
             if spec.name == name:
                 return spec
@@ -94,11 +99,12 @@ class Isochrone:
 
     # -- unified field access -------------------------------------------------
 
-    def get(self, name: str):
+    def get(self, name: str) -> Any:
         """Unified field values (same as ``self.unified[name]``)."""
         return self.unified[name]
 
     def has_field(self, name: str) -> bool:
+        """Whether the unified layer exposes field ``name``."""
         return name in self.field_specs
 
     def field_info(self, name: str) -> FieldSpec:
@@ -110,7 +116,7 @@ class Isochrone:
                 f"no unified field {name!r}; available: {sorted(self.field_specs)}"
             ) from None
 
-    def __getattr__(self, name: str):
+    def __getattr__(self, name: str) -> Any:
         # called only when normal attribute lookup fails; expose unified
         # fields as attributes (iso.log_surface_gravity, iso.initial_mass...)
         specs = object.__getattribute__(self, "field_specs")
@@ -152,14 +158,16 @@ class Isochrone:
         coordinate: str = "initial_mass",
         method: str = "linear",
         record: bool = False,
-    ):
+    ) -> Any:
         """Interpolate fields at one initial mass within this isochrone.
 
         Returns a dict of field values (or the single value when ``fields``
         is a string); with ``record=True`` returns ``(values, record)``.
         No extrapolation; see :mod:`stellariso.interp`.
         """
-        from stellariso.interp import interpolate_along
+        # interp imports Isochrone from here — cycle breaker, one side must
+        # stay function-local
+        from stellariso.interp import interpolate_along  # noqa: PLC0415
 
         if fields is None:
             # discrete stage fields are not interpolable; use get_phase-style
@@ -176,7 +184,12 @@ class Isochrone:
             return values, rec
         return values
 
-    def at_initial_mass(self, mass: float, fields=None, **kwargs):
+    def at_initial_mass(
+        self,
+        mass: float,
+        fields: str | Iterable[str] | None = None,
+        **kwargs,
+    ) -> Any:
         """Alias of :meth:`at` with the default mass coordinate."""
         return self.at(mass, fields=fields, **kwargs)
 
@@ -214,10 +227,12 @@ class IsochroneSet:
         isochrones: tuple[Isochrone, ...],
         native: NativeTable,
         identity: ModelIdentity,
+        *,
         parameters: tuple[ParameterSpec, ...] = (),
         provenance: Provenance | None = None,
         indexer: str | None = None,
-    ):
+    ) -> None:
+        """Assemble one set from the isochrones read out of one file."""
         self._isochrones = tuple(isochrones)
         self._native = native
         self.identity = identity
@@ -227,26 +242,29 @@ class IsochroneSet:
 
     @property
     def isochrones(self) -> tuple[Isochrone, ...]:
+        """The member isochrones, in file order."""
         return self._isochrones
 
     @property
     def native(self) -> NativeTable:
+        """The file's parsed table (shared verbatim, never copied)."""
         return self._native
 
     def __len__(self) -> int:
         return len(self._isochrones)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Isochrone]:
         return iter(self._isochrones)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Isochrone:
         return self._isochrones[idx]
 
-    def keys(self):
+    def keys(self) -> list[Any]:
         """Index coordinates of the member isochrones (e.g. the log ages)."""
         return [iso.selection.get(self.indexer) for iso in self._isochrones]
 
     def parameter(self, name: str) -> ParameterSpec:
+        """The first member's parameter spec named ``name``."""
         for spec in self.parameters:
             if spec.name == name:
                 return spec

@@ -97,6 +97,7 @@ def _release_entry(ts: bp.TrackSet) -> dict:
 
 
 def main() -> None:
+    """Regenerate the form-field catalog from the live CMD page."""
     catalog = dict(STATIC)
     catalog["releases"] = [_release_entry(ts) for ts in bp.TRACK_SETS.values()]
     n = sum(len(r["products"]) for r in catalog["releases"])

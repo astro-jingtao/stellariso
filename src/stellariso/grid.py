@@ -9,10 +9,10 @@ in age or composition is deliberately not provided.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
 import os
-import warnings
 from pathlib import Path
-from typing import Any, Iterable
+import warnings
 
 import numpy as np
 
@@ -22,7 +22,8 @@ from stellariso.exceptions import (
     UnrecognizedFormatError,
 )
 from stellariso.isochrone import Isochrone, IsochroneSet
-from stellariso.models import get_backend
+from stellariso.models import BACKENDS, get_backend, parse_model_spec
+from stellariso.provenance import Provenance
 from stellariso.warnings import NearestGridPointWarning
 
 __all__ = ["IsochroneGrid", "open_grid"]
@@ -40,7 +41,8 @@ class IsochroneGrid:
     model-agnostic.
     """
 
-    def __init__(self, sets: Iterable[IsochroneSet]):
+    def __init__(self, sets: Iterable[IsochroneSet]) -> None:
+        """Index the sets and derive the selectable coordinates."""
         self._sets = tuple(sets)
         if not self._sets:
             raise ValueError("an IsochroneGrid needs at least one IsochroneSet")
@@ -61,7 +63,7 @@ class IsochroneGrid:
                     coords.append(k)
         if "log_age" in coords:
             coords.remove("log_age")
-            coords = ["log_age"] + coords
+            coords = ["log_age", *coords]
         self._selectable = tuple(coords) or _SELECTABLE_FALLBACK
         self._sets_by_key = {}
         for s in self._sets:
@@ -76,7 +78,8 @@ class IsochroneGrid:
     # -- construction -------------------------------------------------------
 
     @classmethod
-    def from_paths(cls, model: str, paths: Iterable[str | os.PathLike]) -> "IsochroneGrid":
+    def from_paths(cls, model: str, paths: Iterable[str | os.PathLike]) -> IsochroneGrid:
+        """Read every file of one model product into a grid."""
         backend = get_backend(model)
         sets = [backend.read(p) for p in paths]
         return cls(sets)
@@ -84,7 +87,8 @@ class IsochroneGrid:
     @classmethod
     def from_directory(
         cls, model: str, directory: str | os.PathLike, recursive: bool = True
-    ) -> "IsochroneGrid":
+    ) -> IsochroneGrid:
+        """Read one directory (recursively) as one model product."""
         backend = get_backend(model)
         root = Path(directory)
         if not root.is_dir():
@@ -104,16 +108,18 @@ class IsochroneGrid:
 
     @property
     def sets(self) -> tuple[IsochroneSet, ...]:
+        """The isochrone sets as they were read (one per file)."""
         return self._sets
 
     @property
     def isochrones(self) -> tuple[Isochrone, ...]:
+        """Every isochrone of every set, in read order."""
         return self._isochrones
 
     def __len__(self) -> int:
         return len(self._isochrones)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Isochrone]:
         return iter(self._isochrones)
 
     def _key_of(self, iso: Isochrone) -> tuple:
@@ -127,12 +133,12 @@ class IsochroneGrid:
 
     @property
     def axes(self) -> dict[str, tuple]:
+        """Every selectable coordinate with its available values."""
         return {name: self.axis_values(name) for name in self._selectable}
 
     @property
-    def provenance(self):
-        from stellariso.provenance import Provenance
-
+    def provenance(self) -> Provenance:
+        """The provenance of every contributing set, folded into one."""
         return Provenance(
             data_sources=tuple(
                 src for s in self._sets for src in s.provenance.data_sources
@@ -146,6 +152,62 @@ class IsochroneGrid:
             transformations=tuple(
                 t for s in self._sets for t in s.provenance.transformations
             ),
+        )
+
+
+    def _select_exact(self, requested: dict) -> Isochrone:
+        """Exact selection: fill unique axes, demand the rest pinned."""
+        # unrequested coordinates default to the grid's value when the
+        # axis is unique; multi-valued axes must be pinned explicitly
+        filled = dict(requested)
+        for name in self._selectable:
+            if name in filled:
+                continue
+            values = self.axis_values(name)
+            if len(values) == 1:
+                filled[name] = values[0]
+        still_missing = [
+            k for k in self._selectable if k not in filled and len(self.axis_values(k)) > 1
+        ]
+        if still_missing:
+            raise GridPointNotFoundError(
+                f"coordinates {still_missing} have several values in this "
+                f"grid and were not pinned; available axes: {self.axes}"
+            )
+        key = tuple(filled.get(k) for k in self._selectable)
+        iso = self._sets_by_key.get(key)
+        if iso is None:
+            raise GridPointNotFoundError(
+                f"no isochrone at {filled}; available axes: {self.axes}"
+            )
+        return iso.with_selection_info(
+            {"method": "exact", "requested": dict(requested), "returned": filled}
+        )
+
+    def _unique_snapped_candidate(
+        self, snapped: dict, requested: dict
+    ) -> Isochrone:
+        """The one isochrone at the snapped coordinates (fail otherwise)."""
+        candidates = [
+            iso
+            for key, iso in self._sets_by_key.items()
+            if all(
+                key[self._selectable.index(name)] == value
+                for name, value in snapped.items()
+            )
+        ]
+        if len(candidates) == 1:
+            return candidates[0]
+        if not candidates:
+            raise GridPointNotFoundError(
+                f"no isochrone at snapped coordinates {snapped} "
+                f"(requested {requested}); available axes: {self.axes}"
+            )
+        # more than one candidate: unconstrained axes remain
+        unpinned = [k for k in self._selectable if k not in requested]
+        raise GridPointNotFoundError(
+            f"snapped coordinates {snapped} match {len(candidates)} "
+            f"isochrones; pin one of {unpinned}"
         )
 
     # -- selection ----------------------------------------------------------
@@ -178,32 +240,7 @@ class IsochroneGrid:
             )
 
         if method == "exact":
-            # unrequested coordinates default to the grid's value when the
-            # axis is unique; multi-valued axes must be pinned explicitly
-            filled = dict(requested)
-            for name in self._selectable:
-                if name in filled:
-                    continue
-                values = self.axis_values(name)
-                if len(values) == 1:
-                    filled[name] = values[0]
-            still_missing = [
-                k for k in self._selectable if k not in filled and len(self.axis_values(k)) > 1
-            ]
-            if still_missing:
-                raise GridPointNotFoundError(
-                    f"coordinates {still_missing} have several values in this "
-                    f"grid and were not pinned; available axes: {self.axes}"
-                )
-            key = tuple(filled.get(k) for k in self._selectable)
-            iso = self._sets_by_key.get(key)
-            if iso is None:
-                raise GridPointNotFoundError(
-                    f"no isochrone at {filled}; available axes: {self.axes}"
-                )
-            return iso.with_selection_info(
-                {"method": "exact", "requested": dict(requested), "returned": filled}
-            )
+            return self._select_exact(requested)
 
         # nearest: snap each requested coordinate independently
         snapped = {}
@@ -216,28 +253,7 @@ class IsochroneGrid:
             snapped[name] = float(available[i])
             distances[name] = float(abs(available[i] - value))
 
-        candidates = [
-            iso
-            for key, iso in self._sets_by_key.items()
-            if all(
-                key[self._selectable.index(name)] == value
-                for name, value in snapped.items()
-            )
-        ]
-        if len(candidates) == 1:
-            iso = candidates[0]
-        elif not candidates:
-            raise GridPointNotFoundError(
-                f"no isochrone at snapped coordinates {snapped} "
-                f"(requested {requested}); available axes: {self.axes}"
-            )
-        else:
-            # more than one candidate: unconstrained axes remain
-            unpinned = [k for k in self._selectable if k not in requested]
-            raise GridPointNotFoundError(
-                f"snapped coordinates {snapped} match {len(candidates)} "
-                f"isochrones; pin one of {unpinned}"
-            )
+        iso = self._unique_snapped_candidate(snapped, requested)
 
         info = {
             "method": "nearest",
@@ -267,8 +283,6 @@ def open_grid(
     sniffs the sources; exactly one must claim them
     (``AmbiguousFormatError`` otherwise, ``UnrecognizedFormatError`` if none).
     """
-    from stellariso.models import parse_model_spec
-
     p = Path(path)
     if model is not None:
         family, release = parse_model_spec(model)
@@ -283,8 +297,6 @@ def open_grid(
                 f"release {grid.identity.release!r}"
             )
         return grid
-
-    from stellariso.models import BACKENDS
 
     paths = (
         sorted(q for q in p.rglob("*") if q.is_file() and not q.name.startswith("."))

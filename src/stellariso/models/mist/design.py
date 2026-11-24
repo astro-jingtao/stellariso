@@ -14,8 +14,12 @@ the integrity anchor).
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Callable, Iterator
+from typing import Any, Callable
+import warnings
+
+import requests
 
 from stellariso.database.design import (
     DirectoryMatch,
@@ -24,6 +28,7 @@ from stellariso.database.design import (
     PartVerdict,
     ProductDesign,
 )
+from stellariso.database.manifest import utc_now_iso
 from stellariso.integrity import download_file, sha256_file
 from stellariso.models import catalog as load_catalog
 from stellariso.registry import references
@@ -33,6 +38,7 @@ __all__ = ["MistAdapter"]
 
 
 class MistAdapter(FamilyAdapter):
+    """MIST: package products from the release catalog."""
     family = "mist"
     extracts = True
 
@@ -42,6 +48,7 @@ class MistAdapter(FamilyAdapter):
     # -- enumeration ------------------------------------------------------
 
     def designs(self) -> Iterator[ProductDesign]:
+        """Every catalog release entry as one product design (tarball, one part)."""
         for release_entry in self._catalog()["releases"]:
             for product in release_entry["products"]:
                 yield ProductDesign(
@@ -63,6 +70,7 @@ class MistAdapter(FamilyAdapter):
     # -- directory mapping --------------------------------------------------
 
     def product_of_directory(self, root: Path, directory: Path) -> DirectoryMatch:
+        """Match a directory against the catalog's collection/label layout."""
         release = directory.parent.name
         label = directory.name
         for design in self.designs():
@@ -85,6 +93,7 @@ class MistAdapter(FamilyAdapter):
         *,
         verify: bool = True,
     ) -> PartVerdict:
+        """A part is conforming when the archive's sha256 and size match the catalog."""
         path = directory / part.filename
         if not path.exists():
             return PartVerdict.missing()
@@ -119,23 +128,18 @@ class MistAdapter(FamilyAdapter):
         part: PartDesign,
         directory: Path,
         *,
-        session=None,
-        client=None,
+        session: requests.Session | None = None,
+        client: Any = None,
         log: Callable[[str], None] = print,
     ) -> dict:
+        """Download the release tarball and record its checksum and size."""
         if session is None:
-            import requests
-
             session = requests.Session()
             session.headers["User-Agent"] = "stellariso (isochrone database builder)"
-        from stellariso.database.manifest import utc_now_iso
-
         url = design.facts["url"]
         sha, size = download_file(url, directory / part.filename, session)
         expected = design.facts.get("size_bytes")
         if expected is not None and size != expected:
-            import warnings
-
             warnings.warn(
                 f"{design.relative_dir}: downloaded {size:,} bytes but the "
                 f"release catalog recorded {expected:,} bytes; the upstream "
@@ -155,6 +159,7 @@ class MistAdapter(FamilyAdapter):
     # -- manifest and report ---------------------------------------------------
 
     def manifest_fields(self, design: ProductDesign) -> dict:
+        """Citation list and the catalog-derived source note."""
         cat = self._catalog()
         return {
             "source_class": "official_origin",
@@ -165,9 +170,11 @@ class MistAdapter(FamilyAdapter):
         }
 
     def fetch_cost(self, design: ProductDesign, part: PartDesign) -> dict:
+        """The declared download size of the part."""
         return {"kind": "download", "size_bytes": design.facts.get("size_bytes")}
 
-    def report_header(self, designs) -> list[str]:
+    def report_header(self, designs: list[ProductDesign]) -> list[str]:
+        """Report header naming the catalog channel and its entries."""
         cat = self._catalog()
         releases = cat["releases"]
         sizes = [p.get("size_bytes") or 0 for r in releases for p in r["products"]]

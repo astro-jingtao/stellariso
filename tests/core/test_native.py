@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from astropy.table import Table
 import numpy as np
 import pytest
-from astropy.table import Table
 
 from stellariso.core import ModelIdentity, ParameterRole, ParameterSpec
 from stellariso.isochrone import Isochrone, IsochroneSet
@@ -77,7 +77,7 @@ class TestIsochrone:
             ),
         )
         with pytest.raises(AttributeError, match="unified"):
-            iso.unified
+            _ = iso.unified
 
     def test_parameter_lookup(self):
         spec = ParameterSpec(name="alpha_fe", role=ParameterRole.FIXED, value=0.0)

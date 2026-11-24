@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import gzip
-import shutil
 from pathlib import Path
+import shutil
 
 import pytest
 
@@ -164,8 +164,10 @@ class TestGzipInputs:
 
 class TestSniffing:
     def test_sniff_classifies_both_layouts(self, p2000, p1994):
-        first_2000 = open(ISOCHRON_2000, encoding="ascii").readline().rstrip("\n")
-        first_1994 = open(TABLE5_1994, encoding="ascii").readline().rstrip("\n")
+        with open(ISOCHRON_2000, encoding="ascii") as fh:
+            first_2000 = fh.readline().rstrip("\n")
+        with open(TABLE5_1994, encoding="ascii") as fh:
+            first_1994 = fh.readline().rstrip("\n")
         assert sniff_layout([first_2000]) == "2000"
         assert sniff_layout([first_1994]) == "1994"
 

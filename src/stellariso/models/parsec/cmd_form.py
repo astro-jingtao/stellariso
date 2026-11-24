@@ -40,31 +40,34 @@ caller's decision.
 
 from __future__ import annotations
 
-import gzip
-import hashlib
-import re
-import ssl
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import gzip
+import hashlib
 from pathlib import Path
-from typing import Mapping
+import re
+import ssl
+from typing import Any
 from urllib.parse import urljoin
+import warnings
 
 import certifi
 import requests
 
+from stellariso._version import __version__
 from stellariso.exceptions import CmdFormError
 from stellariso.warnings import CmdFormDriftWarning, CmdFormOptionWarning
 
 __all__ = [
-    "CMD_FORM_URL",
-    "CMD_ENDPOINTS",
     "CGI_FIELD_NAMES",
+    "CMD_ENDPOINTS",
+    "CMD_FORM_URL",
     "DEFAULT_FIELDS",
-    "RADIO_VALUES",
-    "SELECT_VALUES",
     "IMF_FILES",
     "NUMERIC_BOUNDS",
+    "RADIO_VALUES",
+    "SELECT_VALUES",
     "CmdFieldSet",
     "CmdFormClient",
     "CmdJob",
@@ -348,8 +351,14 @@ def _validate_values(merged: dict[str, str]) -> None:
     non-negative step. Advisories (upstream-documented combinations that
     are accepted but pointless) warn instead of failing.
     """
-    import warnings
+    _validate_closed_sets(merged)
+    _validate_numeric_fields(merged)
+    _validate_ranges(merged)
+    _advise_track_options(merged)
 
+
+def _validate_closed_sets(merged: dict[str, str]) -> None:
+    """Closed-set fields accept only values the form itself declares."""
     for name, allowed in RADIO_VALUES.items():
         if name in merged and merged[name] not in allowed:
             raise ValueError(
@@ -363,6 +372,10 @@ def _validate_values(merged: dict[str, str]) -> None:
                 f"it must be one of the {len(allowed)} declared files "
                 f"(IMF_FILES / SELECT_VALUES[{name!r}])"
             )
+
+
+def _validate_numeric_fields(merged: dict[str, str]) -> None:
+    """Numeric fields parse, respect bounds, and are integers where declared."""
     for name, (lo, hi) in NUMERIC_BOUNDS.items():
         if name not in merged:
             continue
@@ -380,6 +393,10 @@ def _validate_values(merged: dict[str, str]) -> None:
                 f"CMD form field {name!r}={merged[name]!r} outside the "
                 f"form's range [{lo}, {hi}]"
             )
+
+
+def _validate_ranges(merged: dict[str, str]) -> None:
+    """Range families need low <= upp and a non-negative step."""
     for low, upp, step in _RANGE_PAIRS:
         if float(merged[low]) > float(merged[upp]):
             raise ValueError(
@@ -392,6 +409,9 @@ def _validate_values(merged: dict[str, str]) -> None:
                 "(0 selects a single value)"
             )
 
+
+def _advise_track_options(merged: dict[str, str]) -> None:
+    """Warn about option combinations the upstream documents as pointless."""
     track = merged["track_parsec"]
     if track != "parsec_CAF09_v2.0":
         if float(merged["track_omegai"]) != 0.0:
@@ -451,7 +471,8 @@ class CmdFieldSet:
     @classmethod
     def from_overrides(
         cls, base: Mapping[str, str] | None = None, /, **overrides
-    ) -> "CmdFieldSet":
+    ) -> CmdFieldSet:
+        """Build a payload from defaults plus keyword overrides, validated and wire-ordered."""
         merged: dict[str, str] = dict(base if base is not None else DEFAULT_FIELDS)
         unknown = sorted(set(overrides) - _SUPPORTED_FIELDS)
         if unknown:
@@ -476,10 +497,12 @@ class CmdFieldSet:
         return cls(values=tuple((k, merged[k]) for k in ordered))
 
     @classmethod
-    def from_mapping(cls, mapping: Mapping[str, str]) -> "CmdFieldSet":
+    def from_mapping(cls, mapping: Mapping[str, str]) -> CmdFieldSet:
+        """Build a payload from a plain field mapping."""
         return cls.from_overrides({}, **dict(mapping))
 
     def as_dict(self) -> dict[str, str]:
+        """The payload as a plain dict (insertion order = wire order)."""
         return dict(self.values)
 
     def multipart_pairs(self) -> list[tuple[str, str]]:
@@ -552,7 +575,7 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-_CONTROL_TAG_RE = re.compile(r"<(input|select|textarea)\b([^>]*)>", re.I)
+_CONTROL_TAG_RE = re.compile(r"<(input|select|textarea)\b([^>]*)>", re.IGNORECASE)
 _NAME_ATTR_RE = re.compile(r"""name=["']?([A-Za-z0-9_.]+)""")
 _TYPE_ATTR_RE = re.compile(r"""type=["']?([A-Za-z]+)""")
 
@@ -581,7 +604,7 @@ def form_field_names(form_html: str) -> set[str]:
 
 # -- result page ---------------------------------------------------------------
 
-_WARNING_RE = re.compile(r'<p class="warning">(.*?)</p>', re.S)
+_WARNING_RE = re.compile(r'<p class="warning">(.*?)</p>', re.DOTALL)
 _ERROR_LINE_RE = re.compile(r"\bError:\s*[^<\n]+")
 _SUBMITTED_RE = re.compile(r"job was submitted on (.*?)\s*<")
 _COMPLETED_RE = re.compile(r"job was completed on (.*?)\s*[.<]")
@@ -630,11 +653,11 @@ def _search(regex: re.Pattern, text: str, what: str) -> str:
 class _IntermediateChainAdapter(requests.adapters.HTTPAdapter):
     """Verify against certifi plus the bundled intermediate, in memory."""
 
-    def __init__(self, intermediate_pem: str, **kwargs):
+    def __init__(self, intermediate_pem: str, **kwargs) -> None:
         self._intermediate_pem = intermediate_pem
         super().__init__(**kwargs)
 
-    def init_poolmanager(self, *args, **kwargs):
+    def init_poolmanager(self, *args: Any, **kwargs: Any) -> None:
         context = ssl.create_default_context(cafile=certifi.where())
         context.load_verify_locations(cadata=self._intermediate_pem)
         kwargs["ssl_context"] = context
@@ -642,8 +665,6 @@ class _IntermediateChainAdapter(requests.adapters.HTTPAdapter):
 
 
 def _default_session() -> requests.Session:
-    from stellariso import __version__
-
     session = requests.Session()
     session.headers.update(
         {
@@ -675,7 +696,8 @@ class CmdFormClient:
         submit_timeout: float = 900.0,
         download_timeout: float = 300.0,
         check_form: bool = True,
-    ):
+    ) -> None:
+        """Bind the endpoint version and the HTTP session."""
         if cmd_version not in CMD_ENDPOINTS:
             raise ValueError(
                 f"unknown CMD version {cmd_version!r}; known: {sorted(CMD_ENDPOINTS)}"
@@ -770,8 +792,6 @@ class CmdFormClient:
             if not n.startswith(".") and n not in CGI_FIELD_NAMES
         )
         if extra:
-            import warnings
-
             warnings.warn(
                 f"live form declares field(s) {extra} the payload does not "
                 "send; if any is required upstream the job will come back "

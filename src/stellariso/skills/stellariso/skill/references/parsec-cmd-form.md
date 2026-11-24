@@ -91,7 +91,7 @@ committed cells is the supported way to fetch at scale.
   repository checkout, not with the installed package.
 - Tables downloaded by hand in a browser enter a database through
   `stellariso.database.core.register_local_product(database, family,
-  release, label, files, note)` — checksummed at registration, with an
+  release, label, files=..., note=...)` — checksummed at registration, with an
   explicit acquisition note stating exactly how the files were produced.
 - Live form round-trips are covered by the package's network-marked
   tests; they are excluded from the default offline test run.

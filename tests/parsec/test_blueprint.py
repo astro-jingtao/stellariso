@@ -32,9 +32,9 @@ from stellariso.models.parsec.blueprint import (
     all_cells,
     canonical_fields,
     cells,
-    fetch_cells,
     expected_linear_ages,
     expected_log_ages,
+    fetch_cells,
     mh_grid,
     mh_label,
     z_to_mh,
@@ -64,12 +64,14 @@ class TestCompositionGrid:
 
     def test_off_grid_edges_supplemented(self):
         grid = mh_grid(-2.19, 0.34)
-        assert -2.19 in grid and 0.34 in grid
+        assert -2.19 in grid
+        assert 0.34 in grid
         assert len(grid) == 27  # 25 interior 0.1 steps + both exact edges
 
     def test_converted_window_edges_supplemented(self):
         grid = mh_grid(-1.4921, 0.3363)
-        assert -1.4921 in grid and 0.3363 in grid
+        assert -1.4921 in grid
+        assert 0.3363 in grid
         assert len(grid) == 20  # 18 interior 0.1 steps + both exact edges
 
     def test_labels_run4_compatible(self):
@@ -109,11 +111,11 @@ class TestGridDeclarations:
         assert N_INTPC_VALUES == (5, 10, 20)
 
     def test_canonical_axes_are_the_request_baseline(self):
-        assert CANONICAL_ETA == float(DEFAULT_FIELDS["eta_reimers"])
-        assert CANONICAL_N_INTPC == int(DEFAULT_FIELDS["n_inTPC"])
-        assert CANONICAL_DUST_M == DEFAULT_FIELDS["dust_sourceM"]
-        assert CANONICAL_DUST_C == DEFAULT_FIELDS["dust_sourceC"]
-        assert CANONICAL_LPV == DEFAULT_FIELDS["kind_LPV"]
+        assert float(DEFAULT_FIELDS["eta_reimers"]) == CANONICAL_ETA
+        assert int(DEFAULT_FIELDS["n_inTPC"]) == CANONICAL_N_INTPC
+        assert DEFAULT_FIELDS["dust_sourceM"] == CANONICAL_DUST_M
+        assert DEFAULT_FIELDS["dust_sourceC"] == CANONICAL_DUST_C
+        assert DEFAULT_FIELDS["kind_LPV"] == CANONICAL_LPV
 
 
 class TestAxisApplicability:
@@ -151,8 +153,10 @@ class TestAxisApplicability:
     )
     def test_colibri_sets_carry_every_axis(self, key):
         ts = TRACK_SETS[key]
-        assert ts.eta_applies and ts.nintpc_applies
-        assert ts.dust_applies and ts.lpv_applies
+        assert ts.eta_applies
+        assert ts.nintpc_applies
+        assert ts.dust_applies
+        assert ts.lpv_applies
         assert ts.n_intpc_values == N_INTPC_VALUES
 
 
@@ -223,12 +227,12 @@ class TestCellEnumeration:
     def test_sparse_slices(self):
         for key, ts in TRACK_SETS.items():
             if ts.tier != "secondary":
-                with pytest.raises(ValueError):
+                with pytest.raises(ValueError, match="sparse slices exist"):
                     cells(key, sparse=True)
                 continue
             sparse = cells(key, sparse=True)
             full = cells(key)
-            assert set(c.label for c in sparse) <= set(c.label for c in full)
+            assert {c.label for c in sparse} <= {c.label for c in full}
             assert {ts.mh_low, ts.mh_high} <= {c.mh for c in sparse}
             assert {-1.0, 0.0, 0.3} <= {c.mh for c in sparse}
 
@@ -239,7 +243,7 @@ class TestCellEnumeration:
 
 class TestFetchStage:
     def test_fetch_stage_is_a_design_subset(self):
-        for key, ts in TRACK_SETS.items():
+        for ts in TRACK_SETS.values():
             designed = {c.label for c in cells(ts)}
             for fetched in (fetch_cells(ts), fetch_cells(ts, sparse=False)):
                 assert {c.label for c in fetched} <= designed
@@ -277,7 +281,7 @@ class TestFetchStage:
         assert len(fetch_cells("v1.2S_COLIBRI_S35", sparse=False)) == 60
 
     def test_sparse_fetch_rejected_for_primary(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="sparse slices exist"):
             fetch_cells("v1.2S_COLIBRI_web", sparse=True)
 
 

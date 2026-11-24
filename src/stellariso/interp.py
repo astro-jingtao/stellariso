@@ -16,8 +16,9 @@ Rules (v1):
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Iterable, Mapping
+from collections.abc import Iterable
+from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 from scipy.interpolate import PchipInterpolator
@@ -25,12 +26,13 @@ from scipy.interpolate import PchipInterpolator
 from stellariso.exceptions import UnsafeInterpolationError
 from stellariso.isochrone import Isochrone
 
-__all__ = ["InterpolationRecord", "interpolate_along", "interp_methods"]
+__all__ = ["InterpolationRecord", "interp_methods", "interpolate_along"]
 
 _METHODS = ("linear", "pchip")
 
 
 def interp_methods() -> tuple[str, ...]:
+    """The interpolation methods ``at()`` accepts."""
     return _METHODS
 
 
@@ -47,6 +49,7 @@ class InterpolationRecord:
     fields: tuple[str, ...]
 
     def to_dict(self) -> dict:
+        """JSON-ready form of the audit record."""
         return {
             "coordinate": self.coordinate,
             "method": self.method,
@@ -58,7 +61,7 @@ class InterpolationRecord:
         }
 
 
-def _prepare_coordinate(iso: Isochrone, coordinate: str):
+def _prepare_coordinate(iso: Isochrone, coordinate: str) -> np.ndarray:
     # the coordinate may be a unified field name (initial_mass) or a native
     # column name; both must be numeric and monotone-usable
     if coordinate in iso.field_specs:
@@ -81,14 +84,6 @@ def _prepare_coordinate(iso: Isochrone, coordinate: str):
     return values, values[keep], np.flatnonzero(keep)
 
 
-def _brackets(unique_values: np.ndarray, queries: np.ndarray):
-    idx = np.searchsorted(unique_values, queries, side="left")
-    # clamp into interior pairs; equality at endpoints handled below
-    lo = np.clip(idx - 1, 0, len(unique_values) - 2)
-    hi = lo + 1
-    return lo, hi
-
-
 def interpolate_along(
     iso: Isochrone,
     coordinate: str,
@@ -102,9 +97,7 @@ def interpolate_along(
     queries = np.atleast_1d(np.asarray(list(values_query) if np.ndim(values_query) else values_query, dtype=float))
     fields = [fields] if isinstance(fields, str) else list(fields)
 
-    raw_values, unique_values, unique_rows = _prepare_coordinate(iso, coordinate)
-
-    lo, hi = _brackets(unique_values, queries)
+    _, unique_values, unique_rows = _prepare_coordinate(iso, coordinate)
     inside = (queries >= unique_values[0]) & (queries <= unique_values[-1])
     if not np.all(inside):
         bad = queries[~inside]

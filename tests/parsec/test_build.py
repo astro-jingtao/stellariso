@@ -9,12 +9,12 @@ or non-conforming data.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
-import pytest
-
 from stellariso.database.build import build_database
+from stellariso.database.core import open_database
 from stellariso.models.parsec import blueprint as bp
 from stellariso.models.parsec.cmd_form import (
     CMD_ENDPOINTS,
@@ -51,7 +51,7 @@ def _table_for(payload: dict) -> bytes:
 class StubClient:
     """A CmdFormClient stand-in answering with design-conforming tables."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.submissions: list[dict] = []
 
     def submit(self, fields):
@@ -90,7 +90,6 @@ class StubClient:
 
 
 def _sha_bytes(content: bytes) -> str:
-    import hashlib
 
     return hashlib.sha256(content).hexdigest()
 
@@ -260,7 +259,6 @@ class TestRun4Compatibility:
 
 class TestThroughTheDatabase:
     def test_built_cell_opens_as_a_grid(self, tmp_path: Path):
-        from stellariso.database.core import open_database
 
         # a log-only cell (run-4 shape: the real captured table) opens
         # through the database exactly as a run-4 product does
@@ -290,7 +288,6 @@ class TestThroughTheDatabase:
         assert len(db.products) == 1
 
     def test_dry_run_measures_an_existing_database(self, tmp_path: Path, capsys):
-        from stellariso.database.build import build_database
 
         cell = bp.Cell(set=WEB, mh=0.0, omega=0.0)
         directory = tmp_path / "parsec" / WEB.key / cell.label

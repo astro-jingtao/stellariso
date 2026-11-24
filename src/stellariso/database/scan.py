@@ -27,8 +27,8 @@ from stellariso.database.design import (
     FamilyAdapter,
     PartVerdict,
     ProductDesign,
-    adapter_for,
     adapter_families,
+    adapter_for,
 )
 from stellariso.database.manifest import (
     ManifestError,
@@ -37,13 +37,13 @@ from stellariso.database.manifest import (
 )
 
 __all__ = [
-    "ProductScan",
-    "FamilyScan",
     "DatabaseReport",
-    "scan_database",
+    "FamilyScan",
+    "ProductScan",
     "render_markdown",
     "render_summary",
     "report_json",
+    "scan_database",
 ]
 
 
@@ -59,22 +59,26 @@ class ProductScan:
 
     @property
     def state(self) -> str:
+        """``complete`` when every committed part is present and conforming."""
         if self.parts and all(v.kind == "ok" for v in self.parts.values()):
             return "complete"
         return "incomplete"
 
     @property
     def needs_review(self) -> bool:
+        """Whether the product needs a human decision before build touches it."""
         return self.blocked_reason is not None or any(
             v.kind == "nonconforming" for v in self.parts.values()
         )
 
     @property
     def missing_parts(self) -> list[str]:
+        """Names of the committed parts that are absent."""
         return [name for name, v in self.parts.items() if v.kind == "missing"]
 
     @property
     def nonconforming_parts(self) -> list[str]:
+        """Names of the present parts that failed conformance."""
         return [name for name, v in self.parts.items() if v.kind == "nonconforming"]
 
     def detail(self) -> str:
@@ -116,6 +120,7 @@ class FamilyScan:
     superseded: list[dict] = field(default_factory=list)
 
     def counts(self) -> dict[str, int]:
+        """Committed products by state (``complete``/``incomplete``)."""
         out = {"complete": 0, "incomplete": 0}
         for key, scan in self.products.items():
             if key in self.committed_keys:
@@ -123,9 +128,11 @@ class FamilyScan:
         return out
 
     def archived_beyond_target(self) -> list[ProductScan]:
+        """Present products that lie beyond the committed fetch stage."""
         return [scan for key, scan in self.products.items() if key not in self.committed_keys]
 
     def review_products(self) -> list[ProductScan]:
+        """The family's products flagged for manual review, sorted by key."""
         return sorted(
             (s for s in self.products.values() if s.needs_review),
             key=lambda s: s.design.key,
@@ -142,8 +149,7 @@ class FamilyScan:
         for key, scan in sorted(self.products.items()):
             if key not in self.committed_keys or scan.needs_review:
                 continue
-            for name in scan.missing_parts:
-                out.append((scan, name))
+            out.extend((scan, name) for name in scan.missing_parts)
         return out
 
 
@@ -155,7 +161,10 @@ class DatabaseReport:
     generated_at: str
     families: dict[str, FamilyScan] = field(default_factory=dict)
 
-    def products_by_state(self, states=("complete", "incomplete")) -> list[ProductScan]:
+    def products_by_state(
+        self, states: tuple[str, ...] = ("complete", "incomplete")
+    ) -> list[ProductScan]:
+        """Committed products whose state is one of ``states``."""
         return [
             scan
             for family in self.families.values()
@@ -178,19 +187,23 @@ class DatabaseReport:
         return out
 
     def review_products(self) -> list[ProductScan]:
+        """Every family's review-flagged products."""
         return [s for family in self.families.values() for s in family.review_products()]
 
     def auto_fetches(self, family: str | None = None) -> list[tuple[ProductScan, str]]:
+        """Missing committed parts as (product, part) pairs, one family or all."""
         scopes = [self.families[family]] if family else list(self.families.values())
         return [item for fam in scopes for item in fam.auto_fetches()]
 
     def all_superseded(self) -> list[dict]:
+        """Every superseded directory the scan found, with its reason."""
         out: list[dict] = []
         for family in self.families.values():
             out.extend({"family": family.family, **entry} for entry in family.superseded)
         return out
 
     def totals(self) -> dict[str, int]:
+        """Whole-database totals (complete, incomplete, review)."""
         complete = incomplete = review = 0
         for family in self.families.values():
             counts = family.counts()
@@ -351,13 +364,14 @@ def _family_block(family: FamilyScan) -> list[str]:
     if review_scans:
         lines.append("")
         lines.append(f"### Incomplete, manual review — {len(review_scans)}")
-        for scan in review_scans:
-            lines.append(f"- {scan.design.key} — {scan.detail()}")
+        lines.extend(f"- {scan.design.key} — {scan.detail()}" for scan in review_scans)
     if family.superseded:
         lines.append("")
         lines.append(f"### Superseded directories — {len(family.superseded)}")
-        for entry in family.superseded:
-            lines.append(f"- `{entry['directory']}` — {entry['reason']}")
+        lines.extend(
+            f"- `{entry['directory']}` — {entry['reason']}"
+            for entry in family.superseded
+        )
     lines.append("")
     return lines
 

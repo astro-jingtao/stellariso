@@ -20,10 +20,11 @@ themselves are injected at read time through ``resolve_parameters``.
 
 from __future__ import annotations
 
-import json
+from collections.abc import Mapping
 from functools import lru_cache
+import json
 from pathlib import Path
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any
 
 from stellariso.core import (
     FieldOrigin,
@@ -32,27 +33,33 @@ from stellariso.core import (
     ParameterSource,
     ParameterSpec,
 )
+from stellariso.provenance import Reference
+
+if TYPE_CHECKING:
+    # cycle breaker: unified imports this package at runtime; the name is
+    # needed only inside annotations
+    from stellariso.unified import PhaseMapping
 
 _REGISTRY_FILE = Path(__file__).with_name("unified_parameters.json")
 _MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
 
 __all__ = [
-    "load_registry",
-    "unified_field_names",
-    "unified_phases",
-    "backend_names",
-    "product_names",
-    "field_specs",
-    "field_spec_dict",
-    "phase_mapping",
-    "phase_code_meanings",
-    "eep_anchors",
-    "resolve_parameters",
-    "references",
-    "backend_notes",
-    "product_notes",
     "REGISTRY_FILE",
     "backend_data_file",
+    "backend_names",
+    "backend_notes",
+    "eep_anchors",
+    "field_spec_dict",
+    "field_specs",
+    "load_registry",
+    "phase_code_meanings",
+    "phase_mapping",
+    "product_names",
+    "product_notes",
+    "references",
+    "resolve_parameters",
+    "unified_field_names",
+    "unified_phases",
 ]
 
 REGISTRY_FILE = _REGISTRY_FILE
@@ -102,6 +109,7 @@ def load_registry() -> dict:
 
 
 def _validate(reg: dict) -> None:
+    """Cross-check the whole registry against its own vocabularies."""
     fields = {f["name"] for f in reg["unified_fields"]}
     if len(fields) != len(reg["unified_fields"]):
         raise ValueError("unified_fields contains duplicate names")
@@ -109,44 +117,64 @@ def _validate(reg: dict) -> None:
     known_params = {p["name"] for p in reg["physical_parameters"]}
     for name, backend in reg["backends"].items():
         for product_key, product in backend["products"].items():
-            for mapping in product["field_mappings"]:
-                if mapping["unified"] not in fields:
-                    raise ValueError(
-                        f"backend {name!r} product {product_key!r} maps unknown "
-                        f"unified field {mapping['unified']!r}"
-                    )
-                origin = FieldOrigin(mapping["origin"])
-                if origin is FieldOrigin.TRANSFORMED_NATIVE:
-                    from stellariso.unified import TRANSFORMATIONS
+            _validate_product(
+                name, product_key, product,
+                fields=fields, stages=stages, known_params=known_params,
+            )
 
-                    if mapping.get("transformation") not in TRANSFORMATIONS:
-                        raise ValueError(
-                            f"backend {name!r} product {product_key!r} field "
-                            f"{mapping['unified']!r} uses transformation "
-                            f"{mapping.get('transformation')!r}, which the "
-                            "unified view does not implement"
-                        )
-                if origin not in (
-                    FieldOrigin.NATIVE,
-                    FieldOrigin.TRANSFORMED_NATIVE,
-                ) and mapping.get("native") is not None:
-                    # 'native' names the source column(s); 'native_name' on
-                    # the FieldSpec is filled from it verbatim
-                    pass
-            for pm_key in ("phase_mapping", "hb_phase_mapping"):
-                for key, stage in product.get(pm_key, {}).items():
-                    int(key)  # phase codes must be integers
-                    if stage not in stages:
-                        raise ValueError(
-                            f"backend {name!r} product {product_key!r} "
-                            f"{pm_key} maps to non-standard stage {stage!r}"
-                        )
-            for entry in product["parameters"]:
-                if entry["name"] not in known_params:
-                    raise ValueError(
-                        f"backend {name!r} product {product_key!r} declares "
-                        f"unknown physical parameter {entry['name']!r}"
-                    )
+
+def _validate_product(
+    name: str,
+    product_key: str,
+    product: dict,
+    *,
+    fields: set[str],
+    stages: set[str],
+    known_params: set[str],
+) -> None:
+    """Cross-check one product's mappings, phases, and parameters."""
+    for mapping in product["field_mappings"]:
+        _validate_field_mapping(name, product_key, mapping, fields)
+    for pm_key in ("phase_mapping", "hb_phase_mapping"):
+        for key, stage in product.get(pm_key, {}).items():
+            int(key)  # phase codes must be integers
+            if stage not in stages:
+                raise ValueError(
+                    f"backend {name!r} product {product_key!r} "
+                    f"{pm_key} maps to non-standard stage {stage!r}"
+                )
+    for entry in product["parameters"]:
+        if entry["name"] not in known_params:
+            raise ValueError(
+                f"backend {name!r} product {product_key!r} declares "
+                f"unknown physical parameter {entry['name']!r}"
+            )
+
+
+def _validate_field_mapping(
+    name: str, product_key: str, mapping: dict, fields: set[str]
+) -> None:
+    """Cross-check one field mapping against the unified vocabulary."""
+    if mapping["unified"] not in fields:
+        raise ValueError(
+            f"backend {name!r} product {product_key!r} maps unknown "
+            f"unified field {mapping['unified']!r}"
+        )
+    origin = FieldOrigin(mapping["origin"])
+    if origin is FieldOrigin.TRANSFORMED_NATIVE:
+        # unified imports this package at module level — cycle
+        # breaker, one side must stay function-local
+        from stellariso.unified import (  # noqa: PLC0415
+            TRANSFORMATIONS,
+        )
+
+        if mapping.get("transformation") not in TRANSFORMATIONS:
+            raise ValueError(
+                f"backend {name!r} product {product_key!r} field "
+                f"{mapping['unified']!r} uses transformation "
+                f"{mapping.get('transformation')!r}, which the "
+                "unified view does not implement"
+            )
 
 
 def _backend(name: str) -> dict:
@@ -173,18 +201,22 @@ def _product(backend: str, product: str) -> dict:
 
 
 def backend_names() -> tuple[str, ...]:
+    """Every backend name declared in the registry."""
     return tuple(_registry()["backends"])
 
 
 def product_names(backend: str) -> tuple[str, ...]:
+    """Every product name a backend declares."""
     return tuple(_backend(backend)["products"])
 
 
 def unified_field_names() -> tuple[str, ...]:
+    """Every unified field name any backend maps into."""
     return tuple(f["name"] for f in _registry()["unified_fields"])
 
 
 def unified_phases() -> tuple[str, ...]:
+    """The unified evolutionary-stage vocabulary, in track order."""
     return tuple(_registry()["unified_phases"])
 
 
@@ -237,16 +269,21 @@ def field_specs(backend: str, product: str) -> tuple[FieldSpec, ...]:
 
 
 def field_spec_dict(backend: str, product: str) -> dict[str, FieldSpec]:
+    """The backend's field specs for one product, keyed by unified name."""
     return {spec.name: spec for spec in field_specs(backend, product)}
 
 
-def phase_mapping(backend: str, product: str, variant: str = "standard"):
+def phase_mapping(
+    backend: str, product: str, variant: str = "standard"
+) -> PhaseMapping:
     """The product's versioned native-phase-code -> unified-stage mapping.
 
     ``variant`` selects between a product's declared mappings when it
     declares more than one.
     """
-    from stellariso.unified import PhaseMapping
+    # unified imports this package at module level — cycle breaker, one side
+    # must stay function-local
+    from stellariso.unified import PhaseMapping  # noqa: PLC0415
 
     be = _backend(backend)
     prod = _product(backend, product)
@@ -324,6 +361,16 @@ def _spec_from_entry(
     if "relation_parameters" in chosen:
         kwargs["relation_parameters"] = dict(chosen["relation_parameters"])
 
+    kwargs.update(_scalar_value(name, chosen, dynamic))
+    kwargs.update(_sequence_values(name, chosen, dynamic))
+
+    return ParameterSpec(name=name, role=ParameterRole(chosen["role"]), **kwargs)
+
+
+def _scalar_value(
+    name: str, chosen: Mapping[str, Any], dynamic: Mapping[str, Any]
+) -> dict[str, Any]:
+    """The scalar ``value`` a parameter takes (fixed or file-derived)."""
     if "value_from" in chosen:
         key = chosen["value_from"]
         if key not in dynamic:
@@ -331,10 +378,16 @@ def _spec_from_entry(
                 f"parameter {name!r} wants value_from {key!r}, which the "
                 "reader did not supply"
             )
-        kwargs["value"] = dynamic[key]
-    elif "value" in chosen:
-        kwargs["value"] = chosen["value"]
+        return {"value": dynamic[key]}
+    if "value" in chosen:
+        return {"value": chosen["value"]}
+    return {}
 
+
+def _sequence_values(
+    name: str, chosen: Mapping[str, Any], dynamic: Mapping[str, Any]
+) -> dict[str, Any]:
+    """The ``values`` tuple a parameter takes (axis or file-derived)."""
     if "values_from" in chosen:
         key = chosen["values_from"]
         if key not in dynamic:
@@ -342,11 +395,10 @@ def _spec_from_entry(
                 f"parameter {name!r} wants values_from {key!r}, which the "
                 "reader did not supply"
             )
-        kwargs["values"] = tuple(dynamic[key])
-    elif "values" in chosen:
-        kwargs["values"] = tuple(chosen["values"])
-
-    return ParameterSpec(name=name, role=ParameterRole(chosen["role"]), **kwargs)
+        return {"values": tuple(dynamic[key])}
+    if "values" in chosen:
+        return {"values": tuple(chosen["values"])}
+    return {}
 
 
 def resolve_parameters(
@@ -376,8 +428,6 @@ def resolve_parameters(
 
 def references(backend: str) -> tuple:
     """The backend family's scientific references (what to cite)."""
-    from stellariso.provenance import Reference
-
     be = _backend(backend)
     return tuple(Reference(**ref) for ref in be["references"])
 

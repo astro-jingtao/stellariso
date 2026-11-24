@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
-import shutil
+from contextlib import contextmanager
+import gzip
 from pathlib import Path
+import shutil
+import warnings as _w
 
 import pytest
 
 from stellariso.exceptions import (
-    AmbiguousFormatError,
     GridPointNotFoundError,
     UnrecognizedFormatError,
 )
 from stellariso.grid import IsochroneGrid, open_grid
-from stellariso.isochrone import IsochroneSet
 from stellariso.models.mist.backend import read_mist
 from stellariso.warnings import NearestGridPointWarning
 
@@ -83,11 +84,6 @@ class TestNearestSelection:
         assert iso.selection["log_age"] in (9.0, 10.0)
 
 
-import warnings as _w
-
-from contextlib import contextmanager
-
-
 @contextmanager
 def warnings_as_errors():
     with _w.catch_warnings():
@@ -144,7 +140,6 @@ class TestOpenGrid:
             IsochroneGrid([read_mist(FIXTURE), read_mist(FIXTURE)])
 
     def test_gzip_fixture_roundtrip(self, tmp_path):
-        import gzip
 
         gz = tmp_path / "fixture.iso.gz"
         with open(FIXTURE, "rb") as src, gzip.open(gz, "wb") as dst:

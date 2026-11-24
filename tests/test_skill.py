@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 import subprocess
 import sys
 import zipfile
-from pathlib import Path
 
 import pytest
 
@@ -64,6 +64,7 @@ class TestWheelContainsSkill:
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
         if result.returncode != 0:
             pytest.fail(f"wheel build failed:\n{result.stderr}")

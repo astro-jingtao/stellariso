@@ -38,43 +38,43 @@ measured against this module (tools/database/db_status.py).
 
 from __future__ import annotations
 
-import math
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Iterator
+import math
 
 from stellariso.models.parsec.cmd_form import DEFAULT_FIELDS, CmdFieldSet
 
 __all__ = [
-    "MH_STEP",
-    "OMEGA_VALUES",
+    "CANONICAL_DUST_C",
+    "CANONICAL_DUST_M",
+    "CANONICAL_ETA",
+    "CANONICAL_LPV",
+    "CANONICAL_N_INTPC",
+    "DUST_C_VALUES",
+    "DUST_M_VALUES",
     "ETA_VALUES",
     "FETCH_ETA_VALUES",
-    "DUST_M_VALUES",
-    "DUST_C_VALUES",
-    "LPV_VALUES",
-    "N_INTPC_VALUES",
-    "CANONICAL_ETA",
-    "CANONICAL_N_INTPC",
-    "CANONICAL_DUST_M",
-    "CANONICAL_DUST_C",
-    "CANONICAL_LPV",
-    "LOG_AGE_GRID",
     "LINEAR_AGE_GRID",
+    "LOG_AGE_GRID",
+    "LPV_VALUES",
+    "MH_STEP",
+    "N_INTPC_VALUES",
+    "OMEGA_VALUES",
     "SPARSE_ANCHOR_MH",
     "TRACK_SETS",
-    "TrackSet",
     "Cell",
+    "TrackSet",
+    "all_cells",
     "canonical_fields",
-    "z_to_mh",
+    "cells",
+    "expected_linear_ages",
+    "expected_log_ages",
+    "expected_payload",
+    "fetch_cells",
     "mh_grid",
     "mh_label",
-    "expected_log_ages",
-    "expected_linear_ages",
-    "expected_payload",
     "payload_diff",
-    "cells",
-    "all_cells",
-    "fetch_cells",
+    "z_to_mh",
 ]
 
 #: Composition grid step (dex) and the initial-rotation grid (omega/omega_crit;
@@ -252,6 +252,7 @@ class TrackSet:
 
     @property
     def mh_values(self) -> tuple[float, ...]:
+        """The designed [M/H] extent of the set's full grid."""
         return mh_grid(self.mh_low, self.mh_high)
 
     @property
@@ -262,6 +263,7 @@ class TrackSet:
 
     @property
     def omega_values(self) -> tuple[float, ...]:
+        """Designed rotation fractions (a single 0.0 when the set does not rotate)."""
         return OMEGA_VALUES if self.rotates else (0.0,)
 
     @property
@@ -281,14 +283,17 @@ class TrackSet:
 
     @property
     def dust_m_values(self) -> tuple[str, ...]:
+        """Designed circumstellar-dust M prescriptions (canonical when inert)."""
         return DUST_M_VALUES if self.dust_applies else (CANONICAL_DUST_M,)
 
     @property
     def dust_c_values(self) -> tuple[str, ...]:
+        """Designed circumstellar-dust C prescriptions (canonical when inert)."""
         return DUST_C_VALUES if self.dust_applies else (CANONICAL_DUST_C,)
 
     @property
     def lpv_values(self) -> tuple[str, ...]:
+        """Designed LPV prescriptions (canonical when inert)."""
         return LPV_VALUES if self.lpv_applies else (CANONICAL_LPV,)
 
 
@@ -494,13 +499,16 @@ def _same_value(name: str, actual: str, expected: str) -> bool:
 def payload_diff(actual: dict[str, str], expected: dict[str, str]) -> list[str]:
     """Field-level differences of a payload against the designed one."""
     diff: list[str] = []
-    for name in sorted(set(expected) - set(actual)):
-        diff.append(f"missing field {name}")
-    for name in sorted(set(actual) - set(expected) - {"output_gzip"}):
-        diff.append(f"unexpected field {name}")
-    for name in sorted(set(actual) & set(expected)):
-        if not _same_value(name, actual[name], expected[name]):
-            diff.append(f"{name}: archived {actual[name]!r} != designed {expected[name]!r}")
+    diff.extend(f"missing field {name}" for name in sorted(set(expected) - set(actual)))
+    diff.extend(
+        f"unexpected field {name}"
+        for name in sorted(set(actual) - set(expected) - {"output_gzip"})
+    )
+    diff.extend(
+        f"{name}: archived {actual[name]!r} != designed {expected[name]!r}"
+        for name in sorted(set(actual) & set(expected))
+        if not _same_value(name, actual[name], expected[name])
+    )
     return diff
 
 
@@ -556,6 +564,7 @@ class Cell:
 
     @property
     def label(self) -> str:
+        """The cell's directory-safe label (axes off canonical get a suffix)."""
         base = mh_label(self.mh)
         suffix = "" if self.omega == 0.0 else f"_w{self.omega:.2f}"
         if self.eta != CANONICAL_ETA:
@@ -572,6 +581,7 @@ class Cell:
 
     @property
     def relative_dir(self) -> str:
+        """The cell's path under the database root."""
         return f"{self.set.key}/{self.label}"
 
     def _track_fields(self) -> dict[str, str]:

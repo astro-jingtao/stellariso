@@ -26,22 +26,31 @@ Subcommands:
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
+import sys
 
+from stellariso.database.design import SelectionCriteria
+from stellariso.database.inventory import refresh_database
 from stellariso.database.manifest import upgrade_manifests
+from stellariso.database.transfer import (
+    export_database,
+    merge_database,
+    rsync_command,
+    run_rsync,
+    verify_transfer,
+)
 
 
-def _parse_axis_values(text: str):
+def _parse_axis_values(text: str) -> str | tuple[str, ...]:
     """'a,b,c' -> ('a','b','c'); a single value stays a scalar."""
     if "," in text:
         return tuple(text.split(","))
     return text
 
 
-def _parse_criteria(args, *, default_states):
-    from stellariso.database.design import SelectionCriteria
-
+def _parse_criteria(
+    args: argparse.Namespace, *, default_states: tuple[str, ...]
+) -> SelectionCriteria:
     states = tuple(args.states) if args.states else default_states
     axes = {}
     if getattr(args, "mh", None):
@@ -77,7 +86,9 @@ def _parse_criteria(args, *, default_states):
     )
 
 
-def _add_selection_flags(parser, states_default):
+def _add_selection_flags(
+    parser: argparse.ArgumentParser, states_default: tuple[str, ...]
+) -> None:
     parser.add_argument("--families", nargs="*", default=None)
     parser.add_argument("--collections", nargs="*", default=None)
     parser.add_argument("--labels", nargs="*", default=None)
@@ -102,9 +113,7 @@ def _add_selection_flags(parser, states_default):
     parser.add_argument("--tier", default=None)
 
 
-def _cmd_export(args) -> int:
-    from stellariso.database.transfer import export_database
-
+def _cmd_export(args: argparse.Namespace) -> int:
     criteria = _parse_criteria(args, default_states=("complete",))
     try:
         result = export_database(
@@ -122,9 +131,7 @@ def _cmd_export(args) -> int:
     return 0
 
 
-def _cmd_rsync(args) -> int:
-    from stellariso.database.transfer import rsync_command, run_rsync
-
+def _cmd_rsync(args: argparse.Namespace) -> int:
     export_dir = args.database / "export" / args.name
     if not (export_dir / "files.rsync").is_file():
         print(f"error: {export_dir} carries no files.rsync — export first", file=sys.stderr)
@@ -139,9 +146,7 @@ def _cmd_rsync(args) -> int:
     return 0
 
 
-def _cmd_merge(args) -> int:
-    from stellariso.database.transfer import merge_database
-
+def _cmd_merge(args: argparse.Namespace) -> int:
     criteria = _parse_criteria(args, default_states=("complete", "incomplete"))
     try:
         report = merge_database(args.source, args.target, criteria)
@@ -152,9 +157,7 @@ def _cmd_merge(args) -> int:
     return 0 if not report.conflicts else 1
 
 
-def _cmd_verify(args) -> int:
-    from stellariso.database.transfer import verify_transfer
-
+def _cmd_verify(args: argparse.Namespace) -> int:
     try:
         report = verify_transfer(args.database, args.plan)
     except (NotADirectoryError, FileNotFoundError) as exc:
@@ -170,9 +173,7 @@ def _cmd_verify(args) -> int:
     return 0 if report.ok else 1
 
 
-def _cmd_refresh(args) -> int:
-    from stellariso.database.inventory import refresh_database
-
+def _cmd_refresh(args: argparse.Namespace) -> int:
     try:
         refresh_database(args.database)
     except NotADirectoryError as exc:
@@ -181,7 +182,7 @@ def _cmd_refresh(args) -> int:
     return 0
 
 
-def _cmd_migrate_manifests(args) -> int:
+def _cmd_migrate_manifests(args: argparse.Namespace) -> int:
     if not args.database.is_dir():
         print(f"error: {args.database} is not a database directory", file=sys.stderr)
         return 2
@@ -202,6 +203,7 @@ def _cmd_migrate_manifests(args) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI entry point: dispatch the subcommands to their handlers."""
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )

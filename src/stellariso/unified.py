@@ -12,21 +12,22 @@ example by a file's name).
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+import contextlib
 import math
-from typing import Any, Callable, Mapping
+from typing import Any, Callable
+import warnings
 
-import numpy as np
-from astropy.table import Table
 from astropy import units as u
+from astropy.table import Table
+import numpy as np
 
 from stellariso.core import FieldOrigin, FieldSpec
 from stellariso.native import NativeTable
 from stellariso.registry import unified_phases
 from stellariso.warnings import PhaseMappingWarning
 
-import warnings
-
-__all__ = ["UnifiedView", "PhaseMapping", "TRANSFORMATIONS", "UNIFIED_PHASES"]
+__all__ = ["TRANSFORMATIONS", "UNIFIED_PHASES", "PhaseMapping", "UnifiedView"]
 
 # Transformations are a fixed, named vocabulary — never free-form code.
 # A FieldSpec's `transformation` string must be one of these.
@@ -52,7 +53,8 @@ class PhaseMapping:
         version: str,
         table: Mapping[Any, str],
         unmapped: str = "unknown",
-    ):
+    ) -> None:
+        """Bind the mapping table and the unmapped-code policy."""
         self.backend = backend
         self.version = version
         self.table = dict(table)
@@ -65,6 +67,7 @@ class PhaseMapping:
             )
 
     def __call__(self, codes: np.ndarray) -> np.ndarray:
+        """Map an array of native phase codes to unified stage names."""
         out = np.full(len(codes), self.unmapped, dtype=object)
         seen_unmapped = set()
         for i, code in enumerate(codes):
@@ -102,7 +105,8 @@ class UnifiedView:
         field_specs: Mapping[str, FieldSpec],
         computations: Mapping[str, Callable[[NativeTable], np.ndarray]] | None = None,
         constants: Mapping[str, Any] | None = None,
-    ):
+    ) -> None:
+        """Bind the native table to its specs and derived-value computations."""
         self._native = native
         self._specs = dict(field_specs)
         self._computations = dict(computations or {})
@@ -110,9 +114,11 @@ class UnifiedView:
 
     @property
     def field_names(self) -> list[str]:
+        """The unified field names this view exposes, in spec order."""
         return list(self._specs)
 
     def field_spec(self, name: str) -> FieldSpec:
+        """The field spec behind one unified name."""
         try:
             return self._specs[name]
         except KeyError:
@@ -121,6 +127,7 @@ class UnifiedView:
             ) from None
 
     def has_field(self, name: str) -> bool:
+        """Whether the view exposes field ``name``."""
         return name in self._specs
 
     def __contains__(self, name: str) -> bool:
@@ -169,6 +176,7 @@ class UnifiedView:
         )
 
     def to_table(self) -> Table:
+        """The unified layer as an astropy Table (fields in spec order)."""
         cols = {}
         meta = {
             "stellariso_layer": "unified",
@@ -184,9 +192,8 @@ class UnifiedView:
         for name, spec in self._specs.items():
             if name not in table.colnames or spec.unit is None:
                 continue
-            try:
+            # an unparsable unit string stays in meta as recorded — never
+            # invent a unit the source did not declare
+            with contextlib.suppress(ValueError):
                 table[name].unit = u.Unit(spec.unit)
-            except ValueError:
-                # keep the string in meta rather than inventing a unit
-                pass
         return table

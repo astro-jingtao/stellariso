@@ -16,22 +16,18 @@ reader's two layouts:
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 import math
 import os
-import warnings
 from pathlib import Path
 from typing import TextIO
+import warnings
 
 import numpy as np
 
 from stellariso.core import ModelIdentity
 from stellariso.exceptions import DataIntegrityError, SourceUnavailableError
 from stellariso.isochrone import Isochrone, IsochroneSet
-from stellariso.native import NativeTable
-from stellariso.provenance import Provenance
-from stellariso.registry import field_spec_dict, references, resolve_parameters
-from stellariso.unified import UnifiedView
-from stellariso.warnings import PhaseMappingWarning
 from stellariso.models.padova.reader import (
     SALPETER_ALPHA,
     STAGE_ANCHOR_ALIASES,
@@ -42,16 +38,21 @@ from stellariso.models.padova.reader import (
     recognize_padova,
     sniff_layout,
 )
+from stellariso.native import NativeTable
+from stellariso.provenance import Provenance
+from stellariso.registry import field_spec_dict, references, resolve_parameters
+from stellariso.unified import UnifiedView
+from stellariso.warnings import PhaseMappingWarning
 
 __all__ = [
+    "MBOL_SUN_1994",
+    "PADOVA_REFERENCES",
+    "Z_REFERENCE_1994",
+    "Z_REFERENCE_2000",
+    "invert_flum",
+    "padova_identity",
     "read_padova",
     "recognize_padova",
-    "padova_identity",
-    "PADOVA_REFERENCES",
-    "Z_REFERENCE_2000",
-    "Z_REFERENCE_1994",
-    "MBOL_SUN_1994",
-    "invert_flum",
 ]
 
 PADOVA_REFERENCES = references("padova")
@@ -94,6 +95,7 @@ _STAGE_OF_BOUNDARY = (
 
 
 def padova_identity(release: str) -> ModelIdentity:
+    """ModelIdentity for one Padova release (1994 or 2000)."""
     if release == "2000":
         description = (
             "Girardi et al. 2000 theoretical isochrones (VizieR "
@@ -147,9 +149,11 @@ def _stage_boundaries(anchors: dict[str, float]) -> tuple[np.ndarray, np.ndarray
     return np.asarray(masses), stages
 
 
-def _phase_computation_2000(anchors: dict[str, float]):
+def _phase_computation_2000(
+    anchors: dict[str, float],
+) -> Mapping[str, Callable[[NativeTable], np.ndarray]]:
     masses, stages = _stage_boundaries(anchors)
-    labels = np.array(["main_sequence"] + stages, dtype=object)
+    labels = np.array(["main_sequence", *stages], dtype=object)
 
     def compute(nt: NativeTable) -> np.ndarray:
         mini = np.asarray(nt["Mini"], dtype=float)
@@ -159,7 +163,9 @@ def _phase_computation_2000(anchors: dict[str, float]):
     return compute
 
 
-def _phase_unavailable(reason: str):
+def _phase_unavailable(
+    reason: str,
+) -> Mapping[str, Callable[[NativeTable], np.ndarray]]:
     def compute(nt: NativeTable) -> np.ndarray:
         raise SourceUnavailableError(
             "the derived phase field of padova/2000 requires the source's "
@@ -169,7 +175,7 @@ def _phase_unavailable(reason: str):
     return compute
 
 
-def _load_summary(source) -> dict | None:
+def _load_summary(source: str | os.PathLike | TextIO) -> dict | None:
     """The isochsum anchors next to ``source``, or None when absent."""
     if hasattr(source, "read"):
         path_name = getattr(source, "name", None)
@@ -239,16 +245,41 @@ def _unresolved_stages(n: int) -> np.ndarray:
 
 
 def _p94_phase(nt: NativeTable) -> np.ndarray:
+    """Shape-rule phases for one 1994-layout table (see module docstring)."""
     log_teff = np.asarray(nt["log(Teff)"], dtype=float)
     log_l = _p94_log_luminosity(nt)
     mass = np.asarray(nt["M"], dtype=float)
     mini = _p94_initial_mass(nt)
     n = len(log_teff)
 
-    # 1. locate the current-mass discontinuities and classify each: an
-    # RGB-to-HB jump breaks the luminosity (the ZAHB sits well below the
-    # tip); the AGB-to-post-AGB jump does not (the luminosity carries
-    # through at the tip level before the white-dwarf decline)
+    _, pagb_drop, first_drop = _p94_mass_drops(mass, log_l, n)
+    to = _p94_turnoff(log_teff, first_drop, n)
+    if to is None:
+        return _unresolved_stages(n)
+    tip = _p94_rgb_tip(log_l, to, pagb_drop, n)
+    cheb_end = _p94_cheb_end(log_l, tip, pagb_drop, n)
+    wd_start = _p94_wd_start(log_teff, pagb_drop)
+
+    stages = _p94_stage_array(
+        log_teff, mini, to=to, tip=tip, cheb_end=cheb_end,
+        pagb_drop=pagb_drop, wd_start=wd_start, n=n,
+    )
+    if tip is None or tip <= to or (
+        cheb_end is not None and cheb_end <= tip
+    ):
+        return _unresolved_stages(n)
+    return stages
+
+
+def _p94_mass_drops(
+    mass: np.ndarray, log_l: np.ndarray, n: int
+) -> tuple[int | None, int | None, int]:
+    """Locate the current-mass discontinuities and classify each.
+
+    An RGB-to-HB jump breaks the luminosity (the ZAHB sits well below
+    the tip); the AGB-to-post-AGB jump does not (the luminosity carries
+    through at the tip level before the white-dwarf decline).
+    """
     drop_rows = np.flatnonzero(np.diff(mass) < -_MASS_DROP) + 1
     rgb_drop = None
     pagb_drop = None
@@ -261,14 +292,18 @@ def _p94_phase(nt: NativeTable) -> np.ndarray:
         elif pagb_drop is None:
             pagb_drop = int(i)
     first_drop = n if len(drop_rows) == 0 else int(drop_rows[0])
+    return rgb_drop, pagb_drop, first_drop
 
-    # 2. main-sequence turnoff: the first temperature maximum followed
-    # by a >= _TO_FALL_DEX fall (the descent toward the giants). The
-    # global maximum would misfire on the youngest isochrones, whose
-    # stripped Wolf-Rayet tail is hotter than any main-sequence star.
-    # When no fall completes the scan, the turnoff is identifiable only
-    # if a mass drop bounds it (the pre-drop maximum); otherwise the
-    # chain is unresolved and the block classifies 'unknown'.
+
+def _p94_turnoff(log_teff: np.ndarray, first_drop: int, n: int) -> int | None:
+    """Main-sequence turnoff: first temperature maximum with a real fall.
+
+    The global maximum would misfire on the youngest isochrones, whose
+    stripped Wolf-Rayet tail is hotter than any main-sequence star.
+    When no fall completes the scan, the turnoff is identifiable only
+    if a mass drop bounds it (the pre-drop maximum); otherwise the
+    chain is unresolved and the block classifies 'unknown'.
+    """
     to = None
     to_peak, to_i = float(log_teff[0]), 0
     for i in range(1, first_drop):
@@ -279,12 +314,17 @@ def _p94_phase(nt: NativeTable) -> np.ndarray:
             break
     if to is None and first_drop < n:
         to = int(np.argmax(log_teff[:first_drop]))
-    if to is None:
-        return _unresolved_stages(n)
+    return to
 
-    # 3. RGB tip: first luminosity maximum after the turnoff that is
-    # followed by a >= _TIP_DIP_DEX fall before the post-AGB drop (the
-    # fall at the RGB-to-HB transition itself completes it)
+
+def _p94_rgb_tip(
+    log_l: np.ndarray, to: int, pagb_drop: int | None, n: int
+) -> int | None:
+    """RGB tip: first luminosity maximum after the turnoff with a real dip.
+
+    The fall at the RGB-to-HB transition itself completes it; with no
+    completed fall the running peak is the boundary.
+    """
     limit = pagb_drop if pagb_drop is not None else n
     tip = None
     peak_i, peak_v = None, None
@@ -295,21 +335,41 @@ def _p94_phase(nt: NativeTable) -> np.ndarray:
             tip = peak_i
             break
     if tip is None:
-        tip = peak_i  # no completed fall: the running peak is the boundary
+        tip = peak_i
+    return tip
 
-    # 4. He-burning ends where the luminosity re-exceeds the tip value
-    cheb_end = None
-    if tip is not None:
-        for i in range(tip + 1, pagb_drop if pagb_drop is not None else n):
-            if log_l[i] > log_l[tip] + 1e-9:
-                cheb_end = i
-                break
 
-    # 5. the post-AGB/WD boundary: hottest point of the tail
-    wd_start = None
-    if pagb_drop is not None:
-        wd_start = int(np.argmax(log_teff[pagb_drop:])) + pagb_drop
+def _p94_cheb_end(
+    log_l: np.ndarray, tip: int | None, pagb_drop: int | None, n: int
+) -> int | None:
+    """Where He-burning ends: luminosity re-exceeds the tip value."""
+    if tip is None:
+        return None
+    for i in range(tip + 1, pagb_drop if pagb_drop is not None else n):
+        if log_l[i] > log_l[tip] + 1e-9:
+            return i
+    return None
 
+
+def _p94_wd_start(log_teff: np.ndarray, pagb_drop: int | None) -> int | None:
+    """Post-AGB/WD boundary: hottest point of the tail."""
+    if pagb_drop is None:
+        return None
+    return int(np.argmax(log_teff[pagb_drop:])) + pagb_drop
+
+
+def _p94_stage_array(
+    log_teff: np.ndarray,
+    mini: np.ndarray,
+    *,
+    to: int,
+    tip: int | None,
+    cheb_end: int | None,
+    pagb_drop: int | None,
+    wd_start: int | None,
+    n: int,
+) -> np.ndarray:
+    """Assemble the stage array from the located boundaries."""
     stages = np.full(n, "main_sequence", dtype=object)
     stages[to + 1 :] = "red_giant_branch"
     if tip is not None and tip + 1 < n and tip > to:
@@ -326,11 +386,6 @@ def _p94_phase(nt: NativeTable) -> np.ndarray:
     wr = (log_teff > log_teff[to]) & (mini > _WR_MINI)
     if wr.any():
         stages[wr] = "wolf_rayet"
-
-    if tip is None or tip <= to or (
-        cheb_end is not None and cheb_end <= tip
-    ):
-        return _unresolved_stages(n)
     return stages
 
 
@@ -371,7 +426,9 @@ def _helium_2000(z: float) -> float:
         ) from None
 
 
-def _read_2000(source, provenance: Provenance | None) -> IsochroneSet:
+def _read_2000(
+    source: str | os.PathLike | TextIO, provenance: Provenance | None
+) -> IsochroneSet:
     parsed = parse_padova2000(source)
     summary = _load_summary(source)
     identity = padova_identity("2000")
@@ -438,7 +495,9 @@ def _read_2000(source, provenance: Provenance | None) -> IsochroneSet:
     )
 
 
-def _read_1994(source, provenance: Provenance | None) -> IsochroneSet:
+def _read_1994(
+    source: str | os.PathLike | TextIO, provenance: Provenance | None
+) -> IsochroneSet:
     parsed = parse_padova1994(source)
     z = parsed.facts["initial_z"]
     y = parsed.facts["initial_helium"]

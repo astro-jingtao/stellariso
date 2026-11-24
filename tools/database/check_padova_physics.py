@@ -27,14 +27,14 @@ Usage: python check_padova_physics.py FILE [FILE ...]
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
+import sys
 
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from stellariso.models.padova.backend import (  # noqa: E402
+from stellariso.models.padova.backend import (
     MBOL_SUN_1994,
     invert_flum,
     read_padova,
@@ -50,6 +50,7 @@ def implied_log_radius(log_l: np.ndarray, log_teff: np.ndarray) -> np.ndarray:
 
 
 def check_2000(path: str) -> int:
+    """Physics checks for one 2000-layout isochrone file."""
     s = read_padova(path)
     failures = 0
     print(f"== {Path(path).name} :: {s.identity.label} (isochron.dat layout)")
@@ -93,6 +94,7 @@ def check_2000(path: str) -> int:
 
 
 def check_1994(path: str) -> int:
+    """Physics checks for one 1994-layout table file."""
     s = read_padova(path)
     failures = 0
     print(f"== {Path(path).name} :: {s.identity.label} ({s.native.metadata['table']}, "
@@ -103,7 +105,6 @@ def check_1994(path: str) -> int:
     for iso in s:
         m = np.asarray(iso.native["M"], dtype=float)
         mwind = np.asarray(iso.native["Mwind"], dtype=float)
-        log_teff = np.asarray(iso.native["log(Teff)"], dtype=float)
         flum = np.asarray(iso.native["FLUM"], dtype=float)
         mini = invert_flum(flum)
 
@@ -137,6 +138,7 @@ def check_1994(path: str) -> int:
 
 
 def main(argv: list[str]) -> int:
+    """CLI entry point: route each file by layout, exit nonzero on any failure."""
     if len(argv) < 2:
         print(__doc__)
         return 2

@@ -10,8 +10,6 @@ import pytest
 from stellariso.core import ParameterRole
 from stellariso.exceptions import DataIntegrityError, UnrecognizedFormatError
 from stellariso.models.mist.backend import (
-    mist_identity,
-    mist_parameters,
     read_mist,
 )
 from stellariso.models.mist.reader import parse_mist_iso
@@ -52,7 +50,8 @@ class TestReader:
         assert cols[0] == "EEP"
         assert cols[1] == "log10_isochrone_age_yr"
         assert cols[2] == "initial_mass"
-        assert "log_g" in cols and "phase" in cols
+        assert "log_g" in cols
+        assert "phase" in cols
         assert len(cols) == 79
 
     def test_block_structure(self):
@@ -144,7 +143,8 @@ class TestBackend:
     def test_provenance_carries_references(self):
         s = read_mist(FIXTURE)
         cites = " ".join(r.citation for r in s.provenance.scientific_references)
-        assert "Choi" in cites and "Dotter" in cites
+        assert "Choi" in cites
+        assert "Dotter" in cites
 
     def test_block_native_slices_share_columns(self):
         s = read_mist(FIXTURE)

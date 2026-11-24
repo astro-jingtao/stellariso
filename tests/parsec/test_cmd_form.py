@@ -9,14 +9,15 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+import warnings as _w
 
 import pytest
 
 from stellariso.exceptions import CmdFormError
 from stellariso.models.parsec.cmd_form import (
     CGI_FIELD_NAMES,
-    CMD_FORM_URL,
     CMD_ENDPOINTS,
+    CMD_FORM_URL,
     DEFAULT_FIELDS,
     IMF_FILES,
     RADIO_VALUES,
@@ -35,7 +36,7 @@ EMPTY_TABLE = (FIXTURES / "output_empty.dat").read_bytes()
 
 
 class _StubResponse:
-    def __init__(self, content: bytes = b"", text: str = ""):
+    def __init__(self, content: bytes = b"", text: str = "") -> None:
         self.content = content
         self.text = text
         self.status_code = 200
@@ -47,7 +48,7 @@ class _StubResponse:
 class _StubSession:
     """Answers GET/POST from canned payloads; records what was sent."""
 
-    def __init__(self, form_html: str = "", result_html: str = ""):
+    def __init__(self, form_html: str = "", result_html: str = "") -> None:
         self.form_html = form_html
         self.result_html = result_html
         self.downloads: dict[str, bytes] = {}
@@ -155,7 +156,7 @@ class TestValueValidation:
             CmdFieldSet.from_overrides(photsys_file=value)
 
     def test_undisclosed_radio_value_rejected(self):
-        with pytest.raises(ValueError, match="does not take.*parsec_CAF09_v9"):
+        with pytest.raises(ValueError, match=r"does not take.*parsec_CAF09_v9"):
             CmdFieldSet.from_overrides(track_parsec="parsec_CAF09_v9")
 
     def test_undisclosed_select_value_rejected(self):
@@ -233,7 +234,6 @@ class TestValueValidation:
             CmdFieldSet.from_overrides(eta_reimers="0.7")
 
     def test_default_payload_is_warning_free(self):
-        import warnings as _w
 
         with _w.catch_warnings():
             _w.simplefilter("error")
@@ -337,7 +337,8 @@ class TestFetchOutput:
         assert record["output"]["sha256"] == out.sha256
         # the server's own echo is part of the record
         release = [ln for ln in record["server_header_echo"] if "PARSEC release" in ln]
-        assert release and "v1.2S" in release[0]
+        assert release
+        assert "v1.2S" in release[0]
 
     def test_header_only_output_refused(self):
         client, _ = self._client_with_output(EMPTY_TABLE)

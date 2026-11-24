@@ -21,8 +21,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
+import sys
 
 from stellariso.database.scan import (
     render_markdown,
@@ -33,6 +33,7 @@ from stellariso.database.scan import (
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI entry point: scan the database and print the two-state report."""
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )

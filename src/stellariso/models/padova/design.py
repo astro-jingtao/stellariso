@@ -18,12 +18,15 @@ canonical file names the 1994 reader requires.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 import gzip
+from pathlib import Path
 import re
 import shutil
+from typing import Any, Callable
 import warnings
-from pathlib import Path
-from typing import Callable, Iterator
+
+import requests
 
 from stellariso.database.design import (
     DirectoryMatch,
@@ -32,6 +35,7 @@ from stellariso.database.design import (
     PartVerdict,
     ProductDesign,
 )
+from stellariso.database.manifest import utc_now_iso
 from stellariso.integrity import download_file, sha256_file
 from stellariso.models import catalog as load_catalog
 from stellariso.registry import references
@@ -47,15 +51,14 @@ _VIZIER_CATALOG: dict[str, str] = {
 _TABLE_NAME = re.compile(r"table[1-6]$")
 
 
-def _default_session():
-    import requests
-
+def _default_session() -> requests.Session:
     session = requests.Session()
     session.headers["User-Agent"] = "stellariso (isochrone database builder)"
     return session
 
 
 class PadovaAdapter(FamilyAdapter):
+    """Legacy Padova: static VizieR archive products, fetched per file."""
     family = "padova"
 
     # -- enumeration ------------------------------------------------------
@@ -64,6 +67,7 @@ class PadovaAdapter(FamilyAdapter):
         return load_catalog("padova")
 
     def designs(self) -> Iterator[ProductDesign]:
+        """Every archive file of both releases as one one-part product design."""
         for release_entry in self._catalog()["releases"]:
             for product in release_entry["products"]:
                 files = {f["part"]: f for f in product["files"]}
@@ -90,6 +94,7 @@ class PadovaAdapter(FamilyAdapter):
     # -- directory mapping --------------------------------------------------
 
     def product_of_directory(self, root: Path, directory: Path) -> DirectoryMatch:
+        """Match a directory against the per-release table layouts."""
         release = directory.parent.name
         label = directory.name
         for design in self.designs():
@@ -112,6 +117,7 @@ class PadovaAdapter(FamilyAdapter):
         *,
         verify: bool = True,
     ) -> PartVerdict:
+        """Per-release conformance: header echoes, row counts, characteristic points."""
         path = directory / part.filename
         if not path.exists():
             return PartVerdict.missing()
@@ -171,14 +177,13 @@ class PadovaAdapter(FamilyAdapter):
         part: PartDesign,
         directory: Path,
         *,
-        session=None,
-        client=None,
+        session: requests.Session | None = None,
+        client: Any = None,
         log: Callable[[str], None] = print,
     ) -> dict:
+        """Download one archive file and record its checksum and size."""
         if session is None:
             session = _default_session()
-        from stellariso.database.manifest import utc_now_iso
-
         facts = design.facts["files"][part.name]
         url = facts["url"]
         sha, size = download_file(url, directory / part.filename, session)
@@ -223,6 +228,7 @@ class PadovaAdapter(FamilyAdapter):
     # -- manifest and report ---------------------------------------------------
 
     def manifest_fields(self, design: ProductDesign) -> dict:
+        """Citation list and the mirror-channel source note."""
         vizier = _VIZIER_CATALOG[design.release]
         return {
             "source_class": "scientific_archive",
@@ -241,6 +247,7 @@ class PadovaAdapter(FamilyAdapter):
         }
 
     def family_section(self, design: ProductDesign) -> dict:
+        """Per-release format notes and the Z_ref each [Fe/H] derives from."""
         return {
             "vizier_catalog": _VIZIER_CATALOG[design.release],
             "channel": "adac_mirror_native_tree",
@@ -248,21 +255,23 @@ class PadovaAdapter(FamilyAdapter):
         }
 
     def fetch_cost(self, design: ProductDesign, part: PartDesign) -> dict:
+        """The declared download size of the part."""
         return {
             "kind": "download",
             "size_bytes": design.facts["files"][part.name].get("size_bytes"),
         }
 
     def is_data_file(self, path: Path) -> bool:
+        """Which files of a product directory carry data (no archives here)."""
         name = path.name
-        if name.endswith(".gz"):
-            name = name[:-3]
+        name = name.removesuffix(".gz")
         return bool(_TABLE_NAME.match(name)) or name in (
             "isochron.dat",
             "isochsum.dat",
         )
 
-    def report_header(self, designs) -> list[str]:
+    def report_header(self, designs: list[ProductDesign]) -> list[str]:
+        """Report header naming the mirror channel and both releases."""
         cat = self._catalog()
         mirror = cat["mirror_base"]
         lines = [

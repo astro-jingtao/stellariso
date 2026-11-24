@@ -13,8 +13,8 @@ To regenerate:
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
+import sys
 
 
 def trim(src: Path, dst: Path, max_rows: int = 150) -> None:
@@ -28,7 +28,8 @@ def trim(src: Path, dst: Path, max_rows: int = 150) -> None:
         header.append(lines[i])
         i += 1
     while i < len(lines):
-        assert lines[i].startswith("#") and "number of EEPs" in lines[i], lines[i]
+        assert lines[i].startswith("#"), lines[i]
+        assert "number of EEPs" in lines[i], lines[i]
         block_header = [lines[i], lines[i + 1], lines[i + 2]]
         i += 3
         data: list[str] = []

@@ -10,17 +10,21 @@ with :func:`refresh_database` (``stellariso.refresh_database``).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import json
 from pathlib import Path
 
+from stellariso._version import __version__
 from stellariso.database.core import Database
 from stellariso.database.manifest import utc_now_iso
+from stellariso.database.scan import render_markdown, report_json, scan_database
+from stellariso.registry.docs import render_documentation
 
-__all__ = ["write_inventory", "refresh_database"]
+__all__ = ["refresh_database", "write_inventory"]
 
 
 def write_inventory(root: Path) -> None:
-    from stellariso import __version__
+    """Regenerate the database-root derived artifacts from the products."""
 
     products = Database(root).products
     inventory = {
@@ -76,7 +80,7 @@ def write_inventory(root: Path) -> None:
         size = p._primary_entry().get("size_bytes")
         lines.append(
             f"| `{p.family}/{p.release}/{p.label}` | {p.kind} "
-            f"| {size if size else '—'} | {p.url or 'manual'} |"
+            f"| {size or '—'} | {p.url or 'manual'} |"
         )
     lines += [
         "",
@@ -92,13 +96,13 @@ def write_inventory(root: Path) -> None:
     with open(root / "README.md", "w", encoding="utf-8", newline="\n") as _f:
         _f.write("\n".join(lines) + "\n")
 
-    from stellariso.registry.docs import render_documentation
-
     with open(root / "unified-parameters.md", "w", encoding="utf-8", newline="\n") as _f:
         _f.write(render_documentation())
 
 
-def refresh_database(database: str | Path, *, log=print) -> None:
+def refresh_database(
+    database: str | Path, *, log: Callable[[str], None] = print
+) -> None:
     """Regenerate every database-root derived artifact from the products.
 
     The inventory (database.json), the human README, the mapping
@@ -108,7 +112,6 @@ def refresh_database(database: str | Path, *, log=print) -> None:
     after the data lands. A database is openable without it (a partial
     copy is a legal database); this only refreshes the derived view.
     """
-    from stellariso.database.scan import render_markdown, report_json, scan_database
 
     root = Path(database)
     if not root.is_dir():

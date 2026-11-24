@@ -15,8 +15,8 @@ it after every registry edit:
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
+import sys
 
 from stellariso.registry.docs import render_documentation
 
@@ -25,6 +25,7 @@ DOC = REPO_ROOT / "docs" / "unified-parameters.md"
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI entry point: regenerate (or --check) the unified-parameters document."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--check",

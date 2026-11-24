@@ -23,6 +23,8 @@ from stellariso.database.scan import (
     report_json,
     scan_database,
 )
+from stellariso.integrity import sha256_file
+from stellariso.models.mist.design import MistAdapter
 from stellariso.models.parsec import blueprint as bp
 from stellariso.models.parsec.cmd_form import CmdFieldSet
 from stellariso.models.parsec.design import count_blocks
@@ -61,7 +63,7 @@ def _write_product(
     return directory
 
 
-@pytest.fixture()
+@pytest.fixture
 def db(tmp_path: Path) -> Path:
     return tmp_path
 
@@ -118,7 +120,8 @@ class TestTwoStateClassification:
         assert scan.parts["linear"].kind == "missing"
         reasons = " ; ".join(scan.parts["log"].reasons)
         assert "isoc_dlage" in reasons
-        assert "71 isochrones" in reasons and "177" in reasons
+        assert "71 isochrones" in reasons
+        assert "177" in reasons
         # nonconforming data is never auto-refetched: no fetch planned
         assert (scan, "linear") not in [
             (s, p) for s, p in family.auto_fetches()
@@ -128,7 +131,8 @@ class TestTwoStateClassification:
         cell = bp.Cell(set=WEB, mh=0.3, omega=0.0)
         _write_product(db, WEB.key, cell.label, _expected(cell), blocks=100)
         scan = scan_database(db).families["parsec"].products[cell.set.key + "/" + cell.label]
-        assert scan.state == "incomplete" and scan.needs_review
+        assert scan.state == "incomplete"
+        assert scan.needs_review
         assert any("100 isochrones" in r for r in scan.parts["log"].reasons)
 
     def test_missing_record_is_nonconforming_not_superseded(self, db: Path):
@@ -269,9 +273,11 @@ class TestFourStateConversion:
         products = report.families["parsec"].products
         assert products[WEB.key + "/" + complete.label].state == "complete"
         scan = products[WEB.key + "/" + log_only.label]
-        assert scan.state == "incomplete" and scan.parts["linear"].kind == "missing"
+        assert scan.state == "incomplete"
+        assert scan.parts["linear"].kind == "missing"
         scan = products[WEB.key + "/" + refetch.label]
-        assert scan.state == "incomplete" and scan.needs_review
+        assert scan.state == "incomplete"
+        assert scan.needs_review
         assert products[WEB.key + "/mh_m2.0"].state == "incomplete"
         assert products[WEB.key + "/mh_m2.0"].missing_parts == ["log", "linear"]
 
@@ -310,8 +316,6 @@ class TestAggregates:
 
 class TestMistFamilyScan:
     def test_complete_mist_product(self, db: Path, monkeypatch):
-        from stellariso.integrity import sha256_file
-        from stellariso.models.mist.design import MistAdapter
 
         adapter = MistAdapter()
         design = next(
@@ -347,7 +351,8 @@ class TestRendering:
         text = render_markdown(scan_database(db))
         assert "-2.2 to +0.5, step 0.1 dex -> 28 values" in text
         assert "6.6 to 10.13 dex, step 0.02 dex -> 177 isochrones" in text
-        assert "1.0e5 to 4.0e6 yr" in text and "40 isochrones" in text
+        assert "1.0e5 to 4.0e6 yr" in text
+        assert "40 isochrones" in text
         assert "Reimers eta: 0.0 to 0.5, step 0.1 -> 6 values" in text
         assert "TP-cycle resolution n_inTPC: 5, 10, 20 -> 3 values" in text
         assert "5 O-rich x 4 C-rich = 20 combinations" in text

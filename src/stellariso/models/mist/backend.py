@@ -9,7 +9,6 @@ official documentation cite their source. Nothing is inferred silently.
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from typing import TextIO
 
 import numpy as np
@@ -17,6 +16,7 @@ import numpy as np
 from stellariso.core import ModelIdentity
 from stellariso.exceptions import DataIntegrityError
 from stellariso.isochrone import Isochrone, IsochroneSet
+from stellariso.models.mist.reader import MistFile, open_mist_text, parse_mist_iso
 from stellariso.native import NativeTable
 from stellariso.provenance import Provenance
 from stellariso.registry import (
@@ -27,15 +27,14 @@ from stellariso.registry import (
     resolve_parameters,
 )
 from stellariso.unified import UnifiedView
-from stellariso.models.mist.reader import MistFile, open_mist_text, parse_mist_iso
 
 __all__ = [
-    "read_mist",
-    "recognize_mist",
+    "MIST_EEP_ANCHORS",
+    "MIST_REFERENCES",
     "mist_identity",
     "mist_parameters",
-    "MIST_REFERENCES",
-    "MIST_EEP_ANCHORS",
+    "read_mist",
+    "recognize_mist",
 ]
 
 _FIELD_SPEC_DICT = field_spec_dict("mist", "isochrones")
@@ -63,15 +62,17 @@ def recognize_mist(source: str | os.PathLike | TextIO) -> bool:
                 seen_block = True
             if seen_version and seen_block:
                 return True
-        return False
     except (OSError, UnicodeDecodeError):
         return False
+    else:
+        return seen_version and seen_block
     finally:
         if opened:
             fh.close()
 
 
 def mist_identity(facts: dict) -> ModelIdentity:
+    """ModelIdentity from a MIST file's own header facts."""
     version = str(facts.get("mist_version", "unknown"))
     vvcrit = facts.get("vvcrit")
     physics = f"vvcrit{vvcrit}" if vvcrit is not None else None

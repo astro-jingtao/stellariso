@@ -22,8 +22,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
+import sys
 
 from stellariso.models.parsec.cmd_form import (
     DEFAULT_FIELDS,
@@ -33,10 +33,11 @@ from stellariso.models.parsec.cmd_form import (
 
 #: fields a CLI flag may override (everything the form defines, plus the
 #: optional gzip checkbox)
-_FLAGGED = tuple(DEFAULT_FIELDS) + ("output_gzip",)
+_FLAGGED = (*DEFAULT_FIELDS, "output_gzip")
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI entry point: submit the requested isochrone job and save its table."""
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )

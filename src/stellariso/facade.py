@@ -10,15 +10,21 @@ or from a built database.
 from __future__ import annotations
 
 from abc import ABC
+from collections.abc import Iterable
 from pathlib import Path
+import warnings
 
-from stellariso.database.core import Database
+import numpy as np
+
+from stellariso.database.core import Database, open_database
 from stellariso.exceptions import UnsupportedModelError
 from stellariso.grid import IsochroneGrid
 from stellariso.interp import InterpolationRecord
 from stellariso.isochrone import IsochroneSet
+from stellariso.models import parse_model_spec
+from stellariso.warnings import PhaseMappingWarning
 
-__all__ = ["UnifiedIso", "MistIso", "PadovaIso", "ParsecIso", "construct"]
+__all__ = ["MistIso", "PadovaIso", "ParsecIso", "UnifiedIso", "construct"]
 
 
 class UnifiedIso(IsochroneGrid, ABC):
@@ -31,7 +37,8 @@ class UnifiedIso(IsochroneGrid, ABC):
 
     model_name: str = ""
 
-    def __init__(self, sets: Iterable[IsochroneSet]):
+    def __init__(self, sets: Iterable[IsochroneSet]) -> None:
+        """Bind the grid and clear the interpolation record."""
         super().__init__(sets)
         self.last_record: InterpolationRecord | None = None
 
@@ -56,7 +63,7 @@ class UnifiedIso(IsochroneGrid, ABC):
         within-isochrone method (``linear`` or ``pchip``). The interpolation
         record of the last call is kept on ``self.last_record``.
         """
-        value, record = self.get_detailed(
+        value, _ = self.get_detailed(
             field, mass, log_age, interp=interp, selection=selection, **coordinates
         )
         return value
@@ -70,6 +77,7 @@ class UnifiedIso(IsochroneGrid, ABC):
         selection: str = "nearest",
         **coordinates,
     ) -> tuple[float, InterpolationRecord]:
+        """One quantity plus its full interpolation record at (mass, coordinates)."""
         coords = dict(coordinates)
         if log_age is not None:
             coords["log_age"] = log_age
@@ -80,33 +88,32 @@ class UnifiedIso(IsochroneGrid, ABC):
 
     # -- convenience queries (shared implementation) --------------------------
 
-    def get_logg(self, mass, log_age=None, **kw) -> float:
+    def get_logg(self, mass: float, log_age: float | None = None, **kw) -> float:
+        """log10 surface gravity [cm/s^2] at (mass, grid coordinates)."""
         return self.get("log_surface_gravity", mass, log_age=log_age, **kw)
 
-    def get_log_teff(self, mass, log_age=None, **kw) -> float:
+    def get_log_teff(self, mass: float, log_age: float | None = None, **kw) -> float:
+        """log10 effective temperature [K] at (mass, grid coordinates)."""
         return self.get(
             "log_effective_temperature", mass, log_age=log_age, **kw
         )
 
-    def get_log_luminosity(self, mass, log_age=None, **kw) -> float:
+    def get_log_luminosity(self, mass: float, log_age: float | None = None, **kw) -> float:
+        """log10 luminosity [L_sun] at (mass, grid coordinates)."""
         return self.get("log_luminosity", mass, log_age=log_age, **kw)
 
-    def get_log_radius(self, mass, log_age=None, **kw) -> float:
+    def get_log_radius(self, mass: float, log_age: float | None = None, **kw) -> float:
+        """log10 radius [R_sun] at (mass, grid coordinates)."""
         return self.get("log_radius", mass, log_age=log_age, **kw)
 
-    def get_current_mass(self, mass, log_age=None, **kw) -> float:
+    def get_current_mass(self, mass: float, log_age: float | None = None, **kw) -> float:
+        """Current (evolved) mass [M_sun] at (mass, grid coordinates)."""
         return self.get("current_mass", mass, log_age=log_age, **kw)
 
-    def get_phase(self, mass, log_age=None, **kw) -> str:
+    def get_phase(self, mass: float, log_age: float | None = None, **kw) -> str:
         """Unified stage at the given mass. Phases are discrete: the value is
         read from the bracketing nodes — their stage when they agree,
         ``unknown`` with a warning when the mass straddles a boundary."""
-        import warnings as _w
-
-        import numpy as np
-
-        from stellariso.warnings import PhaseMappingWarning
-
         coordinates = dict(kw)
         selection = coordinates.pop("selection", "nearest")
         if log_age is not None:
@@ -119,7 +126,7 @@ class UnifiedIso(IsochroneGrid, ABC):
         if i < len(masses) - 1 and masses[i] != mass and i + 1 < len(masses):
             left, right = stages[i], stages[i + 1]
             if left != right:
-                _w.warn(
+                warnings.warn(
                     f"mass {mass} straddles a phase boundary "
                     f"({left} / {right}); returning 'unknown'",
                     PhaseMappingWarning,
@@ -129,6 +136,7 @@ class UnifiedIso(IsochroneGrid, ABC):
         return str(stages[i])
 
     def describe(self) -> str:
+        """A short human summary of the loaded product."""
         lines = [
             f"{type(self).__name__}: {self.identity.label}",
             f"product: {self.identity.product}",
@@ -146,7 +154,7 @@ class MistIso(UnifiedIso):
     model_name = "mist"
 
     @classmethod
-    def construct(cls, paths=None) -> "MistIso":
+    def construct(cls, paths: str | Path | Iterable[str | Path] | None = None) -> MistIso:
         """Load MIST isochrones from local files or directories.
 
         MIST data is not fetched on demand: build a local database with
@@ -169,7 +177,7 @@ class PadovaIso(UnifiedIso):
     model_name = "padova"
 
     @classmethod
-    def construct(cls, paths=None) -> "PadovaIso":
+    def construct(cls, paths: str | Path | Iterable[str | Path] | None = None) -> PadovaIso:
         """Load legacy Padova isochrones from local files or directories.
 
         The two releases live in static CDS/VizieR catalogs, not on the
@@ -197,7 +205,7 @@ class ParsecIso(UnifiedIso):
     model_name = "parsec"
 
     @classmethod
-    def construct(cls, paths=None) -> "ParsecIso":
+    def construct(cls, paths: str | Path | Iterable[str | Path] | None = None) -> ParsecIso:
         """Load CMD isochrone tables from local files.
 
         PARSEC publishes no isochrone packages: isochrones are computed by
@@ -220,7 +228,7 @@ class ParsecIso(UnifiedIso):
         return cls(grid.sets)
 
 
-def _as_path_list(paths) -> list:
+def _as_path_list(paths: str | Path | Iterable[str | Path]) -> list[Path]:
     if isinstance(paths, (str, Path)):
         return [paths]
     return list(paths)
@@ -231,8 +239,8 @@ _REGISTRY = {"mist": MistIso, "padova": PadovaIso, "parsec": ParsecIso}
 
 def construct(
     model: str,
-    paths=None,
-    database=None,
+    paths: str | Path | Iterable[str | Path] | None = None,
+    database: Database | str | Path | None = None,
     label: str | None = None,
 ) -> UnifiedIso:
     """Build the unified point-query facade for one model product.
@@ -246,8 +254,6 @@ def construct(
     ``label`` to pick one product when a release publishes several, e.g.
     rotation sets); never from the network.
     """
-    from stellariso.models import parse_model_spec
-
     family, release = parse_model_spec(model)
     if release is None:
         raise ValueError(
@@ -264,8 +270,6 @@ def construct(
     if database is not None:
         if paths is not None:
             raise ValueError("pass either paths= or database=, not both")
-        from stellariso.database.core import open_database
-
         db = database if isinstance(database, Database) else open_database(database)
         grid = db.grid(model, label=label)
         obj = cls(grid.sets)

@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from stellariso.core import ParameterRole
-from stellariso.exceptions import SourceUnavailableError, UnrecognizedFormatError
+from stellariso.exceptions import UnrecognizedFormatError
 from stellariso.facade import ParsecIso, construct
 from stellariso.grid import IsochroneGrid, open_grid
 from stellariso.models import get_backend
@@ -52,7 +52,8 @@ class TestReader:
         cols = set_.native.columns
         assert len(cols) == GOLDEN["n_columns"]
         assert cols[:6] == ["log(age/yr)", "M_ini", "M_act", "logL/Lo", "logTe", "logG"]
-        assert "label" in cols and "int_IMF" in cols
+        assert "label" in cols
+        assert "int_IMF" in cols
 
     def test_block_metadata_composition(self, set_):
         for meta in set_.native.block_metadata:
@@ -120,7 +121,8 @@ class TestBackendObjects:
 
     def test_provenance_references(self, set_):
         cites = " ".join(r.citation for r in set_.provenance.scientific_references)
-        assert "Bressan" in cites and "Marigo" in cites
+        assert "Bressan" in cites
+        assert "Marigo" in cites
 
 
 class TestGridAndFacade:

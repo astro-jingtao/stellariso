@@ -26,6 +26,7 @@ import stellariso
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI entry point: parse args, build the database, report."""
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )

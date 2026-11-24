@@ -1,1 +1,1 @@
-# MIST backend.
+"""MIST backend."""

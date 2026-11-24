@@ -24,20 +24,27 @@ is missing and keeps everything already verified.
 
 from __future__ import annotations
 
-import time
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Iterable
+import time
 
-from stellariso.database.core import _count_data_files, _safe_extract, open_database
+import requests
+
+from stellariso.database.core import (
+    Database,
+    _count_data_files,
+    _safe_extract,
+    open_database,
+)
 from stellariso.database.design import (
     FamilyAdapter,
-    ProductDesign,
-    adapter_for,
     adapter_families,
+    adapter_for,
 )
 from stellariso.database.inventory import write_inventory
 from stellariso.database.manifest import read_manifest, strip_legacy, write_manifest
 from stellariso.database.scan import ProductScan, scan_database
+from stellariso.models.parsec.cmd_form import CmdFormClient
 
 __all__ = ["build_database"]
 
@@ -62,11 +69,11 @@ def _complete_product(
     adapter: FamilyAdapter,
     scan: ProductScan,
     *,
-    session=None,
-    client=None,
+    session: requests.Session | None = None,
+    client: CmdFormClient | None = None,
     extract: bool,
     form_pause: float,
-    log,
+    log: Callable[[str], None],
 ) -> None:
     """Fetch the missing parts of one clean product and write its v2
     MANIFEST (kept parts carry over untouched)."""
@@ -115,7 +122,13 @@ def _complete_product(
     write_manifest(directory / "MANIFEST.json", payload)
 
 
-def _dry_run(root: Path, families: list[str], log, *, verify: bool = True) -> None:
+def _dry_run(
+    root: Path,
+    families: list[str],
+    log: Callable[[str], None],
+    *,
+    verify: bool = True,
+) -> None:
     report = scan_database(root, families=families, verify_checksums=verify)
     for family in families:
         adapter = adapter_for(family)
@@ -158,13 +171,14 @@ def _dry_run(root: Path, families: list[str], log, *, verify: bool = True) -> No
 def build_database(
     database: str | Path,
     models: Iterable[str] | None = None,
-    session=None,
+    *,
+    session: requests.Session | None = None,
     verify_existing: bool = True,
     dry_run: bool = False,
     extract: bool = True,
     form_pause: float = 5.0,
-    log=print,
-):
+    log: Callable[[str], None] = print,
+) -> Database:
     """Build (or complete) a local database to every family's committed
     fetch stage (a staged source commits to a subset of its declared
     design; the scan still measures the whole design, so the gap stays

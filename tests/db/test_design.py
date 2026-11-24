@@ -17,6 +17,10 @@ from stellariso.database.design import (
     adapter_for,
 )
 from stellariso.exceptions import UnsupportedModelError
+from stellariso.integrity import sha256_file
+from stellariso.models.mist.design import MistAdapter
+from stellariso.models.padova.design import PadovaAdapter
+from stellariso.models.parsec.design import ParsecAdapter
 
 
 class _FakeAdapter(FamilyAdapter):
@@ -96,9 +100,6 @@ class TestRegistry:
             adapter_for("galaxy")
 
     def test_adapters_are_the_family_subclasses(self):
-        from stellariso.models.mist.design import MistAdapter
-        from stellariso.models.padova.design import PadovaAdapter
-        from stellariso.models.parsec.design import ParsecAdapter
 
         assert isinstance(adapter_for("mist"), MistAdapter)
         assert isinstance(adapter_for("padova"), PadovaAdapter)
@@ -115,7 +116,6 @@ class TestMistAdapterClassify:
         return directory
 
     def test_missing_file_is_missing(self, tmp_path: Path):
-        from stellariso.models.mist.design import MistAdapter
 
         adapter = MistAdapter()
         design = next(
@@ -128,7 +128,6 @@ class TestMistAdapterClassify:
         assert verdict.kind == "missing"
 
     def test_sha_mismatch_is_nonconforming(self, tmp_path: Path):
-        from stellariso.models.mist.design import MistAdapter
 
         adapter = MistAdapter()
         design = next(
@@ -146,8 +145,6 @@ class TestMistAdapterClassify:
         assert any("sha256" in r for r in verdict.reasons)
 
     def test_size_deviation_is_ok_with_warning(self, tmp_path: Path):
-        from stellariso.integrity import sha256_file
-        from stellariso.models.mist.design import MistAdapter
 
         adapter = MistAdapter()
         design = next(
@@ -163,15 +160,16 @@ class TestMistAdapterClassify:
             {"parts": {"archive": {"sha256": sha256_file(archive), "size_bytes": 7}}},
         )
         assert verdict.kind == "ok"  # catalog expects 692,503,712 bytes
-        assert verdict.warnings and "bytes" in verdict.warnings[0]
+        assert verdict.warnings
+        assert "bytes" in verdict.warnings[0]
 
     def test_directory_mapping(self, tmp_path: Path):
-        from stellariso.models.mist.design import MistAdapter
 
         adapter = MistAdapter()
         directory = self._product(tmp_path)
         match = adapter.product_of_directory(tmp_path, directory)
-        assert match.matched and match.design.key == "1.2/vvcrit0.4_full_isos"
+        assert match.matched
+        assert match.design.key == "1.2/vvcrit0.4_full_isos"
         unknown = self._product(tmp_path, release="9.9", label="mystery")
         match = adapter.product_of_directory(tmp_path, unknown)
         assert match.matched is False

@@ -8,9 +8,8 @@ import numpy as np
 import pytest
 
 from stellariso.core import FieldOrigin
-from stellariso.exceptions import UnrecognizedFormatError
 from stellariso.models.mist.backend import read_mist
-from stellariso.unified import PhaseMapping, UnifiedView
+from stellariso.unified import PhaseMapping
 from stellariso.warnings import PhaseMappingWarning
 
 FIXTURE = (

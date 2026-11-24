@@ -5,8 +5,7 @@ preserving, standardizing, and querying tabulated theoretical isochrones from
 single-star evolution models.
 """
 
-__version__ = "0.1.0"
-
+from stellariso._version import __version__
 from stellariso.core import FieldSpec, ModelIdentity, ParameterRole, ParameterSpec
 from stellariso.database.build import build_database
 from stellariso.database.core import Database, open_database
@@ -18,7 +17,6 @@ from stellariso.grid import IsochroneGrid, open_grid
 from stellariso.interp import InterpolationRecord, interpolate_along
 from stellariso.isochrone import Isochrone, IsochroneSet
 from stellariso.native import NativeTable
-from stellariso.skill import skill_directory
 from stellariso.provenance import (
     DataAsset,
     Provenance,
@@ -27,9 +25,10 @@ from stellariso.provenance import (
     SourceClass,
     SourceRecord,
 )
+from stellariso.skill import skill_directory
 from stellariso.unified import PhaseMapping, UnifiedView
 
-__all__ = [
+__all__ = [  # noqa: RUF022 — deliberately grouped by role, not sorted
     "__version__",
     # core schema
     "FieldSpec",

@@ -12,7 +12,6 @@ from stellariso.database.manifest import (
     SCHEMA,
     is_v2,
     load_raw,
-    normalize,
     primary_part,
     read_manifest,
     upgrade_manifests,

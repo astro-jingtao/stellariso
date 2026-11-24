@@ -7,18 +7,18 @@ selection metadata attached to the returned objects.
 """
 
 __all__ = [
-    "StellarIsoWarning",
-    "NearestGridPointWarning",
-    "DerivedQuantityWarning",
-    "IncompleteMetadataWarning",
-    "DeprecatedReleaseWarning",
-    "PhaseMappingWarning",
-    "ThirdPartySourceWarning",
-    "ChecksumUnavailableWarning",
-    "CatalogSizeMismatchWarning",
     "CatalogChecksumMismatchWarning",
+    "CatalogSizeMismatchWarning",
+    "ChecksumUnavailableWarning",
     "CmdFormDriftWarning",
     "CmdFormOptionWarning",
+    "DeprecatedReleaseWarning",
+    "DerivedQuantityWarning",
+    "IncompleteMetadataWarning",
+    "NearestGridPointWarning",
+    "PhaseMappingWarning",
+    "StellarIsoWarning",
+    "ThirdPartySourceWarning",
 ]
 
 

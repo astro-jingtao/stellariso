@@ -17,19 +17,20 @@ Usage: python check_mist_physics.py FILE [FILE ...]
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
+import sys
 
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from stellariso.models.mist.backend import read_mist  # noqa: E402
+from stellariso.models.mist.backend import read_mist
 
 LOG_G_SUN = 4.438  # log10(27400 cm/s2), cgs
 
 
 def check(path: str) -> int:
+    """Run every physics check on one MIST isochrone file."""
     s = read_mist(path)
     failures = 0
     print(f"== {Path(path).name} :: {s.identity.label}")
@@ -71,6 +72,7 @@ def check(path: str) -> int:
 
 
 def main(argv: list[str]) -> int:
+    """CLI entry point: check each file argument, exit nonzero on any failure."""
     if len(argv) < 2:
         print(__doc__)
         return 2

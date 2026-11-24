@@ -28,8 +28,8 @@ ReadMe files under j106275/ and j141371/ subdirectories.
 from __future__ import annotations
 
 import gzip
-import sys
 from pathlib import Path
+import sys
 
 
 def read_lines(path: Path) -> list[str]:
@@ -65,12 +65,12 @@ def keep_p2000(src: Path, out: Path) -> None:
         key = (line[0], line[2:9], line[20:25])
         if key in wanted:
             kept_sum.append(line)
-    n_keys = len({(l[0], l[2:9], l[20:25]) for l in kept_iso})
+    n_keys = len({(ln[0], ln[2:9], ln[20:25]) for ln in kept_iso})
     if n_keys != len(wanted):
         raise SystemExit(
             f"expected {len(wanted)} isochrones in isochron.dat, found {n_keys}"
         )
-    n_sum = len({(l[0], l[2:9], l[20:25]) for l in kept_sum})
+    n_sum = len({(ln[0], ln[2:9], ln[20:25]) for ln in kept_sum})
     if n_sum != len(wanted):
         raise SystemExit(
             f"expected {len(wanted)} summary isochrones, found {n_sum}"
@@ -85,7 +85,7 @@ def keep_p94(src: Path, out: Path, table: str, ages: set[float]) -> None:
         for line in read_lines(src / "j106275" / f"{table}.gz")
         if line.strip() and round(float(line[2:8]), 3) in ages
     ]
-    found = {round(float(l[2:8]), 3) for l in kept}
+    found = {round(float(ln[2:8]), 3) for ln in kept}
     if found != ages:
         raise SystemExit(f"{table}: expected blocks {sorted(ages)}, found {sorted(found)}")
     write_lines(out / "p1994" / table, kept)

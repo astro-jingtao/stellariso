@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 
@@ -27,6 +27,7 @@ from stellariso.registry import (
     unified_field_names,
     unified_phases,
 )
+from stellariso.unified import TRANSFORMATIONS
 
 REPO_ROOT = Path(__file__).parent.parent
 
@@ -78,7 +79,6 @@ class TestFieldSpecs:
             for product in product_names(backend):
                 for spec in field_specs(backend, product):
                     if spec.origin is FieldOrigin.TRANSFORMED_NATIVE:
-                        from stellariso.unified import TRANSFORMATIONS
 
                         assert spec.transformation in TRANSFORMATIONS
                         assert spec.native_unit is not None
@@ -200,7 +200,8 @@ class TestReferencesAndNotes:
     def test_references_are_reference_objects(self):
         for backend in backend_names():
             refs = references(backend)
-            assert refs and all(isinstance(r, Reference) for r in refs)
+            assert refs
+            assert all(isinstance(r, Reference) for r in refs)
         assert references("mist")[0].bibcode == "2016ApJ...823..102C"
 
     def test_notes_exist(self):
@@ -217,5 +218,6 @@ class TestGeneratedDocument:
             capture_output=True,
             text=True,
             cwd=REPO_ROOT,
+            check=False,
         )
         assert result.returncode == 0, result.stdout + result.stderr

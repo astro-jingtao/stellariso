@@ -39,10 +39,7 @@ HEADER = """# isochrones based on PARSEC release v1.2S +  COLIBRI S_37 + S_35 + 
 
 # Documented column layout: readme columns (1)-(7), CMD 3.9 additions
 # (label after logG; magnitudes; int_IMF, C/O, M_hec, logMdot at the end).
-COLUMNS = (
-    "log(age/yr) M_ini M_act logL/Lo logTe logG label "
-    "U B V R I J H K int_IMF C/O M_hec logMdot"
-).split()
+COLUMNS = ["log(age/yr)", "M_ini", "M_act", "logL/Lo", "logTe", "logG", "label", "U", "B", "V", "R", "I", "J", "H", "K", "int_IMF", "C/O", "M_hec", "logMdot"]
 
 Z_INIT = 0.0152
 Y_INIT = 0.2485 + 1.78 * Z_INIT  # PARSEC enrichment law (scaled-solar)
@@ -63,9 +60,7 @@ def block_rows(log_age: float, n: int = 40) -> list[str]:
     co = np.where(label >= 8, 1.2, 0.55)
     m_hec = np.where(label >= 7, 0.47 * m_ini**0.5, 0.0)
     log_mdot = np.where(label >= 7, -7.0 + 0.5 * m_ini, -99.0)
-    mags = []
-    for offset in (-1.2, -0.4, 0.0, 0.35, 0.9, 1.4, 1.8, 2.2):
-        mags.append(4.74 - 2.5 * logl + offset)
+    mags = [4.74 - 2.5 * logl + offset for offset in (-1.2, -0.4, 0.0, 0.35, 0.9, 1.4, 1.8, 2.2)]
     rows = []
     for i in range(n):
         fields = [

@@ -1,1 +1,1 @@
-# PARSEC backend.
+"""PARSEC backend."""

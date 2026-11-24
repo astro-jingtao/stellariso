@@ -52,7 +52,8 @@ def main() -> None:
             # the source's trailing '#isochrone terminated' is dropped here
         elif line.strip():
             rows.append(line.split())
-    assert column_line is not None and rows, "unexpected source shape"
+    assert column_line is not None, "unexpected source shape"
+    assert rows, "unexpected source shape"
 
     columns = column_line.lstrip("#").split()
     z_i, mh_i, age_i = columns.index("Zini"), columns.index("MH"), columns.index("logAge")
@@ -63,11 +64,11 @@ def main() -> None:
         mh = math.log10(z / Z_SUN_MH)
         out.append(column_line)
         for row in rows:
-            row = list(row)
-            row[z_i] = spec["Zini"]
-            row[mh_i] = f"{mh:.5f}"
-            row[age_i] = spec["logAge"]
-            out.append(" ".join(row))
+            values = list(row)
+            values[z_i] = spec["Zini"]
+            values[mh_i] = f"{mh:.5f}"
+            values[age_i] = spec["logAge"]
+            out.append(" ".join(values))
     out.append("#isochrone terminated")
 
     with open(TARGET, "w", encoding="utf-8", newline="\n") as _f:

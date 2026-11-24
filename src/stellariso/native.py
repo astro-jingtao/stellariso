@@ -9,11 +9,12 @@ instead of it.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import dataclasses
-from typing import Any, Mapping
+from typing import Any
 
-import numpy as np
 from astropy.table import Table
+import numpy as np
 
 __all__ = ["NativeTable"]
 
@@ -49,6 +50,7 @@ class NativeTable:
 
     @property
     def columns(self) -> list[str]:
+        """Column names as they appear in the file (shortcut for ``table.colnames``)."""
         return self.table.colnames
 
     def __post_init__(self) -> None:
@@ -79,6 +81,10 @@ class NativeTable:
             and self.header == other.header
             and dict(self.metadata) == dict(other.metadata)
         )
+
+    # equality is by value over an astropy Table, which carries no usable
+    # hash — the value-equal contract therefore excludes hashing outright
+    __hash__ = None
 
     def to_table(self) -> Table:
         """Return the native table itself (not a copy of the data)."""

@@ -29,34 +29,44 @@ optionally runs) the transport itself.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, field
 import json
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import uuid
-from dataclasses import dataclass, field
-from pathlib import Path
 
-from stellariso.database.design import SelectionCriteria, adapter_for
+from stellariso._version import __version__
+from stellariso.database.design import (
+    PartDesign,
+    ProductDesign,
+    SelectionCriteria,
+    adapter_for,
+)
 from stellariso.database.inventory import refresh_database
-from stellariso.database.manifest import read_manifest, write_manifest
+from stellariso.database.manifest import read_manifest, utc_now_iso, write_manifest
 from stellariso.database.scan import DatabaseReport, ProductScan, scan_database
+from stellariso.exceptions import ManifestError
 from stellariso.integrity import sha256_file
 
 __all__ = [
+    "ExportResult",
     "MergeConflict",
     "MergeReport",
-    "merge_database",
-    "ExportResult",
-    "export_database",
     "VerifyReport",
-    "verify_transfer",
+    "export_database",
+    "merge_database",
     "rsync_command",
     "run_rsync",
+    "verify_transfer",
 ]
 
 
-def _selected(report: DatabaseReport, criteria: SelectionCriteria | None):
+def _selected(
+    report: DatabaseReport, criteria: SelectionCriteria | None
+) -> Iterable[tuple[str, str, ProductScan]]:
     """The located products of a scan a criteria selects."""
     for family in report.families.values():
         for key, scan in sorted(family.products.items()):
@@ -84,6 +94,7 @@ def _part_sha(manifest: dict, part_name: str) -> str | None:
 
 @dataclass(frozen=True)
 class MergeConflict:
+    """One part left untouched because source and target disagree."""
     product: str
     part: str
     source_sha: str | None
@@ -108,9 +119,11 @@ class MergeReport:
 
     @property
     def changed(self) -> bool:
+        """Whether the merge changed anything in the target."""
         return bool(self.merged_products or self.built_products or self.completed_parts)
 
     def summary(self) -> str:
+        """A short human summary of what the merge did."""
         lines = [
             f"merge {self.source} -> {self.target}: "
             f"{len(self.merged_products)} product(s) merged whole, "
@@ -125,12 +138,12 @@ class MergeReport:
             f"{len(self.source_superseded)}; identity mismatches "
             f"{len(self.identity_mismatches)}"
         )
-        for conflict in self.conflicts:
-            lines.append(
-                f"  conflict {conflict.product}/{conflict.part}: source "
-                f"{conflict.source_sha} vs target {conflict.target_sha} "
-                "(target untouched)"
-            )
+        lines.extend(
+            f"  conflict {conflict.product}/{conflict.part}: source "
+            f"{conflict.source_sha} vs target {conflict.target_sha} "
+            "(target untouched)"
+            for conflict in self.conflicts
+        )
         return "\n".join(lines)
 
 
@@ -149,10 +162,11 @@ def _merge_product(
     source_root: Path,
     target_root: Path,
     staging: Path,
+    *,
     s_scan: ProductScan,
     t_scan: ProductScan | None,
     report: MergeReport,
-    log,
+    log: Callable[[str], None],
 ) -> None:
     design = s_scan.design
     key = design.key
@@ -176,105 +190,170 @@ def _merge_product(
 
     # conflicts: an overlapping part archived on both sides with
     # different shas voids the whole product for this merge
-    if t_scan is not None:
-        t_manifest = (
-            read_manifest(t_scan.directory / "MANIFEST.json")
-            if t_scan.directory is not None
-            else {}
-        )
-        product_conflicts = []
-        for part in ok_parts:
-            t_verdict = t_scan.parts.get(part.name)
-            if t_verdict is None or t_verdict.kind == "missing":
-                continue
-            s_sha = _part_sha(s_manifest, part.name)
-            t_sha = _part_sha(t_manifest, part.name)
-            if s_sha and t_sha and s_sha != t_sha:
-                product_conflicts.append(MergeConflict(key, part.name, s_sha, t_sha))
-        if product_conflicts:
-            report.conflicts.extend(product_conflicts)
-            log(f"skip {rel}: sha conflict (recorded; target untouched)")
-            return
+    conflicts = _product_conflicts(s_manifest, t_scan, ok_parts, key) if t_scan is not None else []
+    if conflicts:
+        report.conflicts.extend(conflicts)
+        log(f"skip {rel}: sha conflict (recorded; target untouched)")
+        return
 
     target_dir = target_root / rel
     t_dir_exists = t_scan is not None and t_scan.directory is not None
 
     if not t_dir_exists:
-        disowned = [p.name for p in design.parts if s_scan.parts[p.name].kind == "nonconforming"]
+        disowned = [
+            p.name
+            for p in design.parts
+            if s_scan.parts[p.name].kind == "nonconforming"
+        ]
         if not disowned:
-            # every archived part sound: staged whole-directory copy
-            stage = staging / uuid.uuid4().hex
-            stage.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(s_scan.directory, stage)
-            staged_manifest = read_manifest(stage / "MANIFEST.json")
-            identity = (
-                staged_manifest.get("family"),
-                staged_manifest.get("release"),
-                staged_manifest.get("label"),
+            _merge_whole_directory(
+                s_scan, staging, target_dir, design=design, report=report, log=log
             )
-            if identity != (design.family, design.release, design.label):
-                report.identity_mismatches.append(key)
-                log(
-                    f"skip {rel}: staged manifest identity {identity} does not "
-                    f"match the design"
-                )
-                return
-            for part in ok_parts:
-                recorded = _part_sha(staged_manifest, part.name)
-                if recorded and sha256_file(stage / part.filename) != recorded:
-                    raise ValueError(
-                        f"staged copy of {rel}/{part.name} fails its recorded "
-                        "sha256; merge aborted for this product"
-                    )
-            target_dir.parent.mkdir(parents=True, exist_ok=True)
-            os.replace(stage, target_dir)
-            report.merged_products.append(key)
-            log(f"merged {rel} (whole directory)")
-            return
-        # a mixed product merges its sound parts only; the disowned data
-        # never propagates (the parts it leaves behind count as missing
-        # and may be fetched fresh later)
-        target_dir.mkdir(parents=True, exist_ok=True)
-        for part in ok_parts:
-            _copy_part_file(s_scan.directory, target_dir, part.filename)
-            record = (s_manifest.get("parts") or {}).get(part.name, {}).get("record")
-            if record:
-                _copy_part_file(s_scan.directory, target_dir, record)
-            recorded = _part_sha(s_manifest, part.name)
-            if recorded and sha256_file(target_dir / part.filename) != recorded:
-                raise ValueError(
-                    f"copied part {rel}/{part.name} fails its recorded sha256; "
-                    "merge aborted for this product"
-                )
-            report.completed_parts.append((key, part.name))
-        payload = dict(s_manifest)
-        payload["parts"] = {
-            name: entry
-            for name, entry in (s_manifest.get("parts") or {}).items()
-            if name in {p.name for p in ok_parts}
-        }
-        write_manifest(target_dir / "MANIFEST.json", payload)
-        report.built_products.append(key)
-        log(f"built {rel} from sound parts (disowned parts not propagated)")
+        else:
+            # a mixed product merges its sound parts only; the disowned
+            # data never propagates (the parts it leaves behind count as
+            # missing and may be fetched fresh later)
+            _build_from_sound_parts(
+                s_scan, s_manifest, target_dir,
+                ok_parts=ok_parts, key=key, rel=rel, report=report, log=log,
+            )
         return
 
     # the target directory exists: part-level completion of its misses
+    _complete_missing_parts(
+        s_scan, s_manifest, t_scan, target_dir,
+        ok_parts=ok_parts, report=report, log=log,
+    )
+
+
+def _product_conflicts(
+    s_manifest: dict, t_scan: ProductScan, ok_parts: list, key: str
+) -> list[MergeConflict]:
+    """Conflicting parts: present on both sides with different shas."""
+    t_manifest = (
+        read_manifest(t_scan.directory / "MANIFEST.json")
+        if t_scan.directory is not None
+        else {}
+    )
+    conflicts = []
+    for part in ok_parts:
+        t_verdict = t_scan.parts.get(part.name)
+        if t_verdict is None or t_verdict.kind == "missing":
+            continue
+        s_sha = _part_sha(s_manifest, part.name)
+        t_sha = _part_sha(t_manifest, part.name)
+        if s_sha and t_sha and s_sha != t_sha:
+            conflicts.append(MergeConflict(key, part.name, s_sha, t_sha))
+    return conflicts
+
+
+def _merge_whole_directory(
+    s_scan: ProductScan,
+    staging: Path,
+    target_dir: Path,
+    *,
+    design: ProductDesign,
+    report: MergeReport,
+    log: Callable[[str], None],
+) -> None:
+    """Staged whole-directory copy of an all-sound product."""
+    key, rel = design.key, design.relative_dir
+    stage = staging / uuid.uuid4().hex
+    stage.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(s_scan.directory, stage)
+    staged_manifest = read_manifest(stage / "MANIFEST.json")
+    identity = (
+        staged_manifest.get("family"),
+        staged_manifest.get("release"),
+        staged_manifest.get("label"),
+    )
+    if identity != (design.family, design.release, design.label):
+        report.identity_mismatches.append(key)
+        log(
+            f"skip {rel}: staged manifest identity {identity} does not "
+            f"match the design"
+        )
+        return
+    for part in design.parts:
+        recorded = _part_sha(staged_manifest, part.name)
+        if recorded and sha256_file(stage / part.filename) != recorded:
+            raise ValueError(
+                f"staged copy of {rel}/{part.name} fails its recorded "
+                "sha256; merge aborted for this product"
+            )
+    target_dir.parent.mkdir(parents=True, exist_ok=True)
+    os.replace(stage, target_dir)
+    report.merged_products.append(key)
+    log(f"merged {rel} (whole directory)")
+
+
+def _copy_verified_part(
+    s_scan: ProductScan,
+    s_manifest: dict,
+    target_dir: Path,
+    part: PartDesign,
+    rel: str,
+) -> None:
+    """Copy one part (and its record) into place, verifying its sha256."""
+    _copy_part_file(s_scan.directory, target_dir, part.filename)
+    record = (s_manifest.get("parts") or {}).get(part.name, {}).get("record")
+    if record:
+        _copy_part_file(s_scan.directory, target_dir, record)
+    recorded = _part_sha(s_manifest, part.name)
+    if recorded and sha256_file(target_dir / part.filename) != recorded:
+        raise ValueError(
+            f"copied part {rel}/{part.name} fails its recorded sha256; "
+            "merge aborted for this product"
+        )
+
+
+def _build_from_sound_parts(
+    s_scan: ProductScan,
+    s_manifest: dict,
+    target_dir: Path,
+    *,
+    ok_parts: list,
+    key: str,
+    rel: str,
+    report: MergeReport,
+    log: Callable[[str], None],
+) -> None:
+    """Build a fresh target from the sound parts of a mixed product."""
+    target_dir.mkdir(parents=True, exist_ok=True)
+    for part in ok_parts:
+        _copy_verified_part(s_scan, s_manifest, target_dir, part, rel)
+        report.completed_parts.append((key, part.name))
+    payload = dict(s_manifest)
+    payload["parts"] = {
+        name: entry
+        for name, entry in (s_manifest.get("parts") or {}).items()
+        if name in {p.name for p in ok_parts}
+    }
+    write_manifest(target_dir / "MANIFEST.json", payload)
+    report.built_products.append(key)
+    log(f"built {rel} from sound parts (disowned parts not propagated)")
+
+
+def _complete_missing_parts(
+    s_scan: ProductScan,
+    s_manifest: dict,
+    t_scan: ProductScan,
+    target_dir: Path,
+    *,
+    ok_parts: list,
+    report: MergeReport,
+    log: Callable[[str], None],
+) -> None:
+    """Fill the target's missing parts from the source, then rewrite its manifest."""
+    key = s_scan.design.key
+    rel = s_scan.design.relative_dir
     t_manifest = read_manifest(target_dir / "MANIFEST.json")
     added = []
     for part in ok_parts:
         verdict = t_scan.parts.get(part.name)
         if verdict is None or verdict.kind != "missing":
             continue
-        _copy_part_file(s_scan.directory, target_dir, part.filename)
-        record = (s_manifest.get("parts") or {}).get(part.name, {}).get("record")
-        if record:
-            _copy_part_file(s_scan.directory, target_dir, record)
-        recorded = _part_sha(s_manifest, part.name)
-        if recorded and sha256_file(target_dir / part.filename) != recorded:
-            raise ValueError(
-                f"copied part {rel}/{part.name} fails its recorded sha256; "
-                "merge aborted for this product"
-            )
+        _copy_verified_part(s_scan, s_manifest, target_dir, part, rel)
         added.append(part.name)
         report.completed_parts.append((key, part.name))
     if added:
@@ -296,7 +375,7 @@ def merge_database(
     target: str | Path,
     criteria: SelectionCriteria | None = None,
     *,
-    log=print,
+    log: Callable[[str], None] = print,
 ) -> MergeReport:
     """Import one local database (or partial copy) into another.
 
@@ -335,10 +414,10 @@ def merge_database(
                 source,
                 target,
                 staging,
-                s_scan,
-                t_index.get((family.family, key)),
-                report,
-                log,
+                s_scan=s_scan,
+                t_scan=t_index.get((family.family, key)),
+                report=report,
+                log=log,
             )
     finally:
         shutil.rmtree(staging, ignore_errors=True)
@@ -360,12 +439,11 @@ class ExportResult:
 
     @property
     def products(self) -> int:
+        """The number of products the plan selects."""
         return len(self.plan["products"])
 
 
 def _recorded_shas(scan: ProductScan) -> dict[str, str]:
-    from stellariso.exceptions import ManifestError
-
     try:
         manifest = read_manifest(scan.directory / "MANIFEST.json")
     except ManifestError:
@@ -383,7 +461,7 @@ def export_database(
     name: str = "selection",
     *,
     checksums: str = "recorded",
-    log=print,
+    log: Callable[[str], None] = print,
 ) -> ExportResult:
     """Write a selection of one database to ``<db>/export/<name>/``.
 
@@ -396,9 +474,6 @@ def export_database(
     content), making the plan end-to-end verifiable at the cost of
     reading every selected byte.
     """
-    from stellariso import __version__
-    from stellariso.database.manifest import utc_now_iso
-
     root = Path(database)
     if not root.is_dir():
         raise NotADirectoryError(f"{root} is not a database directory")
@@ -413,7 +488,7 @@ def export_database(
     entries = []
     total_bytes = 0
     total_files = 0
-    for family, key, scan in _selected(report, criteria):
+    for _family, _key, scan in _selected(report, criteria):
         recorded = _recorded_shas(scan)
         files = []
         for path in sorted(scan.directory.rglob("*")):
@@ -525,9 +600,11 @@ class VerifyReport:
 
     @property
     def ok(self) -> bool:
+        """Whether every recorded check passed."""
         return not (self.missing or self.size_mismatches or self.sha_mismatches)
 
     def summary(self) -> str:
+        """A short human summary of the verification outcome."""
         status = "OK" if self.ok else "FAILED"
         return (
             f"verify {self.database} against {self.plan_path}: {status} — "
@@ -576,7 +653,11 @@ def rsync_command(database: str | Path, export_dir: str | Path, destination: str
 
 
 def run_rsync(
-    database: str | Path, export_dir: str | Path, destination: str, *, log=print
+    database: str | Path,
+    export_dir: str | Path,
+    destination: str,
+    *,
+    log: Callable[[str], None] = print,
 ) -> None:
     """Execute the rsync transport (the command above, run as-is)."""
     if shutil.which("rsync") is None:

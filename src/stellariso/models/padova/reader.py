@@ -22,32 +22,32 @@ composition list.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 import gzip
 import os
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, TextIO
 
-import numpy as np
 from astropy.table import Table
+import numpy as np
 
 from stellariso.exceptions import DataIntegrityError, UnrecognizedFormatError
 from stellariso.native import NativeTable
 
 __all__ = [
-    "PadovaIsochronBlock",
-    "PadovaTableBlock",
-    "Padova2000File",
-    "Padova1994File",
-    "parse_padova2000",
-    "parse_padova2000_summary",
-    "parse_padova1994",
-    "sniff_layout",
-    "open_padova_text",
-    "read_data_lines",
+    "SALPETER_ALPHA",
     "STAGE_ANCHOR_ALIASES",
     "TABLE_COMPOSITIONS_1994",
-    "SALPETER_ALPHA",
+    "Padova1994File",
+    "Padova2000File",
+    "PadovaIsochronBlock",
+    "PadovaTableBlock",
+    "open_padova_text",
+    "parse_padova1994",
+    "parse_padova2000",
+    "parse_padova2000_summary",
+    "read_data_lines",
+    "sniff_layout",
 ]
 
 #: Salpeter IMF slope the FLUM integral assumes (both ReadMes' notes)
@@ -134,10 +134,11 @@ def open_padova_text(source: str | os.PathLike | TextIO) -> tuple[TextIO, bool]:
         raise FileNotFoundError(path)
     if path.suffix == ".gz":
         return gzip.open(path, mode="rt", encoding="ascii", errors="replace"), True
-    return open(path, mode="r", encoding="ascii", errors="replace"), False
+    return open(path, encoding="ascii", errors="replace"), False
 
 
-def read_data_lines(source) -> list[str]:
+def read_data_lines(source: str | os.PathLike | TextIO) -> list[str]:
+    """The file's non-empty lines, as text, without parsing."""
     fh, opened = open_padova_text(source)
     try:
         return [line for line in fh.read().splitlines() if line.strip()]
@@ -150,18 +151,25 @@ def _parse_float(text: str) -> float:
     return float(text)
 
 
-def _rows_to_table(lines: list[str], fields, first_row: int) -> Table:
+def _parse_cell(text: str, field: str, sl: slice, row: int) -> float:
+    """Parse one fixed-width cell, failing with its exact file location."""
+    try:
+        return float(text)
+    except ValueError as exc:
+        raise DataIntegrityError(
+            f"row {row}: field {field!r} "
+            f"(bytes {sl.start + 1}-{sl.stop}) does not parse as a "
+            f"number: {text!r}"
+        ) from exc
+
+
+def _rows_to_table(
+    lines: list[str], fields: list[tuple[str, slice]], first_row: int
+) -> Table:
     data = np.empty((len(lines), len(fields)), dtype=np.float64)
     for r, line in enumerate(lines):
-        for c, (_, sl) in enumerate(fields):
-            try:
-                data[r, c] = float(line[sl])
-            except ValueError as exc:
-                raise DataIntegrityError(
-                    f"row {first_row + r + 1}: field {fields[c][0]!r} "
-                    f"(bytes {sl.start + 1}-{sl.stop}) does not parse as a "
-                    f"number: {line[sl]!r}"
-                ) from exc
+        for c, (name, sl) in enumerate(fields):
+            data[r, c] = _parse_cell(line[sl], name, sl, first_row + r + 1)
     return Table(data, names=[name for name, _ in fields])
 
 
@@ -187,7 +195,7 @@ def sniff_layout(lines: list[str]) -> str | None:
 
 
 def _strip_gz(name: str) -> str:
-    return name[:-3] if name.endswith(".gz") else name
+    return name.removesuffix(".gz")
 
 
 def recognize_padova(source: str | os.PathLike | TextIO) -> bool:
@@ -225,12 +233,13 @@ class PadovaIsochronBlock:
 
 @dataclass
 class Padova2000File:
+    """One parsed 2000-layout file: table, blocks, and header facts."""
     native: NativeTable
     blocks: tuple[PadovaIsochronBlock, ...]
     facts: dict[str, Any] = field(default_factory=dict)
 
 
-def parse_padova2000(source) -> Padova2000File:
+def parse_padova2000(source: str | os.PathLike | TextIO) -> Padova2000File:
     """Parse ``isochron.dat`` (the padova/2000 isochrone table)."""
     lines = read_data_lines(source)
     if sniff_layout(lines) != "2000":
@@ -290,7 +299,9 @@ def parse_padova2000(source) -> Padova2000File:
     return Padova2000File(native=native, blocks=tuple(blocks), facts=facts)
 
 
-def parse_padova2000_summary(source) -> dict[tuple[int, float, float], dict[str, float]]:
+def parse_padova2000_summary(
+    source: str | os.PathLike | TextIO,
+) -> dict[tuple[int, float, float], dict[str, float]]:
     """Parse ``isochsum.dat`` into ``{(overshoot, z, log_age): {stage: Mini}}``.
 
     Characteristic points whose stage label is not a coarse-stage
@@ -338,12 +349,13 @@ class PadovaTableBlock:
 
 @dataclass
 class Padova1994File:
+    """One parsed 1994-layout file: table, blocks, and header facts."""
     native: NativeTable
     blocks: tuple[PadovaTableBlock, ...]
     facts: dict[str, Any] = field(default_factory=dict)
 
 
-def parse_padova1994(source) -> Padova1994File:
+def parse_padova1994(source: str | os.PathLike | TextIO) -> Padova1994File:
     """Parse one ``tableN`` file of the padova/1994 archive.
 
     The file states neither its composition nor any header, so the

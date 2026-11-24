@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from stellariso.provenance import (
     DataAsset,
     Provenance,
@@ -38,7 +40,6 @@ class TestSourceRecord:
         assert SourceRecord.from_dict(d) == rec
 
     def test_rejects_bad_class(self):
-        import pytest
 
         with pytest.raises(TypeError):
             SourceRecord(source_class="official_origin")

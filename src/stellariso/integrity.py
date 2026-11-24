@@ -5,20 +5,24 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-from stellariso.exceptions import DataIntegrityError
-from stellariso.warnings import ChecksumUnavailableWarning
+import requests
 
-__all__ = ["sha256_file", "sha256_bytes", "verify_checksum", "download_file"]
+from stellariso.exceptions import DataIntegrityError
+
+__all__ = ["download_file", "sha256_bytes", "sha256_file", "verify_checksum"]
 
 _CHUNK = 1 << 20
 _TIMEOUT_GET = 1800
 
 
 def sha256_bytes(payload: bytes) -> str:
+    """The sha256 hex digest of an in-memory payload."""
     return hashlib.sha256(payload).hexdigest()
 
 
-def download_file(url: str, target: Path, session) -> tuple[str, int]:
+def download_file(
+    url: str, target: Path, session: requests.Session
+) -> tuple[str, int]:
     """Stream one remote file to its target; return (sha256, size_bytes).
 
     The digest is computed over the bytes as they arrive, so callers
@@ -38,6 +42,7 @@ def download_file(url: str, target: Path, session) -> tuple[str, int]:
 
 
 def sha256_file(path: str | Path, chunk_size: int = 1 << 20) -> str:
+    """The sha256 hex digest of a file's current content."""
     h = hashlib.sha256()
     with open(path, "rb") as fh:
         while chunk := fh.read(chunk_size):
