@@ -38,6 +38,7 @@ from stellariso.database.core import (
 )
 from stellariso.database.design import (
     FamilyAdapter,
+    ProductDesign,
     adapter_families,
     adapter_for,
 )
@@ -62,6 +63,29 @@ def _family_order(families: Iterable[str]) -> list[str]:
     ordered = list(families)
     submits = [f for f in ordered if _is_submit_family(adapter_for(f))]
     return [f for f in ordered if f not in submits] + submits
+
+
+def _designed_bytes(
+    adapter: FamilyAdapter, committed: list[ProductDesign]
+) -> int | None:
+    """The total designed download size of a package family, summed part
+    by part through the adapter's own cost interface (:meth:`fetch_cost`).
+
+    The design ``facts`` are family-private and carry sizes at whatever
+    level the source publishes them (MIST: one archive per product,
+    recorded top-level; Padova: per catalog file); ``fetch_cost`` is the
+    one normalized view over both, so the dry-run summary asks it rather
+    than reaching into the facts. ``None`` when any part's size is
+    unknown — the summary then says so instead of undercounting.
+    """
+    total = 0
+    for design in committed:
+        for part in design.parts:
+            size = adapter.fetch_cost(design, part).get("size_bytes")
+            if size is None:
+                return None
+            total += size
+    return total
 
 
 def _complete_product(
@@ -161,11 +185,13 @@ def _dry_run(
             )
         else:
             committed = list(adapter.committed())
-            total = sum(d.facts.get("size_bytes") or 0 for d in committed)
-            log(
-                f"{family}: {len(committed)} package product(s), {total:,} bytes "
-                f"total ({total / 1e9:.1f} GB)"
+            total = _designed_bytes(adapter, committed)
+            size_text = (
+                f"{total:,} bytes total ({total / 1e9:.1f} GB)"
+                if total is not None
+                else "size unknown from the design facts"
             )
+            log(f"{family}: {len(committed)} package product(s), {size_text}")
 
 
 def build_database(

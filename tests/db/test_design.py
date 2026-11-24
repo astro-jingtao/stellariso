@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from stellariso.database.build import build_database
 from stellariso.database.design import (
     DirectoryMatch,
     FamilyAdapter,
@@ -15,9 +16,12 @@ from stellariso.database.design import (
     SelectionCriteria,
     adapter_families,
     adapter_for,
+    register_adapter,
+    unregister_adapter,
 )
 from stellariso.exceptions import UnsupportedModelError
 from stellariso.integrity import sha256_file
+from stellariso.models import catalog as load_catalog
 from stellariso.models.mist.design import MistAdapter
 from stellariso.models.padova.design import PadovaAdapter
 from stellariso.models.parsec.design import ParsecAdapter
@@ -174,3 +178,67 @@ class TestMistAdapterClassify:
         match = adapter.product_of_directory(tmp_path, unknown)
         assert match.matched is False
         assert "release" in match.superseded_reason
+
+
+class _SizelessAdapter(FamilyAdapter):
+    """A package family whose design carries no size facts at all."""
+
+    family = "sizeless"
+
+    def designs(self):
+        return [
+            ProductDesign(
+                family="sizeless",
+                collection="c1",
+                release="r1",
+                label="l1",
+                kind="thing",
+                parts=(PartDesign("archive", "a.txz"),),
+                facts={},
+            )
+        ]
+
+    def product_of_directory(self, root: Path, directory: Path) -> DirectoryMatch:
+        return DirectoryMatch(None, "not mapped")
+
+    def fetch_cost(self, design: ProductDesign, part: PartDesign) -> dict:
+        return {"kind": "download"}  # no size_bytes: the size is unknown
+
+
+class TestDryRunDesignedSizes:
+    """The dry-run package summary sums the adapters' ``fetch_cost`` part
+    by part, so the designed size is true for every facts layout (MIST
+    records one archive size per product; Padova per catalog file) —
+    never the ``0 bytes`` of a key read at the wrong level."""
+
+    def test_dry_run_reports_each_package_family_s_designed_size(
+        self, tmp_path: Path, capsys
+    ):
+        build_database(tmp_path / "db", dry_run=True, models=["mist", "padova"])
+        lines = capsys.readouterr().out.splitlines()
+        mist = next(ln for ln in lines if ln.startswith("mist:"))
+        padova = next(ln for ln in lines if ln.startswith("padova:"))
+        mist_bytes = sum(
+            p["size_bytes"]
+            for r in load_catalog("mist")["releases"]
+            for p in r["products"]
+        )
+        padova_bytes = sum(
+            f["size_bytes"]
+            for r in load_catalog("padova")["releases"]
+            for product in r["products"]
+            for f in product["files"]
+        )
+        assert f"{mist_bytes:,} bytes total ({mist_bytes / 1e9:.1f} GB)" in mist
+        assert f"{padova_bytes:,} bytes total ({padova_bytes / 1e9:.1f} GB)" in padova
+        assert "0 bytes" not in padova
+
+    def test_unknown_part_size_degrades_to_size_unknown(self, tmp_path: Path, capsys):
+        register_adapter(_SizelessAdapter())
+        try:
+            build_database(tmp_path / "db", dry_run=True, models=["sizeless"])
+        finally:
+            unregister_adapter("sizeless")
+        out = capsys.readouterr().out
+        assert "size unknown from the design facts" in out
+        assert "0 bytes" not in out
