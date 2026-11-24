@@ -80,7 +80,7 @@ def check_2000(path: str) -> int:
         failures += (not ok_g) + (not ok_m) + (not ok_a)
         print(
             f"   log_age={iso.selection['log_age']:5.2f} "
-            f"feh={iso.selection['initial_feh']:+.3f} "
+            f"z={iso.selection['initial_z']:.4f} "
             f"ov={iso.selection['overshoot']:.0f}: g-closure spread={spread_g:.2e} "
             f"[{'ok' if ok_g else 'FAIL'}], Mini monotone="
             f"[{'ok' if ok_m else 'FAIL'}], max(Mact-Mini)={over:+.1e} "
