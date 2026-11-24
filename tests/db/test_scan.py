@@ -49,6 +49,7 @@ def _write_product(
     *,
     with_record: bool = True,
     gzip_table: bool = False,
+    with_manifest_sha: bool = True,
 ) -> Path:
     directory = db / "parsec" / set_key / label
     directory.mkdir(parents=True, exist_ok=True)
@@ -59,6 +60,22 @@ def _write_product(
         record = {"request_fields": payload, "output": {"sha256": "0" * 64}}
         (directory / (table + ".record.json")).write_text(
             json.dumps(record), encoding="utf-8"
+        )
+    if with_manifest_sha:
+        # the post-build state: the MANIFEST records the table's sha256
+        # (parts keyed by part name, as every fetch writes them), so
+        # classification verifies integrity and finds nothing to warn
+        manifest_path = directory / "MANIFEST.json"
+        parts = {}
+        if manifest_path.exists():
+            parts = json.loads(manifest_path.read_text(encoding="utf-8"))["parts"]
+        part_name = {"output.dat": "log", "output_linear.dat": "linear"}[table]
+        parts[part_name] = {"file": table, "sha256": sha256_file(directory / table)}
+        manifest_path.write_text(
+            json.dumps(
+                {"schema": "stellariso-manifest/2", "family": "parsec", "parts": parts}
+            ),
+            encoding="utf-8",
         )
     return directory
 
@@ -107,6 +124,35 @@ class TestTwoStateClassification:
         scan = scan_database(db).families["parsec"].products[cell.set.key + "/" + cell.label]
         assert scan.state == "complete"
         assert scan.detail() == "complete"
+
+    def test_recorded_sha_mismatch_is_nonconforming(self, db: Path):
+        cell = bp.Cell(set=WEB, mh=0.0, omega=0.0)
+        _write_product(
+            db, WEB.key, cell.label, _expected(cell), blocks=177, with_manifest_sha=False
+        )
+        directory = db / "parsec" / WEB.key / cell.label
+        (directory / "MANIFEST.json").write_text(
+            json.dumps(
+                {
+                    "schema": "stellariso-manifest/2",
+                    "family": "parsec",
+                    "parts": {"log": {"file": "output.dat", "sha256": "0" * 64}},
+                }
+            ),
+            encoding="utf-8",
+        )
+        scan = scan_database(db).families["parsec"].products[cell.set.key + "/" + cell.label]
+        assert scan.parts["log"].kind == "nonconforming"
+        assert any("sha256 mismatch" in r for r in scan.parts["log"].reasons)
+
+    def test_missing_recorded_sha_warns_but_conforms(self, db: Path):
+        cell = bp.Cell(set=WEB, mh=0.0, omega=0.0)
+        _write_product(
+            db, WEB.key, cell.label, _expected(cell), blocks=177, with_manifest_sha=False
+        )
+        scan = scan_database(db).families["parsec"].products[cell.set.key + "/" + cell.label]
+        assert scan.parts["log"].kind == "ok"
+        assert any("not verified" in w for w in scan.parts["log"].warnings)
 
     def test_coarse_age_sampling_is_nonconforming_manual_review(self, db: Path):
         cell = bp.Cell(set=S35, mh=0.0, omega=0.0)

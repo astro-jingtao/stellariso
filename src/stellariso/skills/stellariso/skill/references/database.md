@@ -31,8 +31,14 @@ db = stellariso.open_database("path/to/db")             # read-only open
   self-contained backup): a product is extracted on first open, after
   the archive's sha256 is verified against the recorded value — the
   right mode when the disk cannot hold every package extracted at once.
-- `verify_existing=False` classifies present files without re-hashing
-  them (the rebuild-trust knob).
+- `cache=False` bypasses the database's quick-signature cache, so every
+  integrity and conformance check reads the file (the
+  force-full-check mode). Verification itself is never skippable: the
+  default run checks every recorded sha256 and every content-based
+  conformance check, serving unchanged files' answers from
+  `signature_cache.json` at the database root (one `stat` per
+  unchanged file; an accelerator, never an authority — deleting the
+  file is always safe and forces one full re-verify).
 - `form_pause=` seconds waited after every CMD form submission
   (default 5; the service is a small public host).
 

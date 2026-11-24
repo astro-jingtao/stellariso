@@ -50,10 +50,11 @@ def main(argv: list[str] | None = None) -> int:
         "product on first open (the disk-saving mode)",
     )
     parser.add_argument(
-        "--skip-verify",
+        "--no-cache",
         action="store_true",
-        help="classify present files without re-hashing them "
-        "(the rebuild-trust knob)",
+        help="bypass the database's quick-signature cache: every "
+        "integrity and conformance check reads the file "
+        "(the force-full-check mode; verification is never skippable)",
     )
     parser.add_argument(
         "--form-pause",
@@ -69,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
         models=args.families,
         dry_run=args.dry_run,
         extract=not args.no_extract,
-        verify_existing=not args.skip_verify,
+        cache=not args.no_cache,
         form_pause=args.form_pause,
     )
     return 0

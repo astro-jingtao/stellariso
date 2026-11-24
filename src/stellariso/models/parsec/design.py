@@ -40,7 +40,9 @@ from stellariso.database.design import (
     ProductDesign,
     SelectionCriteria,
 )
+from stellariso.database.signature_cache import SignatureCache
 from stellariso.exceptions import SourceUnavailableError
+from stellariso.integrity import sha256_file
 from stellariso.models import catalog as load_catalog
 from stellariso.models.parsec import blueprint as bp
 from stellariso.models.parsec.cmd_form import CmdFieldSet, CmdFormClient
@@ -136,34 +138,80 @@ class ParsecAdapter(FamilyAdapter):
 
     # -- classification -----------------------------------------------------
 
+    def _payload_reasons(
+        self, design: ProductDesign, part: PartDesign, directory: Path
+    ) -> tuple[list[str], dict[str, str]]:
+        """The acquisition-record phase: the missing/unreadable-record
+        reasons, and the archived request payload (empty when no record
+        survived)."""
+        reasons: list[str] = []
+        record_path = directory / (part.filename + ".record.json")
+        if not record_path.exists():
+            return [f"no acquisition record ({record_path.name})"], {}
+        try:
+            record = json.loads(record_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            return [f"unreadable acquisition record: {exc}"], {}
+        payload = record.get("request_fields", {})
+        cell: bp.Cell = design.facts["cell"]
+        reasons.extend(bp.payload_diff(payload, bp.expected_payload(cell, part.name)))
+        return reasons, payload
+
+    def _sha_verdict(
+        self,
+        table: Path,
+        manifest: dict,
+        part: PartDesign,
+        cache: SignatureCache | None,
+    ) -> tuple[str | None, list[str]]:
+        """The integrity phase for one archived table: (the mismatch
+        reason, the not-verified note). A mismatch is terminal — the
+        caller returns immediately; an absent recorded sha256 is a
+        warning (nothing to verify against), never a failure."""
+        entry = (manifest.get("parts") or {}).get(part.name) or {}
+        recorded = entry.get("sha256")
+        if recorded is None:
+            return None, [
+                f"{part.filename}: no sha256 recorded in its MANIFEST; "
+                "integrity not verified"
+            ]
+        actual = cache.sha256(table) if cache is not None else sha256_file(table)
+        if actual != recorded:
+            return (
+                f"{part.filename}: sha256 mismatch — recorded {recorded}, "
+                f"file hashes {actual}"
+            ), []
+        return None, []
+
     def classify_part(
         self,
         design: ProductDesign,
         part: PartDesign,
         directory: Path,
         manifest: dict,
-        *,
-        verify: bool = True,
+        cache: SignatureCache | None = None,
     ) -> PartVerdict:
-        """A table is conforming when its payload and block count match the design."""
-        cell: bp.Cell = design.facts["cell"]
-        reasons: list[str] = []
+        """A table is conforming when its recorded sha256, its archived
+        payload, and its block count match the design (the block count
+        comes from a decompressed line scan of the table itself; the
+        quick-signature cache serves both answers for unchanged files)."""
         table = directory / part.filename
         record_path = directory / (part.filename + ".record.json")
-        payload: dict[str, str] = {}
         if not table.exists() and not record_path.exists():
             return PartVerdict.missing()  # nothing archived for this part
-        if not record_path.exists():
-            reasons.append(f"no acquisition record ({record_path.name})")
-        else:
-            try:
-                record = json.loads(record_path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError) as exc:
-                reasons.append(f"unreadable acquisition record: {exc}")
-            else:
-                payload = record.get("request_fields", {})
-                reasons.extend(bp.payload_diff(payload, bp.expected_payload(cell, part.name)))
-        blocks = count_blocks(table)
+        reasons, _payload = self._payload_reasons(design, part, directory)
+        notes: list[str] = []
+        blocks: int | None = None
+        if table.exists():
+            blocks = (
+                cache.fact(table, "blocks", lambda: count_blocks(table))
+                if cache is not None
+                else count_blocks(table)
+            )
+            mismatch, unverified = self._sha_verdict(table, manifest, part, cache)
+            notes.extend(unverified)
+            if mismatch:
+                return PartVerdict.nonconforming(*reasons, mismatch)
         expected_blocks = (
             bp.expected_log_ages() if part.name == "log" else bp.expected_linear_ages()
         )
@@ -176,7 +224,7 @@ class ParsecAdapter(FamilyAdapter):
             )
         if reasons:
             return PartVerdict.nonconforming(*reasons)
-        return PartVerdict.ok()
+        return PartVerdict.ok(*notes)
 
     # -- fetching -----------------------------------------------------------
 

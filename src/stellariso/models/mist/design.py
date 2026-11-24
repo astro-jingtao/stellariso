@@ -29,6 +29,7 @@ from stellariso.database.design import (
     ProductDesign,
 )
 from stellariso.database.manifest import utc_now_iso
+from stellariso.database.signature_cache import SignatureCache
 from stellariso.integrity import download_file, sha256_file
 from stellariso.models import catalog as load_catalog
 from stellariso.registry import references
@@ -90,8 +91,7 @@ class MistAdapter(FamilyAdapter):
         part: PartDesign,
         directory: Path,
         manifest: dict,
-        *,
-        verify: bool = True,
+        cache: SignatureCache | None = None,
     ) -> PartVerdict:
         """A part is conforming when the archive's sha256 and size match the catalog."""
         path = directory / part.filename
@@ -104,13 +104,12 @@ class MistAdapter(FamilyAdapter):
                 f"{part.filename}: no sha256 recorded in its MANIFEST; "
                 "integrity not verified"
             )
-        if verify:
-            actual = sha256_file(path)
-            if actual != recorded:
-                return PartVerdict.nonconforming(
-                    f"{part.filename}: sha256 mismatch — recorded {recorded}, "
-                    f"file hashes {actual}"
-                )
+        actual = cache.sha256(path) if cache is not None else sha256_file(path)
+        if actual != recorded:
+            return PartVerdict.nonconforming(
+                f"{part.filename}: sha256 mismatch — recorded {recorded}, "
+                f"file hashes {actual}"
+            )
         expected = design.facts.get("size_bytes")
         if expected is not None and path.stat().st_size != expected:
             return PartVerdict.ok(

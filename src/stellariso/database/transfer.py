@@ -48,6 +48,7 @@ from stellariso.database.design import (
 from stellariso.database.inventory import refresh_database
 from stellariso.database.manifest import read_manifest, utc_now_iso, write_manifest
 from stellariso.database.scan import DatabaseReport, ProductScan, scan_database
+from stellariso.database.signature_cache import SignatureCache
 from stellariso.exceptions import ManifestError
 from stellariso.integrity import sha256_file
 
@@ -398,8 +399,14 @@ def merge_database(
         shutil.rmtree(staging)  # sweep leftovers of an interrupted run
     staging.mkdir(parents=True, exist_ok=True)
 
-    source_report = scan_database(source)
-    target_report = scan_database(target)
+    # transfer scans serve the recorded signature-cache answers but never
+    # write into either database
+    source_report = scan_database(
+        source, cache=SignatureCache(source, writable=False)
+    )
+    target_report = scan_database(
+        target, cache=SignatureCache(target, writable=False)
+    )
     report = MergeReport(source=source, target=target)
     report.source_superseded = source_report.all_superseded()
     t_index = {
@@ -478,7 +485,7 @@ def export_database(
     if not root.is_dir():
         raise NotADirectoryError(f"{root} is not a database directory")
     criteria = criteria or SelectionCriteria()
-    report = scan_database(root)
+    report = scan_database(root, cache=SignatureCache(root, writable=False))
     outdir = root / "export" / name
     if outdir.exists():
         raise FileExistsError(

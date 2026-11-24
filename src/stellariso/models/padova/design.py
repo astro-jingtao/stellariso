@@ -36,6 +36,7 @@ from stellariso.database.design import (
     ProductDesign,
 )
 from stellariso.database.manifest import utc_now_iso
+from stellariso.database.signature_cache import SignatureCache
 from stellariso.integrity import download_file, sha256_file
 from stellariso.models import catalog as load_catalog
 from stellariso.registry import references
@@ -114,8 +115,7 @@ class PadovaAdapter(FamilyAdapter):
         part: PartDesign,
         directory: Path,
         manifest: dict,
-        *,
-        verify: bool = True,
+        cache: SignatureCache | None = None,
     ) -> PartVerdict:
         """Per-release conformance: header echoes, row counts, characteristic points."""
         path = directory / part.filename
@@ -124,17 +124,15 @@ class PadovaAdapter(FamilyAdapter):
         facts = design.facts["files"][part.name]
         entry = (manifest.get("parts") or {}).get(part.name) or {}
         recorded = entry.get("sha256")
-        if verify:
-            if recorded is None:
-                return self._conformity(path, facts, no_manifest_sha=True)
-            actual = sha256_file(path)
-            if actual != recorded:
-                return PartVerdict.nonconforming(
-                    f"{part.filename}: sha256 mismatch — recorded {recorded}, "
-                    f"file hashes {actual}"
-                )
-            return self._conformity(path, facts, actual=actual)
-        return self._conformity(path, facts, no_manifest_sha=recorded is None)
+        if recorded is None:
+            return self._conformity(path, facts, no_manifest_sha=True)
+        actual = cache.sha256(path) if cache is not None else sha256_file(path)
+        if actual != recorded:
+            return PartVerdict.nonconforming(
+                f"{part.filename}: sha256 mismatch — recorded {recorded}, "
+                f"file hashes {actual}"
+            )
+        return self._conformity(path, facts, actual=actual)
 
     def _conformity(
         self,

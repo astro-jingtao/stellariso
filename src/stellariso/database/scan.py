@@ -35,6 +35,7 @@ from stellariso.database.manifest import (
     read_manifest,
     utc_now_iso,
 )
+from stellariso.database.signature_cache import SignatureCache
 
 __all__ = [
     "DatabaseReport",
@@ -226,20 +227,32 @@ def _read_product_manifest(directory: Path) -> tuple[dict, str | None]:
         return {}, f"MANIFEST.json unreadable ({exc})"
 
 
+def _active_cache(
+    root: Path, cache: bool | SignatureCache
+) -> tuple[SignatureCache | None, SignatureCache | None]:
+    """(the cache the scan classifies with, the cache it saves) — the
+    same object when the scan owns it (``True`` built it writable),
+    ``None`` to save when a caller's instance was given or bypassed."""
+    if cache is True:
+        own = SignatureCache(root)
+        return own, own
+    if cache is False or cache is None:
+        return None, None
+    return cache, None
+
+
 def _scan_product(
     root: Path,
     adapter: FamilyAdapter,
     design: ProductDesign,
     directory: Path | None,
     *,
-    verify: bool = True,
+    cache: SignatureCache | None = None,
 ) -> ProductScan:
     if directory is not None:
         manifest, warning = _read_product_manifest(directory)
         parts = {
-            part.name: adapter.classify_part(
-                design, part, directory, manifest, verify=verify
-            )
+            part.name: adapter.classify_part(design, part, directory, manifest, cache)
             for part in design.parts
         }
         return ProductScan(design, directory, parts, manifest_warning=warning)
@@ -259,15 +272,25 @@ def scan_database(
     database: str | Path,
     *,
     families: list[str] | None = None,
-    verify_checksums: bool = True,
+    cache: bool | SignatureCache = True,
 ) -> DatabaseReport:
     """Scan a database root against every family's design (two-state).
 
-    ``verify_checksums=False`` classifies present files without
-    re-hashing them (the rebuild-trust knob); conformance checks still
-    run.
+    Every present part is fully classified: the recorded sha256 is
+    verified, and every content-based conformance check runs — nothing
+    about the verification can be switched off. What ``cache`` controls
+    is only whether the file-derived answers (hashes, content facts)
+    are served from the database's quick-signature cache
+    (:class:`~stellariso.database.signature_cache.SignatureCache`)
+    instead of being re-derived by a full read: ``True`` (the default)
+    loads-or-creates the writable cache at the root and saves it when
+    the scan taught it anything; ``False`` bypasses the cache entirely —
+    every check reads the file (the force-full-check mode); an explicit
+    :class:`SignatureCache` instance is used as given (``writable=False``
+    for scans that must write nothing).
     """
     root = Path(database)
+    active_cache, own_cache = _active_cache(root, cache)
     report = DatabaseReport(database=root, generated_at=utc_now_iso())
     for family in families if families is not None else adapter_families():
         adapter = adapter_for(family)
@@ -311,12 +334,12 @@ def scan_database(
                 adapter,
                 entry[0] if entry else design,
                 entry[1] if entry else None,
-                verify=verify_checksums,
+                cache=active_cache,
             )
         for key, (design, directory) in sorted(located.items()):
             if key not in products:
                 products[key] = _scan_product(
-                    root, adapter, design, directory, verify=verify_checksums
+                    root, adapter, design, directory, cache=active_cache
                 )
 
         report.families[family] = FamilyScan(
@@ -327,6 +350,8 @@ def scan_database(
             designed_count=len(designs),
             superseded=superseded,
         )
+    if own_cache is not None:
+        own_cache.save_if_dirty()
     return report
 
 

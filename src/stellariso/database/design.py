@@ -26,6 +26,7 @@ from typing import Any, Callable
 
 import requests
 
+from stellariso.database.signature_cache import SignatureCache
 from stellariso.exceptions import UnsupportedModelError
 from stellariso.registry import references
 
@@ -226,13 +227,15 @@ class FamilyAdapter:
         part: PartDesign,
         directory: Path,
         manifest: dict,
-        *,
-        verify: bool = True,
+        cache: SignatureCache | None = None,
     ) -> PartVerdict:
         """Judge one designed part of one on-disk product directory.
 
-        ``verify=False`` skips integrity hashing where the family does
-        any (the rebuild-trust knob); conformance checks still run.
+        Verification is unconditional: every recorded integrity quantity
+        is checked on every classification. ``cache`` (the database's
+        quick-signature cache) serves the file-derived answers — hashes,
+        content facts — without re-reading unchanged files; ``None``
+        computes everything directly (the force-full-check mode).
         """
         raise NotImplementedError
 

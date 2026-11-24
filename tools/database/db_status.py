@@ -49,13 +49,22 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="scan only these families (default: every registered family)",
     )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="bypass the database's quick-signature cache: every "
+        "integrity and conformance check reads the file "
+        "(the force-full-check mode; verification is never skippable)",
+    )
     args = parser.parse_args(argv)
 
     if not args.database.is_dir():
         print(f"error: {args.database} is not a database directory", file=sys.stderr)
         return 2
 
-    report = scan_database(args.database, families=args.families)
+    report = scan_database(
+        args.database, families=args.families, cache=not args.no_cache
+    )
     if args.stdout:
         print(render_markdown(report), end="")
     else:

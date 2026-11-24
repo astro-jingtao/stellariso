@@ -25,8 +25,10 @@ is missing and keeps everything already verified.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from pathlib import Path
 import time
+from typing import Any
 
 import requests
 
@@ -45,9 +47,22 @@ from stellariso.database.design import (
 from stellariso.database.inventory import write_inventory
 from stellariso.database.manifest import read_manifest, strip_legacy, write_manifest
 from stellariso.database.scan import ProductScan, scan_database
-from stellariso.models.parsec.cmd_form import CmdFormClient
+from stellariso.database.signature_cache import SignatureCache
 
 __all__ = ["build_database"]
+
+
+@dataclass
+class _BuildKit:
+    """One family's run resources of a build pass: the HTTP session and
+    the reusable fetch handle, the signature cache the fetched parts'
+    recorded hashes land in, and the politeness pause between form
+    submissions."""
+
+    session: requests.Session | None
+    client: Any
+    cache: SignatureCache | None
+    form_pause: float
 
 
 def _is_submit_family(adapter: FamilyAdapter) -> bool:
@@ -92,11 +107,9 @@ def _complete_product(
     root: Path,
     adapter: FamilyAdapter,
     scan: ProductScan,
+    kit: _BuildKit,
     *,
-    session: requests.Session | None = None,
-    client: CmdFormClient | None = None,
     extract: bool,
-    form_pause: float,
     log: Callable[[str], None],
 ) -> None:
     """Fetch the missing parts of one clean product and write its v2
@@ -114,12 +127,17 @@ def _complete_product(
     for part in design.parts:
         if part.name not in scan.missing_parts:
             continue
-        parts[part.name] = adapter.fetch_part(
-            design, part, directory, session=session, client=client, log=log
+        entry = adapter.fetch_part(
+            design, part, directory, session=kit.session, client=kit.client, log=log
         )
+        parts[part.name] = entry
+        if kit.cache is not None:
+            # the fetch already hashed the part: record the answer, so
+            # the next scan classifies the fresh file without a re-read
+            kit.cache.remember(directory / entry["file"], entry["sha256"])
         fetched = True
         if _is_submit_family(adapter):
-            time.sleep(form_pause)
+            time.sleep(kit.form_pause)
     if adapter.extracts:
         n_data_files = _count_data_files(directory)
         if extract and (fetched or n_data_files == 0) and parts:
@@ -146,14 +164,28 @@ def _complete_product(
     write_manifest(directory / "MANIFEST.json", payload)
 
 
+def _scan_cache(
+    root: Path, cache: bool | SignatureCache, *, writable: bool
+) -> SignatureCache | None:
+    """The cache one build mode scans with: ``True`` — the root's own
+    cache, writable or not (a dry-run must touch nothing); ``False`` —
+    none (every check a full read); an instance — as given, the
+    caller's writability ruling."""
+    if cache is True:
+        return SignatureCache(root, writable=writable)
+    if cache is False or cache is None:
+        return None
+    return cache
+
+
 def _dry_run(
     root: Path,
     families: list[str],
     log: Callable[[str], None],
     *,
-    verify: bool = True,
+    cache: SignatureCache | None = None,
 ) -> None:
-    report = scan_database(root, families=families, verify_checksums=verify)
+    report = scan_database(root, families=families, cache=cache)
     for family in families:
         adapter = adapter_for(family)
         fam = report.families[family]
@@ -199,7 +231,7 @@ def build_database(
     models: Iterable[str] | None = None,
     *,
     session: requests.Session | None = None,
-    verify_existing: bool = True,
+    cache: bool | SignatureCache = True,
     dry_run: bool = False,
     extract: bool = True,
     form_pause: float = 5.0,
@@ -213,17 +245,28 @@ def build_database(
     ``models`` limits the build to the given families (default: all).
     ``dry_run=True`` reports the plan — missing parts of clean products
     per family, with the manual-review list separate — and touches
-    nothing. ``session`` is used as given for every family; otherwise
-    each family's own default session applies (a declared CA bundle is
-    honored). ``verify_existing=False`` classifies present files without
-    re-hashing them (the rebuild-trust knob). With ``extract=False``
-    only the official archives are kept (the complete, self-contained
-    backup); ``Database.grid`` extracts a product on first open,
-    verifying the archive's sha256 first — the right mode when the disk
-    cannot hold the extracted form of every package at once. The
-    archive always stays alongside any extraction. ``form_pause``
-    seconds are waited after every form submission (the service is a
-    small public host; the default keeps submissions polite).
+    nothing (its scan serves the signature cache's recorded answers but
+    never writes the cache file). ``session`` is used as given for every
+    family; otherwise each family's own default session applies (a
+    declared CA bundle is honored). Verification is never skippable:
+    every recorded sha256 is checked on every run, and every
+    content-based conformance check runs. ``cache`` controls only
+    whether the file-derived answers (hashes, content facts) are served
+    from the database's quick-signature cache instead of being re-derived
+    by a full read — ``True`` (the default) uses the root's
+    ``signature_cache.json`` (one ``stat`` per unchanged file;
+    :mod:`~stellariso.database.signature_cache` for the whole contract,
+    including the delete-to-re-verify rule), ``False`` bypasses it so
+    every check reads the file (the force-full-check mode), and an
+    explicit :class:`SignatureCache` instance is used as given. With
+    ``extract=False`` only the official archives are kept (the complete,
+    self-contained backup); ``Database.grid`` extracts a product on
+    first open, verifying the archive's sha256 first — the right mode
+    when the disk cannot hold the extracted form of every package at
+    once. The archive always stays alongside any extraction.
+    ``form_pause`` seconds are waited after every form submission (the
+    service is a small public host; the default keeps submissions
+    polite).
     """
     root = Path(database)
     families = _family_order(
@@ -231,17 +274,23 @@ def build_database(
     )
 
     if dry_run:
-        _dry_run(root, families, log, verify=verify_existing)
+        _dry_run(root, families, log, cache=_scan_cache(root, cache, writable=False))
         return None
 
     root.mkdir(parents=True, exist_ok=True)
-    report = scan_database(root, families=families, verify_checksums=verify_existing)
+    scan_cache = _scan_cache(root, cache, writable=True)
+    report = scan_database(root, families=families, cache=scan_cache)
 
     for family in families:
         adapter = adapter_for(family)
         fam = report.families[family]
         fam_session = session if session is not None else adapter.default_session(root)
-        client = adapter.fetch_client(session=fam_session)
+        kit = _BuildKit(
+            session=fam_session,
+            client=adapter.fetch_client(session=fam_session),
+            cache=scan_cache,
+            form_pause=form_pause,
+        )
         for key in sorted(fam.products):
             if key not in fam.committed_keys:
                 continue  # beyond the committed target: never fetched
@@ -255,17 +304,10 @@ def build_database(
             if not scan.missing_parts:
                 log(f"keep verified {scan.design.relative_dir}")
                 continue
-            _complete_product(
-                root,
-                adapter,
-                scan,
-                session=fam_session,
-                client=client,
-                extract=extract,
-                form_pause=form_pause,
-                log=log,
-            )
+            _complete_product(root, adapter, scan, kit, extract=extract, log=log)
             log(f"fetched {scan.design.relative_dir}")
 
+    if scan_cache is not None:
+        scan_cache.save_if_dirty()
     write_inventory(root)
     return open_database(root)

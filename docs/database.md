@@ -120,7 +120,30 @@ stellariso.build_database("path/to/database", dry_run=True) # the plan, nothing 
 python tools/database/build_database.py <db> [--dry-run] [--families padova ...]
 ```
 
-One loop serves every family. It scans first, then per product: needs-review products are skipped with a NOTICE; every missing part of a clean product is fetched through its family adapter (an archive download, or one form submission with a polite pause between submissions); the MANIFEST is rewritten as clean v2 (kept parts carry over untouched). Verified parts are never re-acquired — a form job is server-side compute, and a re-run only completes what is missing. `models=` limits the build to given families; `session=` supplies the HTTP session; `verify_existing=False` classifies present files without re-hashing (the rebuild-trust knob); `extract=False` keeps only the official archives.
+One loop serves every family. It scans first, then per product: needs-review products are skipped with a NOTICE; every missing part of a clean product is fetched through its family adapter (an archive download, or one form submission with a polite pause between submissions); the MANIFEST is rewritten as clean v2 (kept parts carry over untouched). Verified parts are never re-acquired — a form job is server-side compute, and a re-run only completes what is missing. `models=` limits the build to given families; `session=` supplies the HTTP session; `cache=False` bypasses the quick-signature cache so every check reads the file (the force-full-check mode); `extract=False` keeps only the official archives.
+
+### Verification and the quick-signature cache
+
+Every scan verifies every recorded quantity: each present part's sha256
+against its MANIFEST record, and every content-based conformance check
+the family declares (for PARSEC, the isochrone block counts come from a
+full decompressed line scan of the table). Nothing about the
+verification can be switched off — there is no rebuild-trust knob.
+
+What makes that affordable is the database's quick-signature cache
+(`signature_cache.json` at the root): each file's derived answers are
+keyed by its quick signature — `{path}_{size}_{mtime_ns}`, the path
+relative to the database root — so a file that has not changed since
+its last classification is classified with one `stat` instead of a
+full read. The cache is an accelerator, never an authority (the
+MANIFEST and the designs stay what verdicts are judged against);
+deleting it is always safe and forces one full re-verify, as does
+`cache=False` on `scan_database`/`build_database` (also
+`--no-cache` on the CLI tools). After moving a database between
+machines with an mtime-preserving copy, delete the cache once: the
+keys carry no cross-machine invalidation. A dry run and the transfer
+operations scan with a non-writing cache — they serve recorded answers
+but never create or update the file.
 
 ### Status
 

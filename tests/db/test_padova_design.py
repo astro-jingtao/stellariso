@@ -127,7 +127,7 @@ class TestClassify:
         assert verdict.kind == "ok"
         assert any("not verified" in w for w in verdict.warnings)
 
-    def test_verify_false_skips_hashing(self, adapter, tmp_path):
+    def test_classification_without_a_cache_still_hashes(self, adapter, tmp_path):
         design = _design(adapter, "1994")
         directory = tmp_path / design.relative_dir
         self._place(directory, "ReadMe", b"payload")
@@ -136,9 +136,8 @@ class TestClassify:
             _part(design, "readme"),
             directory,
             {"parts": {"readme": {"sha256": "0" * 64}}},
-            verify=False,
         )
-        assert verdict.kind == "ok"  # conformance-only, no hash check
+        assert verdict.kind == "nonconforming"  # no skip-verify path exists
 
 
 class _FakeResponse:
