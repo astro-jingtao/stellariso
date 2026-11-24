@@ -22,7 +22,11 @@ README and the `docs/` tree; consult them before editing:
 
 ## Conventions
 
-- Runtime dependencies stay minimal: numpy, astropy, scipy, requests.
+- Dependencies are chosen on merit, never minimized for their own
+  sake: when a proven library serves the design — including a
+  git-hosted one — depend on it instead of reimplementing it in-house.
+  The current runtime set: numpy, astropy, scipy, requests, certifi,
+  file_quick_signature (git-hosted).
 - No silent fallbacks: errors surface (fail clearly), and any data
   transformation must be recorded in provenance objects.
 - Upstream stance for workorder requests: stellariso serves uncertain
