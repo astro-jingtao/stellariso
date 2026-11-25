@@ -359,6 +359,23 @@ class TestSafeExtract:
         with pytest.raises(ValueError, match="escapes"):
             dbmod._safe_extract(archive, tmp_path / "out")
 
+    def test_sibling_prefix_member_rejected(self, tmp_path):
+        # a sibling directory whose name extends the target's name
+        # (target .../out, member ../out2/...) resolves outside the
+        # target yet passes a startswith prefix test — containment
+        # must be common-path based
+        target = tmp_path / "out"
+        buf = BytesIO()
+        with tarfile.open(fileobj=buf, mode="w") as tf:
+            data = b"evil"
+            info = tarfile.TarInfo(name=f"../{target.name}2/evil.txt")
+            info.size = len(data)
+            tf.addfile(info, BytesIO(data))
+        archive = tmp_path / "evil.txz"
+        archive.write_bytes(buf.getvalue())
+        with pytest.raises(ValueError, match="escapes"):
+            dbmod._safe_extract(archive, target)
+
 
 class TestZipProductsAndCaBundle:
     def test_build_zip_archive_product(self, tmp_path, monkeypatch):

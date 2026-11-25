@@ -13,6 +13,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 import inspect
+import os
 from pathlib import Path
 import tarfile
 import warnings
@@ -65,8 +66,12 @@ def _safe_extract(archive_path: Path, target: Path) -> list[str]:
     extracted = []
 
     def _check(name: str) -> None:
+        # containment by common path, not by name-prefix comparison: a
+        # member may resolve to a sibling whose name extends the
+        # target's (target .../out, member ../out2/...), which a plain
+        # startswith test would pass
         dest = (target / name).resolve()
-        if not str(dest).startswith(str(target)):
+        if os.path.commonpath([str(dest), str(target)]) != str(target):
             raise ValueError(
                 f"archive member {name!r} escapes the target directory"
             )
