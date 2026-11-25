@@ -6,13 +6,6 @@
 # release cannot change the gate. The network suite is an explicit opt-in
 # job: upstream availability (and the live CMD form job) must never gate
 # merges, so it reports but cannot fail.
-#
-# The offline job's failure diagnostics are permanent, not scaffolding:
-# pytest writes a junit report and a full log, a dedicated step re-emits
-# every failed test as an error annotation, and both files ride as
-# artifacts. Annotations and artifact metadata stay readable through the
-# API even where job logs are not (no log-download rights), so this trio
-# is the failure observation surface the matrix is debugged through.
 
 name: CI
 
@@ -65,45 +58,7 @@ jobs:
       - name: Install package with test extras
         run: python -m pip install -e .[test]
       - name: Offline test suite
-        shell: bash
-        env:
-          PYTHONFAULTHANDLER: "1"
-        run: |
-          set -o pipefail
-          python -u -m pytest --junitxml=junit.xml 2>&1 | tee pytest_out.log; code=${PIPESTATUS[0]}
-          exit "$code"
-      - name: Emit failure diagnostics
-        if: failure()
-        shell: bash
-        run: |
-          # a dedicated clean step (no pipelines) — the annotation channel
-          # works from steps like this one; the debugging surface is
-          # readable through the API without log-download rights
-          python - <<'PY'
-          import os
-          import xml.etree.ElementTree as ET
-          if os.path.exists('junit.xml'):
-              t = ET.parse('junit.xml').getroot()
-              for tc in t.iter('testcase'):
-                  f = tc.find('failure')
-                  if f is None:
-                      f = tc.find('error')
-                  if f is not None:
-                      msg = (f.get('message') or '')[:1200].replace('\n', ' ~~~ ')
-                      print(f"##[error]{tc.get('classname')}.{tc.get('name')}: {msg}")
-          PY
-          if [ -f pytest_out.log ]; then
-            T=$(tail -n 25 pytest_out.log | sed -z 's/\r//g; s/\n/ ~~/g')
-            echo "##[error]tail: ${T:0:3800}"
-          fi
-      - name: Upload test logs (diagnostics)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pytest-log-${{ matrix.python-version }}-${{ matrix.os }}
-          path: |
-            pytest_out.log
-            junit.xml
+        run: python -m pytest
 
   network:
     name: network suite (never gates)
