@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+import inspect
 from pathlib import Path
 import tarfile
 import warnings
@@ -35,6 +36,18 @@ from stellariso.warnings import ChecksumUnavailableWarning
 __all__ = ["Database", "ProductRecord", "open_database", "register_local_product"]
 
 _DATA_SUFFIXES = (".iso", ".track", ".eep", ".dat")
+
+# tarfile's ``filter`` parameter is a security backport (3.9.17+, 3.10.12+,
+# 3.11.4+); several supported-interpreter bundles predate it (the windows
+# and macos runner images ship such 3.9 and 3.10). The per-member escape
+# check in ``_safe_extract`` already refuses any member that resolves
+# outside the target, so on interpreters without the parameter the
+# extraction runs with the plain legacy behavior the filter tightens.
+_EXTRACT_FILTER = (
+    {"filter": "data"}
+    if "filter" in inspect.signature(tarfile.TarFile.extract).parameters
+    else {}
+)
 
 
 def _count_data_files(target_dir: Path) -> int:
@@ -69,7 +82,7 @@ def _safe_extract(archive_path: Path, target: Path) -> list[str]:
     with tarfile.open(archive_path, mode="r:*") as tf:
         for member in tf.getmembers():
             _check(member.name)
-            tf.extract(member, target, filter="data")
+            tf.extract(member, target, **_EXTRACT_FILTER)
             extracted.append(member.name)
     return extracted
 
