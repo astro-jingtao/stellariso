@@ -31,10 +31,12 @@ never consults it: every check is a full read, the force-full-check
 mode.
 
 Keys are relative to the database root, so moving (or renaming, or
-symlinking) the database within one machine keeps the cache valid.
-There is deliberately no cross-machine invalidation: an mtime-preserving
-copy (``cp -a``, ``rsync -a``, ``tar``) leaves the keys usable on the
-new machine while the content went unverified in transit, so after
+symlinking) the database within one machine keeps the cache valid,
+and the POSIX separators make them OS-independent: a cache written
+under one OS reads back under another. There is deliberately no
+cross-machine invalidation beyond that: an mtime-preserving copy
+(``cp -a``, ``rsync -a``, ``tar``) leaves the keys usable on the new
+machine while the content went unverified in transit, so after
 migrating a database to another machine, delete
 ``signature_cache.json`` to force one full re-verify (a fresh rsync
 transfer verifies content by checksum anyway).
@@ -62,23 +64,42 @@ __all__ = ["SIGNATURE_CACHE_NAME", "SignatureCache"]
 SIGNATURE_CACHE_NAME = "signature_cache.json"
 
 
+class _PosixRelativeRemapper:
+    r"""The absolute-to-relative remapper answering POSIX separators.
+
+    Cache keys are platform-independent relative paths (``"a/b/c"`` on
+    every OS): a store file written under one OS must read back under
+    another. ``AbsoluteToRelativeRemapper`` answers in its base's flavor
+    — backslashes under the Windows flavor — so this wrapper normalizes
+    the remapped form. The trade-off (a POSIX filename holding a literal
+    ``\\`` folds to ``/``) is the price of the separator contract.
+    """
+
+    def __init__(self, base: str) -> None:
+        self._inner = AbsoluteToRelativeRemapper(base)
+
+    def remap(self, path: str) -> str:
+        return self._inner.remap(path).replace("\\", "/")
+
+
 class SignatureCache:
     """Derived per-file answers keyed by quick signature.
 
     The store file is ``<root>/signature_cache.json``, held by a
     ``file_quick_signature`` :class:`SignatureStore` whose keys are built
-    from paths relative to ``root`` (the root is canonicalized the same
-    way ``file_quick_signature`` canonicalizes files, so every alias of
-    the database produces the same keys). Each key's payload is the
-    fact dictionary of the classification layer. ``writable=False``
-    serves and records in memory but never saves. A corrupt store file
-    raises (a damaged accelerator is surfaced, never silently dropped).
+    from paths relative to ``root`` with POSIX separators (the root is
+    canonicalized the same way ``file_quick_signature`` canonicalizes
+    files, so every alias of the database produces the same keys).
+    Each key's payload is the fact dictionary of the classification
+    layer. ``writable=False`` serves and records in memory but never
+    saves. A corrupt store file raises (a damaged accelerator is
+    surfaced, never silently dropped).
     """
 
     def __init__(self, root: str | Path, *, writable: bool = True) -> None:
         """One database's quick-signature cache (a derived accelerator)."""
         self._root = Path(root)
-        self._remapper = AbsoluteToRelativeRemapper(
+        self._remapper = _PosixRelativeRemapper(
             os.path.realpath(str(self._root))
         )
         self._store = SignatureStore(
